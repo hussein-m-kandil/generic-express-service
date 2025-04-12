@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "moduleDetection": "force", // Treat files as modules even if it doesn't use import/export
+    "isolatedModules": true, // Disallow features that require cross-file awareness
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "skipLibCheck": true,
+    "module": "commonjs",
+    "sourceMap": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "target": "ES2020",
+    "strict": true
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["src/tests", "**/*.test.ts"]
+}
