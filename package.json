@@ -1,0 +1,36 @@
+{
+  "name": "generic-express-service",
+  "version": "1.0.0",
+  "description": "A generic Express.js back-end service that supports multiple front-end projects. Includes RESTful API endpoints, authentication/authorization logic, and maybe some scheduled background jobs for database maintenance.",
+  "keywords": [
+    "node",
+    "express",
+    "typescript",
+    "prisma",
+    "postgresql",
+    "zod",
+    "rest",
+    "cors",
+    "jwt",
+    "backend",
+    "web",
+    "http",
+    "service",
+    "monolith",
+    "api"
+  ],
+  "homepage": "https://github.com/hussein-m-kandil/generic-express-service#readme",
+  "bugs": {
+    "url": "https://github.com/hussein-m-kandil/generic-express-service/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hussein-m-kandil/generic-express-service.git"
+  },
+  "author": "example_user",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
