@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import stylistic from '@stylistic/eslint-plugin';
+import pluginSecurity from 'eslint-plugin-security';
 
 export default tseslint.config({
   ignores: ['dist'],
@@ -9,6 +10,7 @@ export default tseslint.config({
     eslint.configs.recommended,
     tseslint.configs.strictTypeChecked,
     tseslint.configs.stylisticTypeChecked,
+    pluginSecurity.configs.recommended,
   ],
   languageOptions: {
     parserOptions: { project: true, tsconfigRootDir: import.meta.dirname },
