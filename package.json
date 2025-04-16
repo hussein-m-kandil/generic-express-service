@@ -29,14 +29,14 @@
   },
   "author": "example_user",
   "type": "commonjs",
-  "main": "./dist/app.js",
+  "main": "./dist/server.js",
   "scripts": {
     "build": "tsc",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "prepare": "simple-git-hooks",
-    "start": "node ./dist/app.js",
-    "dev": "tsx watch --env-file-if-exists=.env ./src/app.ts",
+    "start": "node ./dist/server.js",
+    "dev": "tsx watch --env-file-if-exists=.env ./src/server.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
