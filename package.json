@@ -36,10 +36,11 @@
     "type-check": "tsc --noEmit",
     "prepare": "simple-git-hooks",
     "start": "node ./dist/server.js",
-    "prisma:generate": "prisma generate",
-    "postinstall": "npm run prisma:generate",
+    "postinstall": "prisma generate",
     "dev": "tsx watch --env-file-if-exists=.env ./src/server.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "pg:up": "docker compose -f docker-compose.postgres.yml up",
+    "pg:stop": "docker compose -f docker-compose.postgres.yml stop",
+    "pg:down": "docker compose -f docker-compose.postgres.yml down --remove-orphans"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
