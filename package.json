@@ -31,15 +31,18 @@
   "type": "commonjs",
   "main": "./dist/server.js",
   "scripts": {
-    "build": "tsc",
     "lint": "eslint .",
+    "build": "tsc --pretty",
     "type-check": "tsc --noEmit",
     "prepare": "simple-git-hooks",
     "start": "node ./dist/server.js",
+    "prisma:generate": "prisma generate",
+    "postinstall": "npm run prisma:generate",
     "dev": "tsx watch --env-file-if-exists=.env ./src/server.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@prisma/client": "^6.6.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0"
   },
@@ -52,15 +55,13 @@
     "@types/node": "^22.14.1",
     "eslint": "^9.24.0",
     "eslint-plugin-security": "^3.0.1",
+    "prisma": "^6.6.0",
     "simple-git-hooks": "^2.12.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.29.1"
   },
   "simple-git-hooks": {
-    "pre-commit": [
-      "npm run lint",
-      "npm run type-check"
-    ]
+    "pre-commit": "npm run lint && npm run type-check"
   }
 }

@@ -46,11 +46,11 @@ jspm_packages/
 
 # dotenv environment variable files
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.*
 
 # Transpiled code
 build
 dist
+
+# Prisma generated client (should not be needed starting from v7; refer to the docs)
+prisma/generated/client
