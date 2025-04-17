@@ -1,6 +1,7 @@
 import requestLogger from './middlewares/request-logger';
 import errorHandler from './middlewares/error-handler';
 import AppError from './lib/app-error';
+import apiV1Router from './api/v1';
 import express from 'express';
 import helmet from 'helmet';
 
@@ -12,12 +13,10 @@ app.use(helmet());
 app.use(express.json());
 app.use(requestLogger);
 
-app.get('/api/ping', (req, res) => {
-  res.json({ message: 'pong' });
-});
+app.use('/api/v1', apiV1Router);
 
 app.use((req) => {
-  const message = `cannot ${req.method} ${req.originalUrl}`;
+  const message = `Cannot ${req.method} ${req.originalUrl}`;
   throw new AppError(message, 404, 'UnknownRouteError');
 });
 
