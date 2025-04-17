@@ -6,17 +6,26 @@ const globalForPrisma = global as GlobalWithPrisma;
 
 export let prismaClient: PrismaClient;
 
+logger.info();
+logger.info(process.env.DATABASE_URL);
+logger.info(`using prisma client in ${process.env.NODE_ENV} mode`);
+
 if (globalForPrisma.prisma) {
   logger.info('using cached prisma client...');
   prismaClient = globalForPrisma.prisma;
 } else {
   logger.info('instantiating new prisma client...');
-  prismaClient = new PrismaClient();
+  prismaClient = new PrismaClient({
+    // Read the URL programmatically to support replacing .env with .env.test in CLI
+    datasourceUrl: process.env.DATABASE_URL,
+  });
 }
 
 if (process.env.NODE_ENV !== 'production') {
   logger.info('caching prisma client...');
   globalForPrisma.prisma = prismaClient;
 }
+
+logger.info();
 
 export default prismaClient;

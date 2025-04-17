@@ -32,15 +32,18 @@
   "main": "./dist/server.js",
   "scripts": {
     "lint": "eslint .",
-    "build": "tsc --pretty",
-    "type-check": "tsc --noEmit",
     "prepare": "simple-git-hooks",
-    "start": "node ./dist/server.js",
     "postinstall": "prisma generate",
-    "dev": "tsx watch --env-file-if-exists=.env ./src/server.ts",
-    "pg:up": "docker compose -f docker-compose.postgres.yml up",
+    "start": "node ./dist/server.js",
+    "type-check": "tsc --noEmit --pretty",
+    "test": "dotenv -e .env.test -o -- vitest",
+    "dev": "tsx watch --env-file=.env ./src/server.ts",
+    "build": "tsc --pretty --project tsconfig.prod.json",
+    "migrate:reset": "prisma migrate reset --force --skip-generate --skip-seed",
+    "migrate:test": "dotenv -e .env.test -o -- npm run migrate:reset && npm run test",
+    "pg:down": "docker compose -f docker-compose.postgres.yml down --remove-orphans",
     "pg:stop": "docker compose -f docker-compose.postgres.yml stop",
-    "pg:down": "docker compose -f docker-compose.postgres.yml down --remove-orphans"
+    "pg:up": "docker compose -f docker-compose.postgres.yml up"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
@@ -54,13 +57,17 @@
     "@types/eslint-plugin-security": "^3.0.0",
     "@types/express": "^5.0.1",
     "@types/node": "^22.14.1",
+    "@types/supertest": "^6.0.3",
+    "dotenv-cli": "^8.0.0",
     "eslint": "^9.24.0",
     "eslint-plugin-security": "^3.0.1",
     "prisma": "^6.6.0",
     "simple-git-hooks": "^2.12.1",
+    "supertest": "^7.1.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.29.1"
+    "typescript-eslint": "^8.29.1",
+    "vitest": "^3.1.1"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run lint && npm run type-check"
