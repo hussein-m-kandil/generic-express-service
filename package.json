@@ -48,7 +48,8 @@
   "dependencies": {
     "@prisma/client": "^6.6.0",
     "express": "^5.1.0",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
