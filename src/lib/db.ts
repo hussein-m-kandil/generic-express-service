@@ -7,7 +7,6 @@ const globalForPrisma = global as GlobalWithPrisma;
 export let prismaClient: PrismaClient;
 
 logger.info();
-logger.info(process.env.DATABASE_URL);
 logger.info(`using prisma client in ${process.env.NODE_ENV} mode`);
 
 if (globalForPrisma.prisma) {
@@ -23,6 +22,7 @@ if (globalForPrisma.prisma) {
 
 if (process.env.NODE_ENV !== 'production') {
   logger.info('caching prisma client...');
+  logger.info(process.env.DATABASE_URL);
   globalForPrisma.prisma = prismaClient;
 }
 
