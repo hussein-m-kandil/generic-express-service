@@ -1,5 +1,5 @@
 import { User } from '../../../../prisma/generated/client';
-import { NewDefaultUser } from '../../../types';
+import { NewDefaultUser, PublicUser } from '../../../types';
 import { describe, it, expect } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -36,6 +36,21 @@ describe('/users', () => {
       expect(res.body).toHaveLength(1);
       expect(users[0].username).toStrictEqual(userMock.username);
       expect(users[0].fullname).toStrictEqual(userMock.fullname);
+      await db.user.delete({ where: { id } });
+    });
+  });
+
+  describe('post a user', () => {
+    it('should create the user', async () => {
+      const res = await api.post('/').send(userMock);
+      const createdUser = res.body as PublicUser;
+      const { id } = await db.user.findUniqueOrThrow({
+        where: { id: createdUser.id },
+      });
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(201);
+      expect(createdUser.username).toStrictEqual(userMock.username);
+      expect(createdUser.fullname).toStrictEqual(userMock.fullname);
       await db.user.delete({ where: { id } });
     });
   });
