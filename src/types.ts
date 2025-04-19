@@ -13,4 +13,6 @@ export type NewDefaultUser = Omit<
 
 export type PublicUser = Omit<User, 'password' | 'isAdmin'>;
 
-export type NewUser = z.infer<typeof userSchema>;
+export type NewUserInput = z.input<typeof userSchema>;
+
+export type NewUserOutput = z.output<typeof userSchema>;
