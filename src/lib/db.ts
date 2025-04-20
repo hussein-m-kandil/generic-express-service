@@ -22,7 +22,10 @@ if (globalForPrisma.prisma) {
 
 if (process.env.NODE_ENV !== 'production') {
   logger.info('caching prisma client...');
-  logger.info(process.env.DATABASE_URL);
+  const { protocol, host, pathname } = new URL(
+    process.env.DATABASE_URL ?? 'postgres://x:y@z:5432/expect_db_url_env_var'
+  );
+  logger.info(`DB URL: ${protocol}//xxx:***@${host}${pathname}`);
   globalForPrisma.prisma = prismaClient;
 }
 
