@@ -8,4 +8,13 @@ export class AppError extends Error {
   }
 }
 
+export class AppSignInError extends AppError {
+  constructor(
+    errorMessage = 'Incorrect username or password',
+    statusCode = 400
+  ) {
+    super(errorMessage, statusCode, 'SignInError');
+  }
+}
+
 export default AppError;

@@ -50,6 +50,10 @@
     "bcryptjs": "^3.0.2",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "passport-local": "^1.0.0",
     "zod": "^3.24.3"
   },
   "devDependencies": {
@@ -58,7 +62,11 @@
     "@types/eslint__js": "^8.42.3",
     "@types/eslint-plugin-security": "^3.0.0",
     "@types/express": "^5.0.1",
+    "@types/ms": "^2.1.0",
     "@types/node": "^22.14.1",
+    "@types/passport": "^1.0.17",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/passport-local": "^1.0.38",
     "@types/supertest": "^6.0.3",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9.24.0",

@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
-import AppError from '../lib/app-error';
-import logger from '../lib/logger';
+import { AppError } from '../lib/app-error';
+import { AppErrorResponse } from '../types';
 import { ZodError } from 'zod';
+import logger from '../lib/logger';
 
 export const errorHandler = (
   error: unknown,
@@ -10,6 +11,7 @@ export const errorHandler = (
   _next: NextFunction
 ) => {
   logger.error(error);
+  let errorRes: AppErrorResponse;
   if (error instanceof ZodError) {
     res.status(400).json(error.issues);
   } else {
@@ -17,7 +19,8 @@ export const errorHandler = (
       error instanceof AppError
         ? error
         : new AppError('something went wrong', 500, 'ServerError');
-    res.status(statusCode).json({ error: { name, message } });
+    errorRes = { error: { name, message } };
+    res.status(statusCode).json(errorRes);
   }
 };
 
