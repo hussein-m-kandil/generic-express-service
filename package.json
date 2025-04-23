@@ -39,8 +39,7 @@
     "test": "dotenv -e .env.test -o -- vitest",
     "dev": "tsx watch --env-file=.env ./src/server.ts",
     "build": "tsc --pretty --project tsconfig.prod.json",
-    "migrate:reset": "prisma migrate reset --force --skip-generate --skip-seed",
-    "migrate:test": "dotenv -e .env.test -o -- npm run migrate:reset && npm run test",
+    "test:db:push": "dotenv -e .env.test -o -- prisma db push --skip-generate",
     "pg:down": "docker compose -f docker-compose.postgres.yml down --remove-orphans",
     "pg:stop": "docker compose -f docker-compose.postgres.yml stop",
     "pg:up": "docker compose -f docker-compose.postgres.yml up"

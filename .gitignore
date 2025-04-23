@@ -46,7 +46,7 @@ jspm_packages/
 
 # dotenv environment variable files
 .env
-.env.*
+.env.local*
 
 # Transpiled code
 build
