@@ -22,7 +22,7 @@ export type NewUserOutput = z.output<typeof userSchema>;
 
 export type AppJwtPayload = JwtPayload & JwtUser;
 
-export interface SignInResponse {
+export interface AuthResponse {
   user: PublicUser;
   token: string;
 }

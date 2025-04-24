@@ -1,9 +1,12 @@
+import {
+  createJwtForUser,
+  convertUserToPublicUser,
+} from '../../../lib/helpers';
 import { User } from '../../../../prisma/generated/client';
 import { AppSignInError } from '../../../lib/app-error';
 import { RequestHandler, Router } from 'express';
-import { SignInResponse } from '../../../types';
+import { AuthResponse } from '../../../types';
 import logger from '../../../lib/logger';
-import authService from './auth.service';
 import passport from '../../../lib/passport';
 
 export const authRouter = Router();
@@ -22,9 +25,9 @@ authRouter.post('/signin', async (req, res, next) => {
             req.login(user, { session: false }, (loginError) => {
               if (loginError) next(loginError);
               else {
-                const loginRes: SignInResponse = {
-                  token: authService.getJwtFromUser(user),
-                  user: authService.getPublicUserFromUser(user),
+                const loginRes: AuthResponse = {
+                  token: createJwtForUser(user),
+                  user: convertUserToPublicUser(user),
                 };
                 res.json(loginRes);
               }
