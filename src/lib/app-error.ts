@@ -17,4 +17,16 @@ export class AppSignInError extends AppError {
   }
 }
 
+export class AppInvalidIdError extends AppError {
+  constructor(errorMessage = 'Invalid id', statusCode = 400) {
+    super(errorMessage, statusCode, 'InvalidIdError');
+  }
+}
+
+export class AppNotFoundError extends AppError {
+  constructor(errorMessage = 'Not found', statusCode = 404) {
+    super(errorMessage, statusCode, 'NotFoundError');
+  }
+}
+
 export default AppError;

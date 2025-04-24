@@ -3,6 +3,7 @@ import {
   NewDefaultUser,
   NewUserInput,
   AuthResponse,
+  AppErrorResponse,
 } from '../../../types';
 import { User } from '../../../../prisma/generated/client';
 import {
@@ -59,6 +60,39 @@ describe('Users endpoint', () => {
       expect(users[0].username).toBe(userData.username);
       expect(users[0].fullname).toBe(userData.fullname);
       await db.user.delete({ where: { id: dbUser.id } });
+    });
+  });
+
+  describe(`GET ${BASE_URL}/:id`, () => {
+    it('should respond with 400 if given an invalid id', async () => {
+      const res = await api.get(`${BASE_URL}/foo`);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/id/i);
+      expect(resBody.error.message).toMatch(/invalid/i);
+    });
+
+    it('should respond with 404 if user does not exit', async () => {
+      const { id } = await db.user.create({ data: userData });
+      await db.user.delete({ where: { id } });
+      const res = await api.get(`${BASE_URL}/${id}`);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(404);
+      expect(resBody.error.message).toMatch(/not found/i);
+    });
+
+    it('should respond with the found user', async () => {
+      const dbUser = await db.user.create({ data: userData });
+      const res = await api.get(`${BASE_URL}/${dbUser.id}`);
+      const resUser = res.body as User;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(200);
+      expect(resUser.id).toBe(dbUser.id);
+      expect(resUser.username).toBe(dbUser.username);
+      expect(resUser.password).toBeUndefined();
+      expect(resUser.isAdmin).toBeUndefined();
     });
   });
 
