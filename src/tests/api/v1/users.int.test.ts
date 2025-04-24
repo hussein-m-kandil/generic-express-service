@@ -128,6 +128,16 @@ describe('Users endpoint', () => {
       await assertResponseWithValidationError(res, 'confirm');
     });
 
+    it('should not create a user if the username is already exist', async () => {
+      const { id } = await db.user.create({ data: userData });
+      const res = await api.post(BASE_URL).send(newUserData);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/already exist/i);
+      await db.user.delete({ where: { id } });
+    });
+
     it('should not create an admin user', async () => {
       const res = await api
         .post(BASE_URL)

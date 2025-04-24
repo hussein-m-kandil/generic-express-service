@@ -1,5 +1,8 @@
 import { Prisma } from '../../../../prisma/generated/client';
-import { AppInvalidIdError } from '../../../lib/app-error';
+import {
+  AppInvalidIdError,
+  AppUniqueConstraintViolationError,
+} from '../../../lib/app-error';
 import { NewUserOutput, PublicUser } from '../../../types';
 import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
@@ -15,8 +18,21 @@ export default {
   },
 
   async createOne(newUser: NewUserOutput): Promise<PublicUser> {
-    newUser.password = await hashPassword(newUser.password);
-    return await db.user.create({ data: newUser, omit });
+    try {
+      newUser.password = await hashPassword(newUser.password);
+      return await db.user.create({ data: newUser, omit });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const targets = error.meta?.target as string[] | undefined;
+        throw new AppUniqueConstraintViolationError(
+          targets?.at(-1) ?? 'username'
+        );
+      }
+      throw error;
+    }
   },
 
   async findOneById(id: string): Promise<PublicUser | null> {

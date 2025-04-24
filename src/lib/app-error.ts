@@ -29,4 +29,11 @@ export class AppNotFoundError extends AppError {
   }
 }
 
+export class AppUniqueConstraintViolationError extends AppError {
+  constructor(fieldName: string, errorMessage = '', statusCode = 400) {
+    if (!errorMessage) errorMessage = `${fieldName} already exists`;
+    super(errorMessage, statusCode, 'UniqueConstraintViolationError');
+  }
+}
+
 export default AppError;
