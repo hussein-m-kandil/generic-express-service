@@ -112,7 +112,6 @@ describe('Users endpoint', () => {
 
     for (const field of Object.keys(newUserData)) {
       it(`should not create a user without ${field}`, async () => {
-        await db.user.deleteMany();
         const res = await api
           .post(BASE_URL)
           .send({ ...newUserData, [field]: undefined });
@@ -121,7 +120,6 @@ describe('Users endpoint', () => {
     }
 
     it(`should not create a user with wrong password confirmation`, async () => {
-      await db.user.deleteMany();
       const res = await api
         .post(BASE_URL)
         .send({ ...userData, confirm: 'blah' });
