@@ -6,7 +6,6 @@ const globalForPrisma = global as GlobalWithPrisma;
 
 export let prismaClient: PrismaClient;
 
-logger.info();
 logger.info(`using prisma client in ${process.env.NODE_ENV} mode`);
 
 if (globalForPrisma.prisma) {
@@ -28,7 +27,5 @@ if (process.env.NODE_ENV !== 'production') {
   logger.info(`DB URL: ${protocol}//xxx:***@${host}${pathname}`);
   globalForPrisma.prisma = prismaClient;
 }
-
-logger.info();
 
 export default prismaClient;

@@ -80,7 +80,6 @@ describe('Authentication endpoint', () => {
     it('should sign in and response with JWT and user insensitive-info', async () => {
       const res = await api.post(SIGNIN_URL).send(signInData);
       const resBody = res.body as SignInResponse;
-      console.log(resBody);
       const resUser = resBody.user as User;
       const resJwtPayload = jwt.decode(
         resBody.token.replace(/^Bearer /, '')

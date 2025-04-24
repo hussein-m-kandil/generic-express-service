@@ -1,12 +1,14 @@
 import { NextFunction, Request, Response } from 'express';
 import logger from '../lib/logger';
 
-export const logReq = (req: Request, res: Response, next: NextFunction) => {
-  logger.log('<---');
-  logger.info(`${req.method}: ${req.originalUrl}`);
-  if (req.body) logger.info(req.body);
-  logger.log('--->');
+export const requestLogger = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const body = req.body as unknown;
+  logger.info(`${req.method}: ${req.originalUrl}`, { body });
   next();
 };
 
-export default logReq;
+export default requestLogger;
