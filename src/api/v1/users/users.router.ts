@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import usersService from './users.service';
 import userSchema from './user.schema';
+import { createJwtForUser } from '../../../lib/helpers';
+import { AuthResponse } from '../../../types';
 
 export const usersRouter = Router();
 
@@ -13,7 +15,11 @@ usersRouter.post('/', async (req, res, next) => {
   try {
     const parsedNewUser = userSchema.parse(req.body);
     const createdUser = await usersService.createOne(parsedNewUser);
-    res.status(201).json(createdUser);
+    const signupRes: AuthResponse = {
+      token: createJwtForUser(createdUser),
+      user: createdUser,
+    };
+    res.status(201).json(signupRes);
   } catch (error) {
     next(error);
   }

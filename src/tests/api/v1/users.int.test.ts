@@ -1,4 +1,10 @@
-import { NewDefaultUser, NewUserInput } from '../../../types';
+import {
+  AppJwtPayload,
+  NewDefaultUser,
+  NewUserInput,
+  AuthResponse,
+} from '../../../types';
+import { User } from '../../../../prisma/generated/client';
 import {
   it,
   expect,
@@ -7,11 +13,11 @@ import {
   beforeEach,
   TestFunction,
 } from 'vitest';
-import { User } from '../../../../prisma/generated/client';
 import { ZodIssue } from 'zod';
+import jwt from 'jsonwebtoken';
 import app from '../../../app';
-import request, { Response } from 'supertest';
 import db from '../../../lib/db';
+import request, { Response } from 'supertest';
 
 describe('Users endpoint', () => {
   const BASE_URL = '/api/v1/users';
@@ -105,10 +111,15 @@ describe('Users endpoint', () => {
               }
             : newUserData
         );
-        const resUser = res.body as User;
+        const resBody = res.body as AuthResponse;
+        // Pretend that the user is a `User` and tests should prove that it is a `PublicUser`
+        const resUser = resBody.user as User;
         const dbUser = await db.user.findUniqueOrThrow({
           where: { id: resUser.id },
         });
+        const resJwtPayload = jwt.decode(
+          resBody.token.replace(/^Bearer /, '')
+        ) as AppJwtPayload;
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(201);
         expect(resUser.username).toBe(newUserData.username);
@@ -117,6 +128,10 @@ describe('Users endpoint', () => {
         expect(resUser.isAdmin).toBeUndefined();
         expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
         expect(dbUser.isAdmin).toBe(isAdmin);
+        expect(resBody.token).toMatch(/^Bearer /i);
+        expect(resJwtPayload.id).toBeTypeOf('string');
+        expect(resJwtPayload.username).toBe(userData.username);
+        expect(resJwtPayload.fullname).toBe(userData.fullname);
       };
     };
 
