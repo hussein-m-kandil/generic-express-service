@@ -36,4 +36,13 @@ usersRouter.post('/', async (req, res, next) => {
   }
 });
 
+usersRouter.delete('/:id', async (req, res, next) => {
+  try {
+    await usersService.deleteOne(req.params.id);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default usersRouter;

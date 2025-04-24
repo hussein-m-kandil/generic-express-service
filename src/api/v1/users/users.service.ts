@@ -48,4 +48,16 @@ export default {
       throw error;
     }
   },
+
+  async deleteOne(id: string): Promise<void> {
+    try {
+      await db.user.delete({ where: { id }, omit });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2023') throw new AppInvalidIdError();
+        if (error.code === 'P2025') return;
+      }
+      throw error;
+    }
+  },
 };

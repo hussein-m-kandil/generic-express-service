@@ -181,4 +181,28 @@ describe('Users endpoint', () => {
 
     it('should create an admin user', createPostNewUserTest(true));
   });
+
+  describe(`DELETE ${BASE_URL}/:id`, () => {
+    it('should respond with 204 if found a user and deleted it', async () => {
+      const dbUser = await db.user.create({ data: userData });
+      const res = await api.delete(`${BASE_URL}/${dbUser.id}`);
+      expect(res.statusCode).toBe(204);
+    });
+
+    it('should respond with 204 if not found a user', async () => {
+      const { id } = await db.user.create({ data: userData });
+      await db.user.delete({ where: { id } });
+      const res = await api.delete(`${BASE_URL}/${id}`);
+      expect(res.statusCode).toBe(204);
+    });
+
+    it('should respond with 400 if the id is invalid', async () => {
+      const res = await api.delete(`${BASE_URL}/foo`);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/id/i);
+      expect(resBody.error.message).toMatch(/invalid/i);
+    });
+  });
 });
