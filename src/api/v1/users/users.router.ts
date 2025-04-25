@@ -12,37 +12,25 @@ usersRouter.get('/', async (req, res) => {
   res.json(users);
 });
 
-usersRouter.get('/:id', async (req, res, next) => {
-  try {
-    const user = await usersService.findOneById(req.params.id);
-    if (!user) throw new AppNotFoundError('User not found');
-    res.json(user);
-  } catch (error) {
-    next(error);
-  }
+usersRouter.get('/:id', async (req, res) => {
+  const user = await usersService.findOneById(req.params.id);
+  if (!user) throw new AppNotFoundError('User not found');
+  res.json(user);
 });
 
-usersRouter.post('/', async (req, res, next) => {
-  try {
-    const parsedNewUser = userSchema.parse(req.body);
-    const createdUser = await usersService.createOne(parsedNewUser);
-    const signupRes: AuthResponse = {
-      token: createJwtForUser(createdUser),
-      user: createdUser,
-    };
-    res.status(201).json(signupRes);
-  } catch (error) {
-    next(error);
-  }
+usersRouter.post('/', async (req, res) => {
+  const parsedNewUser = userSchema.parse(req.body);
+  const createdUser = await usersService.createOne(parsedNewUser);
+  const signupRes: AuthResponse = {
+    token: createJwtForUser(createdUser),
+    user: createdUser,
+  };
+  res.status(201).json(signupRes);
 });
 
-usersRouter.delete('/:id', async (req, res, next) => {
-  try {
-    await usersService.deleteOne(req.params.id);
-    res.status(204).end();
-  } catch (error) {
-    next(error);
-  }
+usersRouter.delete('/:id', async (req, res) => {
+  await usersService.deleteOne(req.params.id);
+  res.status(204).end();
 });
 
 export default usersRouter;
