@@ -1,6 +1,15 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
+import { AuthResponse, NewUserInput } from '../../../types';
+import { createJwtForUser } from '../../../lib/helpers';
+import { AppNotFoundError } from '../../../lib/app-error';
+import { Prisma } from '../../../../prisma/generated/client';
+import userSchema, {
+  usernameSchema,
+  fullnameSchema,
+  passwordSchema,
+  secretSchema,
+} from './user.schema';
 import usersService from './users.service';
-import userSchema from './user.schema';
 
 export const usersRouter = Router();
 
@@ -9,14 +18,44 @@ usersRouter.get('/', async (req, res) => {
   res.json(users);
 });
 
-usersRouter.post('/', async (req, res, next) => {
-  try {
-    const parsedNewUser = userSchema.parse(req.body);
-    const createdUser = await usersService.createOne(parsedNewUser);
-    res.status(201).json(createdUser);
-  } catch (error) {
-    next(error);
+usersRouter.get('/:id', async (req, res) => {
+  const user = await usersService.findOneById(req.params.id);
+  if (!user) throw new AppNotFoundError('User not found');
+  res.json(user);
+});
+
+usersRouter.post('/', async (req, res) => {
+  const parsedNewUser = userSchema.parse(req.body);
+  const createdUser = await usersService.createOne(parsedNewUser);
+  const signupRes: AuthResponse = {
+    token: createJwtForUser(createdUser),
+    user: createdUser,
+  };
+  res.status(201).json(signupRes);
+});
+
+usersRouter.patch(
+  '/:id',
+  async (req: Request<{ id: string }, unknown, NewUserInput>, res) => {
+    const { username, fullname, password, confirm, secret } = req.body;
+    const data: Prisma.UserUpdateInput = {};
+    if (username) data.username = usernameSchema.parse(username);
+    if (fullname) data.fullname = fullnameSchema.parse(fullname);
+    if (password) {
+      data.password = passwordSchema.parse({
+        password: password,
+        confirm,
+      }).password;
+    }
+    if (secret && secretSchema.parse(secret)) data.isAdmin = true;
+    await usersService.updateOne(req.params.id, data);
+    res.status(204).end();
   }
+);
+
+usersRouter.delete('/:id', async (req, res) => {
+  await usersService.deleteOne(req.params.id);
+  res.status(204).end();
 });
 
 export default usersRouter;

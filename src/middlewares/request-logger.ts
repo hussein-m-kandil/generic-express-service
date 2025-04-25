@@ -7,7 +7,7 @@ export const requestLogger = (
   next: NextFunction
 ) => {
   const body = req.body as unknown;
-  logger.info(`${req.method}: ${req.originalUrl}`, { body });
+  logger.info(`${req.method}: ${req.originalUrl}`, body && { body });
   next();
 };
 

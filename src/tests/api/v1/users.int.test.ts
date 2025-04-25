@@ -1,17 +1,27 @@
-import { NewDefaultUser, NewUserInput } from '../../../types';
+import {
+  AppJwtPayload,
+  NewDefaultUser,
+  NewUserInput,
+  AuthResponse,
+  AppErrorResponse,
+} from '../../../types';
+import { Prisma, User } from '../../../../prisma/generated/client';
 import {
   it,
   expect,
   describe,
   afterAll,
+  afterEach,
   beforeEach,
   TestFunction,
 } from 'vitest';
-import { User } from '../../../../prisma/generated/client';
 import { ZodIssue } from 'zod';
-import app from '../../../app';
+import { ADMIN_SECRET, SALT } from '../../../lib/config';
 import request, { Response } from 'supertest';
+import jwt from 'jsonwebtoken';
+import app from '../../../app';
 import db from '../../../lib/db';
+import bcrypt from 'bcryptjs';
 
 describe('Users endpoint', () => {
   const BASE_URL = '/api/v1/users';
@@ -56,6 +66,39 @@ describe('Users endpoint', () => {
     });
   });
 
+  describe(`GET ${BASE_URL}/:id`, () => {
+    it('should respond with 400 if given an invalid id', async () => {
+      const res = await api.get(`${BASE_URL}/foo`);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/id/i);
+      expect(resBody.error.message).toMatch(/invalid/i);
+    });
+
+    it('should respond with 404 if user does not exit', async () => {
+      const { id } = await db.user.create({ data: userData });
+      await db.user.delete({ where: { id } });
+      const res = await api.get(`${BASE_URL}/${id}`);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(404);
+      expect(resBody.error.message).toMatch(/not found/i);
+    });
+
+    it('should respond with the found user', async () => {
+      const dbUser = await db.user.create({ data: userData });
+      const res = await api.get(`${BASE_URL}/${dbUser.id}`);
+      const resUser = res.body as User;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(200);
+      expect(resUser.id).toBe(dbUser.id);
+      expect(resUser.username).toBe(dbUser.username);
+      expect(resUser.password).toBeUndefined();
+      expect(resUser.isAdmin).toBeUndefined();
+    });
+  });
+
   describe(`POST ${BASE_URL}`, () => {
     const assertResponseWithValidationError = async (
       res: Response,
@@ -72,7 +115,6 @@ describe('Users endpoint', () => {
 
     for (const field of Object.keys(newUserData)) {
       it(`should not create a user without ${field}`, async () => {
-        await db.user.deleteMany();
         const res = await api
           .post(BASE_URL)
           .send({ ...newUserData, [field]: undefined });
@@ -81,11 +123,20 @@ describe('Users endpoint', () => {
     }
 
     it(`should not create a user with wrong password confirmation`, async () => {
-      await db.user.deleteMany();
       const res = await api
         .post(BASE_URL)
         .send({ ...userData, confirm: 'blah' });
       await assertResponseWithValidationError(res, 'confirm');
+    });
+
+    it('should not create a user if the username is already exist', async () => {
+      const { id } = await db.user.create({ data: userData });
+      const res = await api.post(BASE_URL).send(newUserData);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/already exist/i);
+      await db.user.delete({ where: { id } });
     });
 
     it('should not create an admin user', async () => {
@@ -101,14 +152,19 @@ describe('Users endpoint', () => {
           isAdmin
             ? {
                 ...newUserData,
-                secret: process.env.ADMIN_SECRET, // Must be defined
+                secret: ADMIN_SECRET, // Must be defined
               }
             : newUserData
         );
-        const resUser = res.body as User;
+        const resBody = res.body as AuthResponse;
+        // Pretend that the user is a `User` and tests should prove that it is a `PublicUser`
+        const resUser = resBody.user as User;
         const dbUser = await db.user.findUniqueOrThrow({
           where: { id: resUser.id },
         });
+        const resJwtPayload = jwt.decode(
+          resBody.token.replace(/^Bearer /, '')
+        ) as AppJwtPayload;
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(201);
         expect(resUser.username).toBe(newUserData.username);
@@ -117,11 +173,192 @@ describe('Users endpoint', () => {
         expect(resUser.isAdmin).toBeUndefined();
         expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
         expect(dbUser.isAdmin).toBe(isAdmin);
+        expect(resBody.token).toMatch(/^Bearer /i);
+        expect(resJwtPayload.id).toBeTypeOf('string');
+        expect(resJwtPayload.username).toBe(userData.username);
+        expect(resJwtPayload.fullname).toBe(userData.fullname);
       };
     };
 
     it('should create a normal user (not admin)', createPostNewUserTest(false));
 
     it('should create an admin user', createPostNewUserTest(true));
+  });
+
+  describe(`PATCH ${BASE_URL}/:id`, () => {
+    let longString = '';
+    for (let i = 0; i < 1000; i++) longString += 'x';
+
+    let dbUser: User;
+    beforeEach(async () => {
+      dbUser = await db.user.create({
+        data: {
+          ...userData,
+          password: bcrypt.hashSync(userData.password, SALT),
+        },
+      });
+    });
+
+    afterEach(deleteAllUsers);
+
+    const createTestForUpdateField = (
+      data: Prisma.UserUpdateInput & { confirm?: string; secret?: string }
+    ) => {
+      return async () => {
+        const res = await api.patch(`${BASE_URL}/${dbUser.id}`).send(data);
+        const updatedDBUser = await db.user.findUnique({
+          where: { id: dbUser.id },
+        });
+        expect(res.statusCode).toBe(204);
+        expect(updatedDBUser).toBeTruthy();
+        if (updatedDBUser) {
+          const updatedFields = Object.keys(data);
+          if (updatedFields.includes('username')) {
+            expect(updatedDBUser.username).toBe(data.username);
+          } else {
+            expect(updatedDBUser.username).toBe(dbUser.username);
+          }
+          if (updatedFields.includes('fullname')) {
+            expect(updatedDBUser.fullname).toBe(data.fullname);
+          } else {
+            expect(updatedDBUser.fullname).toBe(dbUser.fullname);
+          }
+          if (updatedFields.includes('password')) {
+            expect(
+              bcrypt.compareSync(
+                data.password as string,
+                updatedDBUser.password
+              )
+            ).toBe(true);
+          } else {
+            expect(updatedDBUser.password).toBe(dbUser.password);
+          }
+          if (updatedFields.includes('secret')) {
+            expect(updatedDBUser.isAdmin).toBe(data.secret === ADMIN_SECRET);
+          }
+          expect(+updatedDBUser.createdAt).toBe(+dbUser.createdAt);
+          expect(+updatedDBUser.updatedAt).toBeGreaterThan(+dbUser.updatedAt);
+        }
+      };
+    };
+
+    const createTestForNotUpdateInvalidField = (
+      data: Prisma.UserUpdateInput & { confirm?: string; secret?: string },
+      expectedErrMsgRegex: RegExp
+    ) => {
+      return async () => {
+        const res = await api.patch(`${BASE_URL}/${dbUser.id}`).send(data);
+        const issues = res.body as ZodIssue[];
+        expect(res.type).toMatch(/json/);
+        expect(res.statusCode).toBe(400);
+        expect(issues[0].message).toMatch(expectedErrMsgRegex);
+      };
+    };
+
+    it('should not change username if the given is already exists', async () => {
+      const username = 'foobar';
+      await db.user.create({ data: { ...userData, username } });
+      const res = await api
+        .patch(`${BASE_URL}/${dbUser.id}`)
+        .send({ username });
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/username/i);
+      expect(resBody.error.message).toMatch(/already exist/i);
+    });
+
+    it(
+      'should change username',
+      createTestForUpdateField({ username: 'new_username' })
+    );
+
+    it(
+      'should not change username if the given is too short',
+      createTestForNotUpdateInvalidField({ username: 'x' }, /username/i)
+    );
+
+    it(
+      'should not change username if the given is too long',
+      createTestForNotUpdateInvalidField({ username: longString }, /username/i)
+    );
+
+    it(
+      'should change fullname',
+      createTestForUpdateField({ fullname: 'new_fullname' })
+    );
+
+    it(
+      'should not change fullname if the given is too short',
+      createTestForNotUpdateInvalidField({ fullname: 'x' }, /fullname/i)
+    );
+
+    it(
+      'should not change fullname if the given is too long',
+      createTestForNotUpdateInvalidField({ fullname: longString }, /fullname/i)
+    );
+
+    it(
+      'should change password',
+      createTestForUpdateField({ password: 'aB@32121', confirm: 'aB@32121' })
+    );
+
+    it(
+      'should not change password if given a malformed one',
+      createTestForNotUpdateInvalidField(
+        { password: '12345678', confirm: '12345678' },
+        /password/i
+      )
+    );
+
+    it(
+      'should not change password if not given a the confirmation',
+      createTestForNotUpdateInvalidField(
+        { password: 'aB@32121' },
+        /password confirmation/i
+      )
+    );
+
+    it(
+      'should not change password if given not matched confirmation',
+      createTestForNotUpdateInvalidField(
+        { password: 'aB@32121', confirm: '12345678' },
+        /passwords does not match/i
+      )
+    );
+
+    it(
+      'should change admin state',
+      createTestForUpdateField({ secret: ADMIN_SECRET })
+    );
+
+    it(
+      'should not change admin state if given a wrong secret',
+      createTestForNotUpdateInvalidField({ secret: 'not_admin' }, /secret/i)
+    );
+  });
+
+  describe(`DELETE ${BASE_URL}/:id`, () => {
+    it('should respond with 204 if found a user and deleted it', async () => {
+      const dbUser = await db.user.create({ data: userData });
+      const res = await api.delete(`${BASE_URL}/${dbUser.id}`);
+      expect(res.statusCode).toBe(204);
+    });
+
+    it('should respond with 204 if not found a user', async () => {
+      const { id } = await db.user.create({ data: userData });
+      await db.user.delete({ where: { id } });
+      const res = await api.delete(`${BASE_URL}/${id}`);
+      expect(res.statusCode).toBe(204);
+    });
+
+    it('should respond with 400 if the id is invalid', async () => {
+      const res = await api.delete(`${BASE_URL}/foo`);
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/id/i);
+      expect(resBody.error.message).toMatch(/invalid/i);
+    });
   });
 });

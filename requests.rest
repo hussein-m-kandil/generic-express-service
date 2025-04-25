@@ -1,6 +1,9 @@
 GET http://127.0.0.1:8080/api/v1/users
 
 ###
+GET http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+
+###
 POST http://127.0.0.1:8080/api/v1/users
 Content-Type: application/json
 
@@ -12,10 +15,30 @@ Content-Type: application/json
 }
 
 ###
+PATCH http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+Content-Type: application/json
+
+{
+  "username": "somewhere_man"
+}
+
+###
+PATCH http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+Content-Type: application/json
+
+{
+  "password": "Sm@12312",
+  "confirm": "Sm@12312"
+}
+
+###
 POST http://127.0.0.1:8080/api/v1/auth/signin
 Content-Type: application/json
 
 {
-  "username": "nowhere_man",
-  "password": "Nm@12312"
+  "username": "somewhere_man",
+  "password": "Sm@12312"
 }
+
+### 
+DELETE http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
