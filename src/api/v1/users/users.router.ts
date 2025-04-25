@@ -1,8 +1,14 @@
-import { AppNotFoundError } from '../../../lib/app-error';
+import { Request, Router } from 'express';
+import { AuthResponse, NewUserInput } from '../../../types';
 import { createJwtForUser } from '../../../lib/helpers';
-import { AuthResponse } from '../../../types';
-import { Router } from 'express';
-import userSchema from './user.schema';
+import { AppNotFoundError } from '../../../lib/app-error';
+import { Prisma } from '../../../../prisma/generated/client';
+import userSchema, {
+  usernameSchema,
+  fullnameSchema,
+  passwordSchema,
+  secretSchema,
+} from './user.schema';
 import usersService from './users.service';
 
 export const usersRouter = Router();
@@ -27,6 +33,25 @@ usersRouter.post('/', async (req, res) => {
   };
   res.status(201).json(signupRes);
 });
+
+usersRouter.patch(
+  '/:id',
+  async (req: Request<{ id: string }, unknown, NewUserInput>, res) => {
+    const { username, fullname, password, confirm, secret } = req.body;
+    const data: Prisma.UserUpdateInput = {};
+    if (username) data.username = usernameSchema.parse(username);
+    if (fullname) data.fullname = fullnameSchema.parse(fullname);
+    if (password) {
+      data.password = passwordSchema.parse({
+        password: password,
+        confirm,
+      }).password;
+    }
+    if (secret && secretSchema.parse(secret)) data.isAdmin = true;
+    await usersService.updateOne(req.params.id, data);
+    res.status(204).end();
+  }
+);
 
 usersRouter.delete('/:id', async (req, res) => {
   await usersService.deleteOne(req.params.id);

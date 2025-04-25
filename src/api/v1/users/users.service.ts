@@ -1,6 +1,7 @@
 import { Prisma } from '../../../../prisma/generated/client';
 import {
   AppInvalidIdError,
+  AppNotFoundError,
   AppUniqueConstraintViolationError,
 } from '../../../lib/app-error';
 import { NewUserOutput, PublicUser } from '../../../types';
@@ -44,6 +45,29 @@ export default {
         error.code === 'P2023'
       ) {
         throw new AppInvalidIdError();
+      }
+      throw error;
+    }
+  },
+
+  async updateOne(id: string, data: Prisma.UserUpdateInput): Promise<void> {
+    try {
+      if (data.password && typeof data.password === 'string') {
+        data.password = await hashPassword(data.password);
+      }
+      await db.user.update({ where: { id }, data, omit });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2023') throw new AppInvalidIdError();
+        if (error.code === 'P2025') {
+          throw new AppNotFoundError('user not found');
+        }
+        if (error.code === 'P2002') {
+          const targets = error.meta?.target as string[] | undefined;
+          throw new AppUniqueConstraintViolationError(
+            targets?.at(-1) ?? 'username'
+          );
+        }
       }
       throw error;
     }

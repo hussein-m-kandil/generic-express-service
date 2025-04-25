@@ -5,20 +5,23 @@ import {
   AuthResponse,
   AppErrorResponse,
 } from '../../../types';
-import { User } from '../../../../prisma/generated/client';
+import { Prisma, User } from '../../../../prisma/generated/client';
 import {
   it,
   expect,
   describe,
   afterAll,
+  afterEach,
   beforeEach,
   TestFunction,
 } from 'vitest';
 import { ZodIssue } from 'zod';
+import { ADMIN_SECRET, SALT } from '../../../lib/config';
+import request, { Response } from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../../../app';
 import db from '../../../lib/db';
-import request, { Response } from 'supertest';
+import bcrypt from 'bcryptjs';
 
 describe('Users endpoint', () => {
   const BASE_URL = '/api/v1/users';
@@ -180,6 +183,159 @@ describe('Users endpoint', () => {
     it('should create a normal user (not admin)', createPostNewUserTest(false));
 
     it('should create an admin user', createPostNewUserTest(true));
+  });
+
+  describe(`PATCH ${BASE_URL}/:id`, () => {
+    let longString = '';
+    for (let i = 0; i < 1000; i++) longString += 'x';
+
+    let dbUser: User;
+    beforeEach(async () => {
+      dbUser = await db.user.create({
+        data: {
+          ...userData,
+          password: bcrypt.hashSync(userData.password, SALT),
+        },
+      });
+    });
+
+    afterEach(deleteAllUsers);
+
+    const createTestForUpdateField = (
+      data: Prisma.UserUpdateInput & { confirm?: string; secret?: string }
+    ) => {
+      return async () => {
+        const res = await api.patch(`${BASE_URL}/${dbUser.id}`).send(data);
+        const updatedDBUser = await db.user.findUnique({
+          where: { id: dbUser.id },
+        });
+        expect(res.statusCode).toBe(204);
+        expect(updatedDBUser).toBeTruthy();
+        if (updatedDBUser) {
+          const updatedFields = Object.keys(data);
+          if (updatedFields.includes('username')) {
+            expect(updatedDBUser.username).toBe(data.username);
+          } else {
+            expect(updatedDBUser.username).toBe(dbUser.username);
+          }
+          if (updatedFields.includes('fullname')) {
+            expect(updatedDBUser.fullname).toBe(data.fullname);
+          } else {
+            expect(updatedDBUser.fullname).toBe(dbUser.fullname);
+          }
+          if (updatedFields.includes('password')) {
+            expect(
+              bcrypt.compareSync(
+                data.password as string,
+                updatedDBUser.password
+              )
+            ).toBe(true);
+          } else {
+            expect(updatedDBUser.password).toBe(dbUser.password);
+          }
+          if (updatedFields.includes('secret')) {
+            expect(updatedDBUser.isAdmin).toBe(data.secret === ADMIN_SECRET);
+          }
+          expect(+updatedDBUser.createdAt).toBe(+dbUser.createdAt);
+          expect(+updatedDBUser.updatedAt).toBeGreaterThan(+dbUser.updatedAt);
+        }
+      };
+    };
+
+    const createTestForNotUpdateInvalidField = (
+      data: Prisma.UserUpdateInput & { confirm?: string; secret?: string },
+      expectedErrMsgRegex: RegExp
+    ) => {
+      return async () => {
+        const res = await api.patch(`${BASE_URL}/${dbUser.id}`).send(data);
+        const issues = res.body as ZodIssue[];
+        expect(res.type).toMatch(/json/);
+        expect(res.statusCode).toBe(400);
+        expect(issues[0].message).toMatch(expectedErrMsgRegex);
+      };
+    };
+
+    it('should not change username if the given is already exists', async () => {
+      const username = 'foobar';
+      await db.user.create({ data: { ...userData, username } });
+      const res = await api
+        .patch(`${BASE_URL}/${dbUser.id}`)
+        .send({ username });
+      const resBody = res.body as AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/username/i);
+      expect(resBody.error.message).toMatch(/already exist/i);
+    });
+
+    it(
+      'should change username',
+      createTestForUpdateField({ username: 'new_username' })
+    );
+
+    it(
+      'should not change username if the given is too short',
+      createTestForNotUpdateInvalidField({ username: 'x' }, /username/i)
+    );
+
+    it(
+      'should not change username if the given is too long',
+      createTestForNotUpdateInvalidField({ username: longString }, /username/i)
+    );
+
+    it(
+      'should change fullname',
+      createTestForUpdateField({ fullname: 'new_fullname' })
+    );
+
+    it(
+      'should not change fullname if the given is too short',
+      createTestForNotUpdateInvalidField({ fullname: 'x' }, /fullname/i)
+    );
+
+    it(
+      'should not change fullname if the given is too long',
+      createTestForNotUpdateInvalidField({ fullname: longString }, /fullname/i)
+    );
+
+    it(
+      'should change password',
+      createTestForUpdateField({ password: 'aB@32121', confirm: 'aB@32121' })
+    );
+
+    it(
+      'should not change password if given a malformed one',
+      createTestForNotUpdateInvalidField(
+        { password: '12345678', confirm: '12345678' },
+        /password/i
+      )
+    );
+
+    it(
+      'should not change password if not given a the confirmation',
+      createTestForNotUpdateInvalidField(
+        { password: 'aB@32121' },
+        /password confirmation/i
+      )
+    );
+
+    it(
+      'should not change password if given not matched confirmation',
+      createTestForNotUpdateInvalidField(
+        { password: 'aB@32121', confirm: '12345678' },
+        /passwords does not match/i
+      )
+    );
+
+    it(
+      'should change admin state',
+      createTestForUpdateField({ secret: ADMIN_SECRET })
+    );
+
+    it(
+      'should not change admin state if given a wrong secret',
+      createTestForNotUpdateInvalidField({ secret: 'not_admin' }, /secret/i)
+    );
   });
 
   describe(`DELETE ${BASE_URL}/:id`, () => {
