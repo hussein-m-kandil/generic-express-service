@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ADMIN_SECRET } from '../../../lib/config';
 
 export const usernameSchema = z
   .string({
@@ -48,7 +49,7 @@ export const passwordSchema = z
 export const secretSchema = z
   .string({ invalid_type_error: 'Secret must be a string' })
   .optional()
-  .refine((secret) => !secret || secret === process.env.ADMIN_SECRET, {
+  .refine((secret) => !secret || secret === ADMIN_SECRET, {
     message: 'Invalid secret',
     path: ['secret'],
   }); // for isAdmin

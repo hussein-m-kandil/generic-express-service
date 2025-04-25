@@ -152,7 +152,7 @@ describe('Users endpoint', () => {
           isAdmin
             ? {
                 ...newUserData,
-                secret: process.env.ADMIN_SECRET, // Must be defined
+                secret: ADMIN_SECRET, // Must be defined
               }
             : newUserData
         );
