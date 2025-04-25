@@ -1,4 +1,4 @@
-import { User } from '../../prisma/generated/client';
+import { User, Prisma } from '../../prisma/generated/client';
 import { SECRET, TOKEN_EXP_PERIOD } from './config';
 import { AppJwtPayload, PublicUser } from '../types';
 import jwt from 'jsonwebtoken';
@@ -18,7 +18,21 @@ export const convertUserToPublicUser = (user: User): PublicUser => {
   return { id, username, fullname, createdAt, updatedAt };
 };
 
+export const catchDBKnownError = async <P>(
+  dbPromise: Promise<P>
+): Promise<[P, null] | [null, Prisma.PrismaClientKnownRequestError]> => {
+  try {
+    return [await dbPromise, null];
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return [null, error];
+    }
+    throw error;
+  }
+};
+
 export default {
   createJwtForUser,
+  catchDBKnownError,
   convertUserToPublicUser,
 };
