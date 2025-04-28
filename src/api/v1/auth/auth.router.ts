@@ -8,6 +8,7 @@ import { RequestHandler, Router } from 'express';
 import { AuthResponse } from '../../../types';
 import logger from '../../../lib/logger';
 import passport from '../../../lib/passport';
+import { authValidator } from '../../../middlewares/auth-validator';
 
 export const authRouter = Router();
 
@@ -35,6 +36,10 @@ authRouter.post('/signin', async (req, res, next) => {
       }
     ) as RequestHandler
   )(req, res, next);
+});
+
+authRouter.get('/verify', authValidator, (req, res) => {
+  res.json(true);
 });
 
 export default authRouter;
