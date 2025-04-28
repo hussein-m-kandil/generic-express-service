@@ -1,4 +1,4 @@
-import { it, expect, describe, afterAll, beforeAll } from 'vitest';
+import { it, expect, describe, afterAll, beforeAll, vi } from 'vitest';
 import { SALT } from '../../../lib/config';
 import {
   AppErrorResponse,
@@ -16,6 +16,7 @@ import { User } from '../../../../prisma/generated/client';
 describe('Authentication endpoint', () => {
   const BASE_URL = '/api/v1/auth';
   const SIGNIN_URL = `${BASE_URL}/signin`;
+  const VERIFY_URL = `${BASE_URL}/verify`;
 
   const userData: NewDefaultUser = {
     fullname: 'Clark Kent/Kal-El',
@@ -94,6 +95,43 @@ describe('Authentication endpoint', () => {
       expect(resJwtPayload.id).toBeTypeOf('string');
       expect(resJwtPayload.username).toBe(userData.username);
       expect(resJwtPayload.fullname).toBe(userData.fullname);
+      expect(resJwtPayload.password).toBeUndefined();
+      expect(resJwtPayload.isAdmin).toBeUndefined();
+    });
+  });
+
+  describe(`GET ${VERIFY_URL}`, () => {
+    it('should verify a valid, fresh token and respond with `true`', async () => {
+      const signinResBody = (await api.post(SIGNIN_URL).send(signInData))
+        .body as AuthResponse;
+      const res = await api
+        .get(VERIFY_URL)
+        .set('Authorization', signinResBody.token);
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toBe(true);
+    });
+
+    it('should not verify an invalid token and respond 401', async () => {
+      const signinResBody = (await api.post(SIGNIN_URL).send(signInData))
+        .body as AuthResponse;
+      const res = await api
+        .get(VERIFY_URL)
+        .set('Authorization', signinResBody.token.replace(/\../, '.x'));
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('should not verify an expired token and respond 401', async () => {
+      const signinResBody = (await api.post(SIGNIN_URL).send(signInData))
+        .body as AuthResponse;
+      vi.useFakeTimers();
+      const now = new Date();
+      const future = new Date(now.setFullYear(now.getFullYear() + 3));
+      vi.setSystemTime(future);
+      const res = await api
+        .get(VERIFY_URL)
+        .set('Authorization', signinResBody.token);
+      expect(res.statusCode).toBe(401);
     });
   });
 });
