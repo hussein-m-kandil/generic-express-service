@@ -1,9 +1,48 @@
+# Admin token
 GET http://127.0.0.1:8080/api/v1/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjkzZWE2NjE5LTIyMWEtNDkwYi1iYjcwLWZmZWM0NWQ5MjAyNSIsInVzZXJuYW1lIjoiYWRtaW4iLCJmdWxsbmFtZSI6IkFkbWluIiwiaWF0IjoxNzQ2NDQ2MDA5LCJleHAiOjE3NDY3MDUyMDl9.kIMRW1ctklvIDJf8p_TEMAODHcn3D8HBC6lAkAFDVMs
 
 ###
-GET http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+
+# Normal user token
+GET http://127.0.0.1:8080/api/v1/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
 
 ###
+
+# Admin token
+GET http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjkzZWE2NjE5LTIyMWEtNDkwYi1iYjcwLWZmZWM0NWQ5MjAyNSIsInVzZXJuYW1lIjoiYWRtaW4iLCJmdWxsbmFtZSI6IkFkbWluIiwiaWF0IjoxNzQ2NDQ2MDA5LCJleHAiOjE3NDY3MDUyMDl9.kIMRW1ctklvIDJf8p_TEMAODHcn3D8HBC6lAkAFDVMs
+
+###
+
+# Another normal user token
+GET http://127.0.0.1:8080/api/v1/users/93ea6619-221a-490b-bb70-ffec45d92025
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+
+###
+
+# Same user token
+GET http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+
+###
+
+# Admin
+POST http://127.0.0.1:8080/api/v1/users
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "fullname": "Admin",
+  "password": "Aa@12312",
+  "confirm": "Aa@12312",
+  "secret": "seco_seco"
+}
+
+###
+
+# Normal user
 POST http://127.0.0.1:8080/api/v1/users
 Content-Type: application/json
 
@@ -15,7 +54,10 @@ Content-Type: application/json
 }
 
 ###
-PATCH http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+
+# Admin token
+PATCH http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjkzZWE2NjE5LTIyMWEtNDkwYi1iYjcwLWZmZWM0NWQ5MjAyNSIsInVzZXJuYW1lIjoiYWRtaW4iLCJmdWxsbmFtZSI6IkFkbWluIiwiaWF0IjoxNzQ2NDQ2MDA5LCJleHAiOjE3NDY3MDUyMDl9.kIMRW1ctklvIDJf8p_TEMAODHcn3D8HBC6lAkAFDVMs
 Content-Type: application/json
 
 {
@@ -23,7 +65,10 @@ Content-Type: application/json
 }
 
 ###
-PATCH http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+
+# Admin token
+PATCH http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjkzZWE2NjE5LTIyMWEtNDkwYi1iYjcwLWZmZWM0NWQ5MjAyNSIsInVzZXJuYW1lIjoiYWRtaW4iLCJmdWxsbmFtZSI6IkFkbWluIiwiaWF0IjoxNzQ2NDQ2MDA5LCJleHAiOjE3NDY3MDUyMDl9.kIMRW1ctklvIDJf8p_TEMAODHcn3D8HBC6lAkAFDVMs
 Content-Type: application/json
 
 {
@@ -32,13 +77,75 @@ Content-Type: application/json
 }
 
 ###
+
+# Same user token
+PATCH http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+Content-Type: application/json
+
+{
+  "username": "somewhere_man"
+}
+
+###
+
+# Same user token
+PATCH http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+Content-Type: application/json
+
+{
+  "password": "Sm@12312",
+  "confirm": "Sm@12312"
+}
+
+###
+
+# Another user token
+PATCH http://127.0.0.1:8080/api/v1/users/93ea6619-221a-490b-bb70-ffec45d92025
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+Content-Type: application/json
+
+{
+  "username": "somewhere_man"
+}
+
+###
+
+# Another user token
+PATCH http://127.0.0.1:8080/api/v1/users/93ea6619-221a-490b-bb70-ffec45d92025
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+Content-Type: application/json
+
+{
+  "password": "Sm@12312",
+  "confirm": "Sm@12312"
+}
+
+### 
+
+# Admin token
+DELETE http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjkzZWE2NjE5LTIyMWEtNDkwYi1iYjcwLWZmZWM0NWQ5MjAyNSIsInVzZXJuYW1lIjoiYWRtaW4iLCJmdWxsbmFtZSI6IkFkbWluIiwiaWF0IjoxNzQ2NDQ2MDA5LCJleHAiOjE3NDY3MDUyMDl9.kIMRW1ctklvIDJf8p_TEMAODHcn3D8HBC6lAkAFDVMs
+
+### 
+
+# Same user token
+DELETE http://127.0.0.1:8080/api/v1/users/6c655d20-e27d-42b1-a93d-a2a4150876bf
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+
+### 
+
+# Another user token
+DELETE http://127.0.0.1:8080/api/v1/users/93ea6619-221a-490b-bb70-ffec45d92025
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZjNjU1ZDIwLWUyN2QtNDJiMS1hOTNkLWEyYTQxNTA4NzZiZiIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2NDUyMzQ5LCJleHAiOjE3NDY3MTE1NDl9.0lGUkEygKSB5z7RBbKGrP8kY_YeUaoYNISGB9QLWcbc
+
+###
+
 POST http://127.0.0.1:8080/api/v1/auth/signin
 Content-Type: application/json
 
 {
-  "username": "somewhere_man",
-  "password": "Sm@12312"
+  "username": "nowhere_man",
+  "password": "Nm@12312"
 }
-
-### 
-DELETE http://127.0.0.1:8080/api/v1/users/7d517973-7b72-4306-8118-c54021db0585
