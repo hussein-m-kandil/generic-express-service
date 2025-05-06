@@ -1,8 +1,13 @@
 import { Request, Router } from 'express';
-import { AuthResponse, NewUserInput } from '../../../types';
 import { createJwtForUser } from '../../../lib/helpers';
 import { AppNotFoundError } from '../../../lib/app-error';
+import { AuthResponse, NewUserInput } from '../../../types';
 import { Prisma } from '../../../../prisma/generated/client';
+import {
+  authValidator,
+  adminValidator,
+  createAdminOrOwnerValidator,
+} from '../../../middlewares/validators';
 import userSchema, {
   usernameSchema,
   fullnameSchema,
@@ -13,16 +18,21 @@ import usersService from './users.service';
 
 export const usersRouter = Router();
 
-usersRouter.get('/', async (req, res) => {
+usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
   const users = await usersService.getAll();
   res.json(users);
 });
 
-usersRouter.get('/:id', async (req, res) => {
-  const user = await usersService.findOneById(req.params.id);
-  if (!user) throw new AppNotFoundError('User not found');
-  res.json(user);
-});
+usersRouter.get(
+  '/:id',
+  authValidator,
+  createAdminOrOwnerValidator((req) => req.params.id),
+  async (req, res) => {
+    const user = await usersService.findOneById(req.params.id);
+    if (!user) throw new AppNotFoundError('User not found');
+    res.json(user);
+  }
+);
 
 usersRouter.post('/', async (req, res) => {
   const parsedNewUser = userSchema.parse(req.body);
@@ -36,6 +46,8 @@ usersRouter.post('/', async (req, res) => {
 
 usersRouter.patch(
   '/:id',
+  authValidator,
+  createAdminOrOwnerValidator((req) => req.params.id),
   async (req: Request<{ id: string }, unknown, NewUserInput>, res) => {
     const { username, fullname, password, confirm, secret } = req.body;
     const data: Prisma.UserUpdateInput = {};
@@ -53,9 +65,14 @@ usersRouter.patch(
   }
 );
 
-usersRouter.delete('/:id', async (req, res) => {
-  await usersService.deleteOne(req.params.id);
-  res.status(204).end();
-});
+usersRouter.delete(
+  '/:id',
+  authValidator,
+  createAdminOrOwnerValidator((req) => req.params.id),
+  async (req, res) => {
+    await usersService.deleteOne(req.params.id);
+    res.status(204).end();
+  }
+);
 
 export default usersRouter;

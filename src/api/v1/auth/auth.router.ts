@@ -8,7 +8,7 @@ import { RequestHandler, Router } from 'express';
 import { AuthResponse } from '../../../types';
 import logger from '../../../lib/logger';
 import passport from '../../../lib/passport';
-import { authValidator } from '../../../middlewares/auth-validator';
+import { authValidator } from '../../../middlewares/validators';
 
 export const authRouter = Router();
 
