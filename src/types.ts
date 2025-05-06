@@ -9,12 +9,12 @@ export type GlobalWithPrisma = typeof globalThis & {
 
 export type NewDefaultUser = Omit<
   User,
-  'id' | 'isAdmin' | 'createdAt' | 'updatedAt'
+  'id' | 'bio' | 'isAdmin' | 'createdAt' | 'updatedAt'
 >;
 
 export type PublicUser = Omit<User, 'password' | 'isAdmin'>;
 
-export type JwtUser = Omit<PublicUser, 'createdAt' | 'updatedAt'>;
+export type JwtUser = Omit<PublicUser, 'bio' | 'createdAt' | 'updatedAt'>;
 
 export type NewUserInput = z.input<typeof userSchema>;
 

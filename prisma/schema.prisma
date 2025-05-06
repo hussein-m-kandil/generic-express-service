@@ -9,13 +9,76 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  isAdmin   Boolean  @default(false) @map("is_admin")
-  fullname  String   @db.VarChar(100)
-  username  String   @unique @db.VarChar(50)
-  password  String   @db.Char(60)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  password     String       @db.Char(60)
+  fullname     String       @db.VarChar(100)
+  username     String       @unique @db.VarChar(50)
+  isAdmin      Boolean      @default(false) @map("is_admin")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  votesOnPosts VoteOnPost[]
+  comments     Comment[]
+  posts        Post[]
+  bio          String?
 
   @@map("users")
+}
+
+model Comment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id") @db.Uuid
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String   @map("post_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  content   String
+
+  @@map("comments")
+}
+
+model Post {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author     User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId   String              @map("author_id") @db.Uuid
+  published  Boolean             @default(false)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  categories CategoriesOnPosts[]
+  votes      VoteOnPost[]
+  comments   Comment[]
+  content    String
+  title      String
+
+  @@map("posts")
+}
+
+model Category {
+  name  String              @unique
+  posts CategoriesOnPosts[]
+
+  @@map("categories")
+}
+
+model CategoriesOnPosts {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId       String   @map("post_id") @db.Uuid
+  category     Category @relation(fields: [categoryName], references: [name], onDelete: Cascade)
+  categoryName String   @map("category_name")
+
+  @@unique([postId, categoryName])
+  @@map("categories_on_posts")
+}
+
+model VoteOnPost {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String  @map("user_id") @db.Uuid
+  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId   String  @map("post_id") @db.Uuid
+  isUpvote Boolean @default(true) @map("is_upvote")
+
+  @@unique([userId, postId])
+  @@map("votes_on_posts")
 }

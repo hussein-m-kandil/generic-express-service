@@ -19,8 +19,8 @@ export const createJwtForUser = (user: PublicUser): string => {
 };
 
 export const convertUserToPublicUser = (user: User): PublicUser => {
-  const { id, username, fullname, createdAt, updatedAt } = user;
-  return { id, username, fullname, createdAt, updatedAt };
+  const { id, bio, username, fullname, createdAt, updatedAt } = user;
+  return { id, bio, username, fullname, createdAt, updatedAt };
 };
 
 export const catchDBKnownError = async <P>(
