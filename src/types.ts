@@ -1,4 +1,5 @@
-import { PrismaClient, User } from '../prisma/generated/client';
+import { Prisma, PrismaClient, User } from '../prisma/generated/client';
+import { postSchema, commentSchema } from './api/v1/posts/post.schema';
 import { userSchema } from './api/v1/users/user.schema';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -33,3 +34,18 @@ export interface AppErrorResponse {
     message: string;
   };
 }
+
+export type PostFullData = Prisma.PostGetPayload<{
+  include: {
+    comments: { include: { author: true } };
+    votes: { include: { user: true } };
+    categories: true;
+    author: true;
+  };
+}>;
+
+export type NewPostParsedData = z.output<typeof postSchema>;
+
+export type NewPostAuthorizedData = NewPostParsedData & { authorId: string };
+
+export type NewCommentParsedData = z.output<typeof commentSchema>;
