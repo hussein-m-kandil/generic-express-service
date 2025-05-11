@@ -47,9 +47,20 @@ export const authValidator = passport.authenticate('jwt', {
   session: false,
 }) as RequestHandler;
 
+export const optionalAuthValidator = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.headers.authorization) {
+    await authValidator(req, res, next);
+  } else next();
+};
+
 export default {
   authValidator,
   adminValidator,
   createOwnerValidator,
+  optionalAuthValidator,
   createAdminOrOwnerValidator,
 };
