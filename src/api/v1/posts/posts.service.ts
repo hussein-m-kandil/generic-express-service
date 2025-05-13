@@ -1,57 +1,19 @@
 import { AppNotFoundError } from '../../../lib/app-error';
 import {
+  NewPostParsedData,
   NewCommentParsedData,
   NewPostAuthorizedData,
-  NewPostParsedData,
 } from '../../../types';
-import { handleDBKnownErrors } from '../../../lib/helpers';
-import db from '../../../lib/db';
+import {
+  handleDBKnownErrors,
+  fieldsToIncludeWithPost,
+} from '../../../lib/helpers';
 import { Prisma } from '../../../../prisma/generated/client';
+import db from '../../../lib/db';
 
-const include = { comments: true, categories: true, votes: true };
+const include = fieldsToIncludeWithPost;
 
 export const getAllCategories = async () => await db.category.findMany({});
-
-export const getAllPosts = async (options?: {
-  authorId?: string;
-  text?: string;
-  categories?: string[];
-}) => {
-  const baseWhereClause = options?.authorId
-    ? { OR: [{ published: true }, { authorId: options.authorId }] }
-    : { published: true };
-  const dbQuery = db.post.findMany({
-    where: {
-      ...baseWhereClause,
-      AND: {
-        OR: [
-          {
-            OR: options?.text
-              ? [
-                  { title: { contains: options.text, mode: 'insensitive' } },
-                  { content: { contains: options.text, mode: 'insensitive' } },
-                ]
-              : [],
-          },
-          options?.categories
-            ? {
-                categories: {
-                  some: {
-                    categoryName: {
-                      in: options.categories,
-                      mode: 'insensitive',
-                    },
-                  },
-                },
-              }
-            : {},
-        ],
-      },
-    },
-    include,
-  });
-  return await handleDBKnownErrors(dbQuery);
-};
 
 export const createPost = async (data: NewPostAuthorizedData) => {
   const dbQuery = db.post.create({
@@ -119,10 +81,6 @@ export const updatePost = async (id: string, data: NewPostParsedData) => {
   };
   const post = await handleDBKnownErrors(dbQuery, handlerOptions);
   return post;
-};
-
-export const getAllPostVotes = async (postId: string, authorId?: string) => {
-  return (await findPostByIdOrThrow(postId, authorId)).votes;
 };
 
 export const upvotePost = async (postId: string, userId: string) => {
@@ -268,10 +226,6 @@ export const findPostCommentByCompoundIdAndDelete = async (
   await handleDBKnownErrors(dbQuery);
 };
 
-export const findPostComments = async (postId: string, authorId?: string) => {
-  return (await findPostByIdOrThrow(postId, authorId)).comments;
-};
-
 export const findPostCategories = async (postId: string, authorId?: string) => {
   return (await findPostByIdOrThrow(postId, authorId)).categories;
 };
@@ -331,12 +285,9 @@ export const postsService = {
   countPostCategories,
   findPostCategories,
   countPostComments,
-  findPostComments,
   getAllCategories,
-  getAllPostVotes,
   countPostVotes,
   downvotePost,
-  getAllPosts,
   createPost,
   updatePost,
   upvotePost,

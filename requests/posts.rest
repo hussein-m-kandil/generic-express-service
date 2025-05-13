@@ -175,3 +175,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkL
 
 GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/votes
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments?q=thanks
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/votes?upvote=truthy

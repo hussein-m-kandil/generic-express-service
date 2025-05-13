@@ -1,26 +1,35 @@
-import { Request, Response, Router } from 'express';
-import { AppJwtPayload } from '../../../types';
 import {
   authValidator,
   createOwnerValidator,
   optionalAuthValidator,
   createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
+import {
+  findFilteredComments,
+  findFilteredPosts,
+  findFilteredVotes,
+  getCommentFilterOptionsFromReqQuery,
+  getPostFilterOptionsFromReqQuery,
+  getSignedInUserIdFromReqQuery,
+  getVoteFilterOptionsFromReqQuery,
+} from '../../../lib/helpers';
+import { Request, Response, Router } from 'express';
+import { AppJwtPayload } from '../../../types';
 import postsService from './posts.service';
 import postSchema, { commentSchema } from './post.schema';
 
 const getPostAuthorId = async (req: Request) => {
-  const user = req.user ? (req.user as AppJwtPayload) : undefined;
-  const post = await postsService.findPostByIdOrThrow(req.params.id, user?.id);
+  const userId = getSignedInUserIdFromReqQuery(req);
+  const post = await postsService.findPostByIdOrThrow(req.params.id, userId);
   return post.authorId;
 };
 
 const getCommentAuthorId = async (req: Request) => {
-  const user = req.user ? (req.user as AppJwtPayload) : undefined;
+  const userId = getSignedInUserIdFromReqQuery(req);
   const comment = await postsService.findPostCommentByCompoundIdOrThrow(
     req.params.pId,
     req.params.cId,
-    user?.id
+    userId
   );
   return comment.authorId;
 };
@@ -31,8 +40,8 @@ const createHandlersForGettingPrivatePostData = (
   return [
     optionalAuthValidator,
     async (req: Request, res: Response) => {
-      const user = req.user ? (req.user as AppJwtPayload) : undefined;
-      res.json(await postService(req.params.id, user?.id));
+      const userId = getSignedInUserIdFromReqQuery(req);
+      res.json(await postService(req.params.id, userId));
     },
   ];
 };
@@ -40,16 +49,9 @@ const createHandlersForGettingPrivatePostData = (
 export const postsRouter = Router();
 
 postsRouter.get('/', optionalAuthValidator, async (req, res) => {
-  const categories =
-    typeof req.query.categories === 'string'
-      ? req.query.categories.split(',')
-      : Array.isArray(req.query.categories) &&
-        req.query.categories.every((c) => typeof c === 'string')
-      ? req.query.categories.flatMap((item) => item.split(','))
-      : undefined;
-  const text = typeof req.query.q === 'string' ? req.query.q : undefined;
-  const authorId = req.user ? (req.user as AppJwtPayload).id : undefined;
-  res.json(await postsService.getAllPosts({ text, authorId, categories }));
+  const filters = getPostFilterOptionsFromReqQuery(req);
+  const posts = await findFilteredPosts(filters);
+  res.json(posts);
 });
 
 postsRouter.get('/count', authValidator, async (req, res) => {
@@ -100,12 +102,24 @@ postsRouter.get(
 
 postsRouter.get(
   '/:id/comments',
-  createHandlersForGettingPrivatePostData(postsService.findPostComments)
+  optionalAuthValidator,
+  async (req: Request, res: Response) => {
+    const postId = req.params.id;
+    const filters = getCommentFilterOptionsFromReqQuery(req);
+    const comments = await findFilteredComments(filters, { postId });
+    res.json(comments);
+  }
 );
 
 postsRouter.get(
   '/:id/votes',
-  createHandlersForGettingPrivatePostData(postsService.getAllPostVotes)
+  optionalAuthValidator,
+  async (req: Request, res: Response) => {
+    const postId = req.params.id;
+    const filters = getVoteFilterOptionsFromReqQuery(req);
+    const votes = await findFilteredVotes(filters, { postId });
+    res.json(votes);
+  }
 );
 
 postsRouter.get(
@@ -122,12 +136,12 @@ postsRouter.get(
   '/:pId/comments/:cId',
   optionalAuthValidator,
   async (req, res) => {
-    const user = req.user ? (req.user as AppJwtPayload) : undefined;
+    const userId = getSignedInUserIdFromReqQuery(req);
     res.json(
       await postsService.findPostCommentByCompoundIdOrThrow(
         req.params.pId,
         req.params.cId,
-        user?.id
+        userId
       )
     );
   }
@@ -200,8 +214,8 @@ postsRouter.delete(
   authValidator,
   createAdminOrOwnerValidator(async (req) => await getPostAuthorId(req)),
   async (req, res) => {
-    const user = req.user as AppJwtPayload;
-    await postsService.deletePost(req.params.id, user.id);
+    const userId = getSignedInUserIdFromReqQuery(req);
+    await postsService.deletePost(req.params.id, userId);
     res.status(204).end();
   }
 );
@@ -210,19 +224,19 @@ postsRouter.delete(
   '/:pId/comments/:cId',
   authValidator,
   createAdminOrOwnerValidator(async (req) => {
-    const user = req.user as AppJwtPayload;
+    const userId = getSignedInUserIdFromReqQuery(req);
     req.params.id = req.params.pId; // For `getPostAuthorId(req)`
     const postAuthorId = await getPostAuthorId(req);
-    return postAuthorId === user.id
+    return postAuthorId === userId
       ? postAuthorId
       : await getCommentAuthorId(req);
   }),
   async (req, res) => {
-    const user = req.user as AppJwtPayload;
+    const userId = getSignedInUserIdFromReqQuery(req);
     await postsService.findPostCommentByCompoundIdAndDelete(
       req.params.pId,
       req.params.cId,
-      user.id
+      userId
     );
     res.status(204).end();
   }

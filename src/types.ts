@@ -49,3 +49,20 @@ export type NewPostParsedData = z.output<typeof postSchema>;
 export type NewPostAuthorizedData = NewPostParsedData & { authorId: string };
 
 export type NewCommentParsedData = z.output<typeof commentSchema>;
+
+export interface PostFiltrationOptions {
+  authorId?: string;
+  text?: string;
+  categories?: string[];
+}
+
+export interface CommentFiltrationOptions {
+  authorId?: string;
+  postId?: string;
+  text?: string;
+}
+
+export interface VoteFiltrationOptions {
+  authorId?: string;
+  isUpvote?: boolean;
+}
