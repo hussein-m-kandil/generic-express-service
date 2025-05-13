@@ -1,14 +1,10 @@
 import { Prisma } from '../../../../prisma/generated/client';
-import {
-  AppInvalidIdError,
-  AppNotFoundError,
-  AppUniqueConstraintViolationError,
-} from '../../../lib/app-error';
 import { NewUserOutput, PublicUser } from '../../../types';
+import { handleDBKnownErrors } from '../../../lib/helpers';
+import { AppNotFoundError } from '../../../lib/app-error';
 import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
 import bcrypt from 'bcryptjs';
-import { catchDBKnownError } from '../../../lib/helpers';
 
 const omit = { password: true, isAdmin: true };
 
@@ -21,29 +17,15 @@ export const createOne = async (
 ): Promise<PublicUser> => {
   const data = { ...newUser };
   data.password = await hashPassword(data.password);
-  const [user, dbKnownError] = await catchDBKnownError(
-    db.user.create({ data, omit })
-  );
-  if (dbKnownError) {
-    if (dbKnownError.code === 'P2002') {
-      const targets = dbKnownError.meta?.target as string[] | undefined;
-      throw new AppUniqueConstraintViolationError(
-        targets?.at(-1) ?? 'username'
-      );
-    }
-    throw dbKnownError;
-  }
+  const dbQuery = db.user.create({ data, omit });
+  const handlerOptions = { uniqueFieldName: 'username' };
+  const user = await handleDBKnownErrors(dbQuery, handlerOptions);
   return user;
 };
 
 export const findOneById = async (id: string): Promise<PublicUser | null> => {
-  const [user, dbKnownError] = await catchDBKnownError(
-    db.user.findUnique({ where: { id }, omit })
-  );
-  if (dbKnownError) {
-    if (dbKnownError.code === 'P2023') throw new AppInvalidIdError();
-    throw dbKnownError;
-  }
+  const dbQuery = db.user.findUnique({ where: { id }, omit });
+  const user = await handleDBKnownErrors(dbQuery);
   return user;
 };
 
@@ -55,34 +37,20 @@ export const updateOne = async (
   if (data.password && typeof data.password === 'string') {
     data.password = await hashPassword(data.password);
   }
-  const dbKnownError = (
-    await catchDBKnownError(db.user.update({ where: { id }, data, omit }))
-  )[1];
-  if (dbKnownError) {
-    if (dbKnownError.code === 'P2023') {
-      throw new AppInvalidIdError();
-    }
-    if (dbKnownError.code === 'P2025') {
-      throw new AppNotFoundError('user not found');
-    }
-    if (dbKnownError.code === 'P2002') {
-      const targets = dbKnownError.meta?.target as string[] | undefined;
-      throw new AppUniqueConstraintViolationError(
-        targets?.at(-1) ?? 'username'
-      );
-    }
-    throw dbKnownError;
-  }
+  const dbQuery = db.user.update({ where: { id }, data, omit });
+  const handlerOptions = {
+    notFoundErrMsg: 'User not found',
+    uniqueFieldName: 'username',
+  };
+  await handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const deleteOne = async (id: string): Promise<void> => {
-  const error = (
-    await catchDBKnownError(db.user.delete({ where: { id }, omit }))
-  )[1];
-  if (error) {
-    if (error.code === 'P2023') throw new AppInvalidIdError();
-    if (error.code === 'P2025') return;
-    throw error;
+  try {
+    const dbQuery = db.user.delete({ where: { id }, omit });
+    await handleDBKnownErrors(dbQuery);
+  } catch (error) {
+    if (!(error instanceof AppNotFoundError)) throw error;
   }
 };
 
