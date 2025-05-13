@@ -1,31 +1,38 @@
-import { describe, it, afterAll, beforeEach, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { POSTS_URL, SIGNIN_URL } from './utils';
 import {
   CategoriesOnPosts,
   Category,
   Comment,
   VoteOnPost,
 } from '../../../../prisma/generated/client';
-import { SALT } from '../../../lib/config';
+import { PostFullData } from '../../../types';
 import { ZodIssue } from 'zod';
-import {
-  AppErrorResponse,
-  AuthResponse,
-  NewDefaultUser,
-  PostFullData,
-} from '../../../types';
-import bcrypt from 'bcryptjs';
-import app from '../../../app';
 import db from '../../../lib/db';
-import supertest from 'supertest';
+import setup from '../setup';
 
 describe('Posts endpoint', async () => {
-  const BASE_URL = '/api/v1';
-  const POSTS_URL = `${BASE_URL}/posts`;
-
-  const api = supertest(app);
-
-  const deleteAllPosts = async () => await db.post.deleteMany({});
-  const deleteAllUsers = async () => await db.user.deleteMany({});
+  const {
+    postDataOutput,
+    postDataInput,
+    postFullData,
+    userOneData,
+    userTwoData,
+    commentData,
+    adminData,
+    xUserData,
+    dbUserOne,
+    dbUserTwo,
+    api,
+    signin,
+    createPost,
+    assertPostData,
+    deleteAllPosts,
+    deleteAllUsers,
+    prepForAuthorizedTest,
+    assertNotFoundErrorRes,
+    assertInvalidIdErrorRes,
+  } = await setup(SIGNIN_URL);
 
   beforeEach(async () => await deleteAllPosts());
 
@@ -33,144 +40,6 @@ describe('Posts endpoint', async () => {
     await deleteAllPosts();
     await deleteAllUsers();
   });
-
-  const createUser = async (data: NewDefaultUser) => {
-    const password = bcrypt.hashSync(data.password, SALT);
-    return await db.user.create({ data: { ...data, password } });
-  };
-
-  const signin = async (username: string, password: string) => {
-    const signinRes = await api
-      .post(`${BASE_URL}/auth/signin`)
-      .send({ username, password });
-    return signinRes.body as AuthResponse;
-  };
-
-  const userOneData = {
-    username: 'superman',
-    fullname: 'clark kent',
-    password: 'Ss@12312',
-  };
-  const userTwoData = {
-    username: 'batman',
-    fullname: 'Bruce Wayne',
-    password: 'Bb@12312',
-  };
-  const adminData = {
-    username: 'admin',
-    fullname: 'Administrator',
-    password: 'Aa@12312',
-    isAdmin: true,
-  };
-  const xUserData = {
-    username: 'unknown',
-    fullname: 'Unknown',
-    password: 'Uu@12312',
-  };
-
-  await deleteAllPosts();
-  await deleteAllUsers();
-  const dbUserOne = await createUser(userOneData);
-  const dbUserTwo = await createUser(userTwoData);
-  await createUser(adminData);
-  await createUser(xUserData);
-
-  const postDataInput = {
-    published: true,
-    title: 'Test Post',
-    content: 'Test post content...',
-    categories: ['comedy', 'fantasy'],
-  };
-
-  const postFullData = {
-    ...postDataInput,
-    authorId: dbUserOne.id,
-    comments: [
-      { authorId: dbUserTwo.id, content: 'Nice blog' },
-      { authorId: dbUserOne.id, content: 'Thanks a lot' },
-    ],
-    votes: [{ userId: dbUserOne.id }, { userId: dbUserTwo.id, isUpvote: true }],
-  };
-
-  const postDataOutput: Omit<typeof postFullData, 'authorId'> = {
-    ...postDataInput,
-    comments: [],
-    votes: [],
-  };
-
-  const commentData = { content: 'Keep it up' };
-
-  const prepForAuthorizedTest = async () => {
-    const signedInUserData = await signin(
-      userOneData.username,
-      userOneData.password
-    );
-    const authorizedApi = supertest
-      .agent(app)
-      .set('Authorization', signedInUserData.token);
-    return { signedInUserData, authorizedApi };
-  };
-
-  const createPost = async (data: typeof postFullData) => {
-    return await db.post.create({
-      data: {
-        title: data.title,
-        content: data.content,
-        authorId: data.authorId,
-        published: data.published,
-        votes: { create: data.votes },
-        comments: { create: data.comments },
-        categories: {
-          create: data.categories.map((name) => ({
-            category: {
-              connectOrCreate: { where: { name }, create: { name } },
-            },
-          })),
-        },
-      },
-      include: {
-        comments: { include: { author: true } },
-        votes: { include: { user: true } },
-        categories: true,
-        author: true,
-      },
-    });
-  };
-
-  const assertPostData = (
-    actualPost: PostFullData,
-    expectedPost: typeof postFullData
-  ) => {
-    expect(actualPost.title).toBe(expectedPost.title);
-    expect(actualPost.content).toBe(expectedPost.content);
-    expect(actualPost.authorId).toBe(expectedPost.authorId);
-    expect(actualPost.comments.length).toBe(expectedPost.comments.length);
-    expect(actualPost.categories.length).toBe(expectedPost.categories.length);
-    expect(
-      actualPost.categories.map(({ categoryName }) => categoryName)
-    ).toStrictEqual(expectedPost.categories);
-    expect(
-      actualPost.comments.map(({ authorId, content }) => ({
-        authorId,
-        content,
-      }))
-    ).toStrictEqual(expectedPost.comments);
-  };
-
-  const assertInvalidIdErrorRes = (res: supertest.Response) => {
-    const resBody = res.body as AppErrorResponse;
-    expect(res.statusCode).toBe(400);
-    expect(res.type).toMatch(/json/);
-    expect(resBody.error.message).toMatch(/^.* ?id ?.*$/i);
-    expect(resBody.error.message).toMatch(/invalid/i);
-  };
-
-  const assertNotFoundErrorRes = (res: supertest.Response) => {
-    const resBody = res.body as AppErrorResponse;
-    expect(res.statusCode).toBe(404);
-    expect(res.type).toMatch(/json/);
-    expect(resBody.error.message).toMatch(/not found/i);
-  };
 
   describe(`GET ${POSTS_URL}`, () => {
     it('should respond with an empty array', async () => {
@@ -437,7 +306,9 @@ describe('Posts endpoint', async () => {
 
   const createTestsForCreatingOrUpdatingPost = (forUpdating = false) => {
     return async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
 
       const postDataToUpdate = {
         ...postDataOutput,
@@ -598,7 +469,9 @@ describe('Posts endpoint', async () => {
 
   const createTestsForDeletingPostOrComment = (forComment = false) => {
     return async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
 
       const postDataToDelete = {
         ...postFullData,
@@ -1098,7 +971,7 @@ describe('Posts endpoint', async () => {
     });
 
     it('should respond with 400 on invalid post id', async () => {
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
         .post(`${POSTS_URL}/321/comments`)
         .send(commentData);
@@ -1107,7 +980,7 @@ describe('Posts endpoint', async () => {
 
     it(`should respond with 404 on id of non-existent post`, async () => {
       const dbPost = await createPost(postDataToComment);
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       await db.post.delete({ where: { id: dbPost.id } });
       const res = await authorizedApi
         .post(`${POSTS_URL}/${dbPost.id}/comments`)
@@ -1120,7 +993,7 @@ describe('Posts endpoint', async () => {
         ...postDataToComment,
         published: false,
       });
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
         .post(`${POSTS_URL}/${dbPost.id}/comments`)
         .send(commentData);
@@ -1128,7 +1001,7 @@ describe('Posts endpoint', async () => {
     });
 
     it('should respond with 400 on a comment without content field', async () => {
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const dbPost = await createPost(postDataToComment);
       const res = await authorizedApi
         .post(`${POSTS_URL}/${dbPost.id}/comments`)
@@ -1142,7 +1015,7 @@ describe('Posts endpoint', async () => {
     });
 
     it('should respond with 400 on an empty comment', async () => {
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const dbPost = await createPost(postDataToComment);
       const res = await authorizedApi
         .post(`${POSTS_URL}/${dbPost.id}/comments`)
@@ -1156,7 +1029,9 @@ describe('Posts endpoint', async () => {
     });
 
     it('should create comment and respond with 20', async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
       const privatePostData = {
         ...postDataToComment,
         published: false,
@@ -1193,7 +1068,7 @@ describe('Posts endpoint', async () => {
 
     it('should respond with 401 on a request without valid JWT', async () => {
       const dbPost = await createPost(postDataToComment);
-      const { signedInUserData } = await prepForAuthorizedTest();
+      const { signedInUserData } = await prepForAuthorizedTest(userOneData);
       const cId = getCommentId(dbPost, signedInUserData.user.id);
       const res = await api
         .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)
@@ -1205,7 +1080,7 @@ describe('Posts endpoint', async () => {
     it('should respond with 400 on invalid post id', async () => {
       const dbPost = await createPost(postDataToComment);
       const cId = dbPost.comments[0].id;
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
         .put(`${POSTS_URL}/321/comments/${cId}`)
         .send(commentData);
@@ -1215,7 +1090,7 @@ describe('Posts endpoint', async () => {
     it(`should respond with 404 on id of non-existent post`, async () => {
       const dbPost = await createPost(postDataToComment);
       const cId = dbPost.comments[0].id;
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       await db.post.delete({ where: { id: dbPost.id } });
       const res = await authorizedApi
         .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)
@@ -1229,7 +1104,7 @@ describe('Posts endpoint', async () => {
         published: false,
       });
       const cId = dbPost.comments[0].id;
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
         .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)
         .send(commentData);
@@ -1238,7 +1113,7 @@ describe('Posts endpoint', async () => {
 
     it('should respond with 400 on invalid comment id', async () => {
       const dbPost = await createPost(postDataToComment);
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
         .put(`${POSTS_URL}/${dbPost.id}/comments/321`)
         .send(commentData);
@@ -1247,7 +1122,7 @@ describe('Posts endpoint', async () => {
 
     it('should respond with 404 on id of non-existent comment', async () => {
       const dbPost = await createPost(postDataToComment);
-      const { authorizedApi } = await prepForAuthorizedTest();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       await db.comment.delete({ where: { id: dbPost.comments[0].id } });
       const res = await authorizedApi
         .put(`${POSTS_URL}/${dbPost.id}/comments/${dbPost.comments[0].id}`)
@@ -1256,7 +1131,9 @@ describe('Posts endpoint', async () => {
     });
 
     it('should respond with 401 on a non-comment-owner JWT', async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
       const dbPost = await createPost(postDataToComment);
       const res = await authorizedApi
         .put(
@@ -1271,7 +1148,9 @@ describe('Posts endpoint', async () => {
     });
 
     it('should respond with 400 on a comment without content field', async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
       const dbPost = await createPost(postDataToComment);
       const cId = getCommentId(dbPost, signedInUserData.user.id);
       const res = await authorizedApi
@@ -1286,7 +1165,9 @@ describe('Posts endpoint', async () => {
     });
 
     it('should respond with 400 on an empty comment', async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
       const dbPost = await createPost(postDataToComment);
       const cId = getCommentId(dbPost, signedInUserData.user.id);
       const res = await authorizedApi
@@ -1301,7 +1182,9 @@ describe('Posts endpoint', async () => {
     });
 
     it(`should update comment and respond with 200`, async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
       const privatePostData = {
         ...postDataToComment,
         published: false,
@@ -1337,7 +1220,9 @@ describe('Posts endpoint', async () => {
 
   const createTestsForUpAndDownVoting = (forDownVoting = false) => {
     return async () => {
-      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+      const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+        userOneData
+      );
 
       const postDataToVote = forDownVoting
         ? {
@@ -1503,7 +1388,9 @@ describe('Posts endpoint', async () => {
   });
 
   describe('Counters', async () => {
-    const { signedInUserData, authorizedApi } = await prepForAuthorizedTest();
+    const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
+      userOneData
+    );
 
     describe(`GET ${POSTS_URL}/count`, () => {
       it('should respond with 401 on a request without JWT', async () => {
