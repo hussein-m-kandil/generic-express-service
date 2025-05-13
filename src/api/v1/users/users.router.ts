@@ -1,6 +1,5 @@
 import { Request, Router } from 'express';
 import { createJwtForUser } from '../../../lib/helpers';
-import { AppNotFoundError } from '../../../lib/app-error';
 import { AuthResponse, NewUserInput } from '../../../types';
 import { Prisma } from '../../../../prisma/generated/client';
 import {
@@ -19,7 +18,7 @@ import usersService from './users.service';
 export const usersRouter = Router();
 
 usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
-  const users = await usersService.getAll();
+  const users = await usersService.getAllUsers();
   res.json(users);
 });
 
@@ -28,15 +27,14 @@ usersRouter.get(
   authValidator,
   createAdminOrOwnerValidator((req) => req.params.id),
   async (req, res) => {
-    const user = await usersService.findOneById(req.params.id);
-    if (!user) throw new AppNotFoundError('User not found');
+    const user = await usersService.findUserByIdOrThrow(req.params.id);
     res.json(user);
   }
 );
 
 usersRouter.post('/', async (req, res) => {
   const parsedNewUser = userSchema.parse(req.body);
-  const createdUser = await usersService.createOne(parsedNewUser);
+  const createdUser = await usersService.createUser(parsedNewUser);
   const signupRes: AuthResponse = {
     token: createJwtForUser(createdUser),
     user: createdUser,
@@ -60,7 +58,7 @@ usersRouter.patch(
       }).password;
     }
     if (secret && secretSchema.parse(secret)) data.isAdmin = true;
-    await usersService.updateOne(req.params.id, data);
+    await usersService.updateUser(req.params.id, data);
     res.status(204).end();
   }
 );
@@ -70,7 +68,7 @@ usersRouter.delete(
   authValidator,
   createAdminOrOwnerValidator((req) => req.params.id),
   async (req, res) => {
-    await usersService.deleteOne(req.params.id);
+    await usersService.deleteUser(req.params.id);
     res.status(204).end();
   }
 );

@@ -1,6 +1,7 @@
 import { Prisma } from '../../../../prisma/generated/client';
 import { NewUserOutput, PublicUser } from '../../../types';
 import { handleDBKnownErrors } from '../../../lib/helpers';
+import { AppNotFoundError } from '../../../lib/app-error';
 import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
 import bcrypt from 'bcryptjs';
@@ -9,9 +10,9 @@ const omit = { password: true, isAdmin: true };
 
 const hashPassword = (password: string) => bcrypt.hash(password, SALT);
 
-export const getAll = async () => await db.user.findMany();
+export const getAllUsers = async () => await db.user.findMany();
 
-export const createOne = async (
+export const createUser = async (
   newUser: NewUserOutput
 ): Promise<PublicUser> => {
   const data = { ...newUser };
@@ -22,13 +23,19 @@ export const createOne = async (
   return user;
 };
 
-export const findOneById = async (id: string): Promise<PublicUser | null> => {
+export const findUserById = async (id: string): Promise<PublicUser | null> => {
   const dbQuery = db.user.findUnique({ where: { id }, omit });
   const user = await handleDBKnownErrors(dbQuery);
   return user;
 };
 
-export const updateOne = async (
+export const findUserByIdOrThrow = async (id: string) => {
+  const user = await findUserById(id);
+  if (!user) throw new AppNotFoundError('User not found');
+  return user;
+};
+
+export const updateUser = async (
   id: string,
   userData: Prisma.UserUpdateInput
 ): Promise<void> => {
@@ -44,9 +51,16 @@ export const updateOne = async (
   await handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const deleteOne = async (id: string): Promise<void> => {
+export const deleteUser = async (id: string): Promise<void> => {
   const dbQuery = db.user.delete({ where: { id }, omit });
   await handleDBKnownErrors(dbQuery);
 };
 
-export default { getAll, createOne, findOneById, updateOne, deleteOne };
+export default {
+  findUserByIdOrThrow,
+  findUserById,
+  getAllUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+};
