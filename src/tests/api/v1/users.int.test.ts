@@ -444,21 +444,21 @@ describe('Users endpoint', async () => {
       expect(res.statusCode).toBe(204);
     });
 
-    it('should respond with 204 if not found a user, on request with owner JWT', async () => {
+    it('should respond with 404 if not found a user, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       await db.user.delete({ where: { id: dbUser.id } });
       const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
-      expect(res.statusCode).toBe(204);
+      assertNotFoundErrorRes(res);
     });
 
-    it('should respond with 204 if not found a user, on request with admin JWT', async () => {
+    it('should respond with 404 if not found a user, on request with admin JWT', async () => {
       await createUser(adminData);
       const dbUser = await createUser(userData);
       await db.user.delete({ where: { id: dbUser.id } });
       const { authorizedApi } = await prepForAuthorizedTest(adminData);
       const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
-      expect(res.statusCode).toBe(204);
+      assertNotFoundErrorRes(res);
     });
 
     it('should respond with 401 if the id is invalid', async () => {

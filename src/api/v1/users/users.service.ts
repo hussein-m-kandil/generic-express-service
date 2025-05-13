@@ -1,7 +1,6 @@
 import { Prisma } from '../../../../prisma/generated/client';
 import { NewUserOutput, PublicUser } from '../../../types';
 import { handleDBKnownErrors } from '../../../lib/helpers';
-import { AppNotFoundError } from '../../../lib/app-error';
 import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
 import bcrypt from 'bcryptjs';
@@ -46,12 +45,8 @@ export const updateOne = async (
 };
 
 export const deleteOne = async (id: string): Promise<void> => {
-  try {
-    const dbQuery = db.user.delete({ where: { id }, omit });
-    await handleDBKnownErrors(dbQuery);
-  } catch (error) {
-    if (!(error instanceof AppNotFoundError)) throw error;
-  }
+  const dbQuery = db.user.delete({ where: { id }, omit });
+  await handleDBKnownErrors(dbQuery);
 };
 
 export default { getAll, createOne, findOneById, updateOne, deleteOne };
