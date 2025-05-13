@@ -122,6 +122,7 @@ export const setup = async (signinUrl: string) => {
     expect(actualPost.title).toBe(expectedPost.title);
     expect(actualPost.content).toBe(expectedPost.content);
     expect(actualPost.authorId).toBe(expectedPost.authorId);
+    expect(actualPost.published).toBe(expectedPost.published);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.categories.length).toBe(expectedPost.categories.length);
     expect(

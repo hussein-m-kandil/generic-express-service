@@ -87,12 +87,13 @@ describe('Posts endpoint', async () => {
         userOneData.username,
         userOneData.password
       );
-      await createPost(postFullData);
-      await createPost({
+      const privatePostData = {
         ...postFullData,
         published: false,
         authorId: user.id,
-      });
+      };
+      await createPost(postFullData);
+      await createPost(privatePostData);
       const res = await api.get(POSTS_URL).set('Authorization', token);
       const resBody = res.body as PostFullData[];
       expect(res.statusCode).toBe(200);
@@ -100,9 +101,8 @@ describe('Posts endpoint', async () => {
       expect(resBody).toBeTypeOf('object');
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.length).toBe(2);
-      for (const post of resBody) {
-        assertPostData(post, postFullData);
-      }
+      assertPostData(resBody[0], postFullData);
+      assertPostData(resBody[1], privatePostData);
     });
 
     const populateDBForSearch = async () => {
