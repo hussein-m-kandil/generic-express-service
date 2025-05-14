@@ -1,17 +1,26 @@
 import { Request, Router } from 'express';
-import { createJwtForUser } from '../../../lib/helpers';
+import {
+  createJwtForUser,
+  findFilteredPosts,
+  findFilteredVotes,
+  findFilteredComments,
+  getPostFilterOptionsFromReqQuery,
+  getVoteFilterOptionsFromReqQuery,
+  getCommentFilterOptionsFromReqQuery,
+} from '../../../lib/helpers';
 import { AuthResponse, NewUserInput } from '../../../types';
 import { Prisma } from '../../../../prisma/generated/client';
 import {
   authValidator,
   adminValidator,
+  optionalAuthValidator,
   createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
 import userSchema, {
+  secretSchema,
   usernameSchema,
   fullnameSchema,
   passwordSchema,
-  secretSchema,
 } from './user.schema';
 import usersService from './users.service';
 
@@ -31,6 +40,27 @@ usersRouter.get(
     res.json(user);
   }
 );
+
+usersRouter.get('/:id/posts', optionalAuthValidator, async (req, res) => {
+  const authorId = req.params.id;
+  const filters = getPostFilterOptionsFromReqQuery(req);
+  const userPosts = await findFilteredPosts(filters, { authorId });
+  res.json(userPosts);
+});
+
+usersRouter.get('/:id/comments', optionalAuthValidator, async (req, res) => {
+  const authorId = req.params.id;
+  const filters = getCommentFilterOptionsFromReqQuery(req);
+  const comments = await findFilteredComments(filters, { authorId });
+  res.json(comments);
+});
+
+usersRouter.get('/:id/votes', optionalAuthValidator, async (req, res) => {
+  const userId = req.params.id;
+  const filters = getVoteFilterOptionsFromReqQuery(req);
+  const votes = await findFilteredVotes(filters, { userId });
+  res.json(votes);
+});
 
 usersRouter.post('/', async (req, res) => {
   const parsedNewUser = userSchema.parse(req.body);

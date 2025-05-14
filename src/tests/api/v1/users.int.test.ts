@@ -1,6 +1,9 @@
-import { AppErrorResponse, AppJwtPayload, AuthResponse } from '../../../types';
-import { Prisma, User } from '../../../../prisma/generated/client';
-import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
+import {
+  AppErrorResponse,
+  AppJwtPayload,
+  AuthResponse,
+  PostFullData,
+} from '../../../types';
 import {
   it,
   expect,
@@ -10,6 +13,13 @@ import {
   beforeEach,
   TestFunction,
 } from 'vitest';
+import {
+  Comment,
+  Prisma,
+  User,
+  VoteOnPost,
+} from '../../../../prisma/generated/client';
+import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
 import { ZodIssue } from 'zod';
 import setup from '../setup';
 import bcrypt from 'bcryptjs';
@@ -18,13 +28,17 @@ import db from '../../../lib/db';
 
 describe('Users endpoint', async () => {
   const {
+    postDataOutput,
     newUserData,
     xUserData,
     adminData,
     userData,
     api,
     createUser,
+    createPost,
     deleteAllUsers,
+    deleteAllPosts,
+    assertPostData,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
@@ -32,9 +46,13 @@ describe('Users endpoint', async () => {
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
-  beforeEach(deleteAllUsers);
+  const resetDB = async () => {
+    await deleteAllPosts();
+    await deleteAllUsers();
+  };
 
-  afterAll(deleteAllUsers);
+  beforeEach(resetDB);
+  afterAll(resetDB);
 
   describe(`POST ${USERS_URL}`, () => {
     for (const field of Object.keys(newUserData)) {
@@ -466,6 +484,283 @@ describe('Users endpoint', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       const res = await authorizedApi.delete(`${USERS_URL}/foo`);
       assertUnauthorizedErrorRes(res);
+    });
+  });
+
+  describe(`GET ${USERS_URL}/:id/posts`, () => {
+    const populateUsersAndPosts = async () => {
+      const dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      const userPosts = [
+        { ...postDataOutput, authorId: dbUser.id, published: false },
+        { ...postDataOutput, authorId: dbUser.id },
+      ];
+      const allUsersPosts = [
+        { ...postDataOutput, authorId: dbXUser.id },
+        ...userPosts,
+      ];
+      for (const postData of allUsersPosts) {
+        await createPost(postData);
+      }
+      return { dbUser, dbXUser, userPosts, allUsersPosts };
+    };
+
+    it('should respond with 400 if the user id is invalid', async () => {
+      const res = await api.get(`${USERS_URL}/123/posts`);
+      assertInvalidIdErrorRes(res);
+    });
+
+    it('should respond with and empty array if the user is not found', async () => {
+      const dbUser = await createUser(userData);
+      await db.user.delete({ where: { id: dbUser.id } });
+      const res = await api.get(`${USERS_URL}/${dbUser.id}/posts`);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty array of posts', async () => {
+      const dbUser = await createUser(userData);
+      const res = await api.get(`${USERS_URL}/${dbUser.id}/posts`);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an array of user public posts on request without JWT', async () => {
+      const { dbUser, userPosts } = await populateUsersAndPosts();
+      const res = await api.get(`${USERS_URL}/${dbUser.id}/posts`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(1);
+      assertPostData(resBody[0], userPosts[1]);
+    });
+
+    it('should respond with an array of user public posts on request with non-post-author JWT', async () => {
+      const { dbUser, userPosts } = await populateUsersAndPosts();
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}/posts`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(1);
+      assertPostData(resBody[0], userPosts[1]);
+    });
+
+    it('should respond with an array of user all posts on request with post-author JWT', async () => {
+      const { dbUser, userPosts } = await populateUsersAndPosts();
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}/posts`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(2);
+      assertPostData(resBody[0], userPosts[0]);
+      assertPostData(resBody[1], userPosts[1]);
+    });
+  });
+
+  describe(`GET ${USERS_URL}/:id/comments`, () => {
+    const populateDBForCommentSearch = async (published = true) => {
+      const dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      const authorId = dbUser.id;
+      const commentOne = { authorId: dbXUser.id, content: 'Nice blog' };
+      const commentTwo = { authorId, content: 'Thanks a lot' };
+      const commentThree = { authorId: dbXUser.id, content: 'You are welcome' };
+      const comments = [commentOne, commentTwo, commentThree];
+      const postData = { ...postDataOutput, published, authorId, comments };
+      const dbPost = await createPost(postData);
+      return { dbPost, dbUser, dbXUser, commentOne, commentTwo, commentThree };
+    };
+
+    it('should respond with an array of comments', async () => {
+      const { dbXUser, commentOne, commentThree } =
+        await populateDBForCommentSearch();
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/comments`);
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(2);
+      expect(commentContents).toContain(commentOne.content);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an empty array if the request without JWT and the post is private', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/comments`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty array if the request without JWT and the post is private', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/comments`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with the comment array if the request wit a post author JWT and the post is private', async () => {
+      const { dbXUser, commentOne, commentThree } =
+        await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/comments`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(2);
+      expect(commentContents).toContain(commentOne.content);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an array of comments based on search by full text', async () => {
+      const { dbUser, commentTwo } = await populateDBForCommentSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbUser.id}/comments?q=${encodeURI('thanks a lot')}`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentTwo.content);
+    });
+
+    it('should respond with an array of comments based on search by part of the text', async () => {
+      const { dbXUser, commentThree } = await populateDBForCommentSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbXUser.id}/comments?q=welcome`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an empty comment array if post comment is private and there is no JWT', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/comments?q=thanks`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty comment array if post comment is private and there is non-post-author JWT', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/comments?q=thanks`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with a comment array if post comment is private and there is post-author JWT', async () => {
+      const { dbUser, commentTwo } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbUser.id}/comments?q=thanks`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentTwo.content);
+    });
+  });
+
+  describe(`GET ${USERS_URL}/:id/votes`, () => {
+    const populateDBForVoteSearch = async (published = true) => {
+      const dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      const dbAdmin = await createUser(adminData);
+      const voteOne = { userId: dbXUser.id, isUpvote: false };
+      const voteTwo = { userId: dbUser.id, isUpvote: true };
+      const voteThree = { userId: dbAdmin.id, isUpvote: true };
+      const votes = [voteOne, voteTwo, voteThree];
+      const postData = {
+        ...postDataOutput,
+        authorId: dbUser.id,
+        published,
+        votes,
+      };
+      const dbPost = await createPost(postData);
+      return { dbUser, dbXUser, dbAdmin, dbPost, voteOne, voteTwo, voteThree };
+    };
+
+    it('should respond with an upvote array', async () => {
+      const { dbXUser } = await populateDBForVoteSearch();
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/votes`);
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
+
+    it('should respond with an upvote array based on search by vote type', async () => {
+      const { dbAdmin } = await populateDBForVoteSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbAdmin.id}/votes?upvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(true);
+    });
+
+    it('should respond with an upvote array based on search by vote type', async () => {
+      const { dbXUser } = await populateDBForVoteSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbXUser.id}/votes?downvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
+
+    it('should respond with an empty vote array if the post is private and there is no JWT', async () => {
+      const { dbXUser } = await populateDBForVoteSearch(false);
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/votes`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty vote array if the post is private and there is non-post-author JWT', async () => {
+      const { dbXUser } = await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbXUser.id}/votes`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with a upvote array if the post is private and there is post-author JWT', async () => {
+      const { dbAdmin } = await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbAdmin.id}/votes?upvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(true);
+    });
+
+    it('should respond with a downvote array if the post is private and there is post-author JWT', async () => {
+      const { dbXUser } = await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/votes?downvote=true`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
     });
   });
 });
