@@ -5,7 +5,10 @@ import passport from '../lib/passport';
 import db from '../lib/db';
 
 const isAdmin = async (id: string): Promise<boolean> => {
-  const dbUser = await db.user.findUnique({ where: { id } });
+  const dbUser = await db.user.findUnique({
+    where: { id },
+    select: { isAdmin: true },
+  });
   return Boolean(dbUser?.isAdmin);
 };
 

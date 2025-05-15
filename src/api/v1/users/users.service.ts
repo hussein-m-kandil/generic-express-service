@@ -6,8 +6,6 @@ import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
 import bcrypt from 'bcryptjs';
 
-const omit = { password: true, isAdmin: true };
-
 const hashPassword = (password: string) => bcrypt.hash(password, SALT);
 
 export const getAllUsers = async () => await db.user.findMany();
@@ -17,14 +15,14 @@ export const createUser = async (
 ): Promise<PublicUser> => {
   const data = { ...newUser };
   data.password = await hashPassword(data.password);
-  const dbQuery = db.user.create({ data, omit });
+  const dbQuery = db.user.create({ data });
   const handlerOptions = { uniqueFieldName: 'username' };
   const user = await handleDBKnownErrors(dbQuery, handlerOptions);
   return user;
 };
 
 export const findUserById = async (id: string): Promise<PublicUser | null> => {
-  const dbQuery = db.user.findUnique({ where: { id }, omit });
+  const dbQuery = db.user.findUnique({ where: { id } });
   const user = await handleDBKnownErrors(dbQuery);
   return user;
 };
@@ -43,7 +41,7 @@ export const updateUser = async (
   if (data.password && typeof data.password === 'string') {
     data.password = await hashPassword(data.password);
   }
-  const dbQuery = db.user.update({ where: { id }, data, omit });
+  const dbQuery = db.user.update({ where: { id }, data });
   const handlerOptions = {
     notFoundErrMsg: 'User not found',
     uniqueFieldName: 'username',
@@ -52,7 +50,7 @@ export const updateUser = async (
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
-  const dbQuery = db.user.delete({ where: { id }, omit });
+  const dbQuery = db.user.delete({ where: { id } });
   await handleDBKnownErrors(dbQuery);
 };
 

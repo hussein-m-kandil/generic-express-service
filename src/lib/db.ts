@@ -1,10 +1,12 @@
 import { PrismaClient } from '../../prisma/generated/client';
-import { GlobalWithPrisma } from '../types';
+import { CustomPrismaClient } from '../types';
 import logger from './logger';
 
-const globalForPrisma = global as GlobalWithPrisma;
+const globalForPrisma = global as typeof globalThis & {
+  prisma: CustomPrismaClient | undefined;
+};
 
-export let prismaClient: PrismaClient;
+export let prismaClient: CustomPrismaClient;
 
 logger.info(`using prisma client in ${process.env.NODE_ENV} mode`);
 
@@ -16,6 +18,7 @@ if (globalForPrisma.prisma) {
   prismaClient = new PrismaClient({
     // Read the URL programmatically to support replacing .env with .env.test in CLI
     datasourceUrl: process.env.DATABASE_URL,
+    omit: { user: { password: true, isAdmin: true } },
   });
 }
 

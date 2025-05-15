@@ -106,6 +106,7 @@ describe('Users endpoint', async () => {
         const resUser = resBody.user as User;
         const dbUser = await db.user.findUniqueOrThrow({
           where: { id: resUser.id },
+          omit: { password: false, isAdmin: false },
         });
         const resJwtPayload = jwt.decode(
           resBody.token.replace(/^Bearer /, '')
@@ -255,6 +256,7 @@ describe('Users endpoint', async () => {
           .send(data);
         const updatedDBUser = await db.user.findUnique({
           where: { id: dbUser.id },
+          omit: { password: false, isAdmin: false },
         });
         expect(res.statusCode).toBe(204);
         expect(updatedDBUser).toBeTruthy();

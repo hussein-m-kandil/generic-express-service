@@ -1,21 +1,22 @@
 import {
-  AppInvalidIdError,
   AppNotFoundError,
+  AppInvalidIdError,
   AppUniqueConstraintViolationError,
 } from '../lib/app-error';
 import {
-  AppJwtPayload,
-  CommentFiltrationOptions,
-  PostFiltrationOptions,
   PublicUser,
+  AppJwtPayload,
+  PostFiltrationOptions,
   VoteFiltrationOptions,
+  CommentFiltrationOptions,
+  DBKnownErrorsHandlerOptions,
 } from '../types';
-import { User, Prisma } from '../../prisma/generated/client';
+import { Request } from 'express';
+import { Prisma } from '../../prisma/generated/client';
 import { SECRET, TOKEN_EXP_PERIOD } from './config';
 import jwt from 'jsonwebtoken';
 import db from './db';
 import ms from 'ms';
-import { Request } from 'express';
 
 export const createJwtForUser = (user: PublicUser): string => {
   const { id, username, fullname } = user;
@@ -24,11 +25,6 @@ export const createJwtForUser = (user: PublicUser): string => {
     expiresIn: TOKEN_EXP_PERIOD as ms.StringValue,
   });
   return `Bearer ${token}`;
-};
-
-export const convertUserToPublicUser = (user: User): PublicUser => {
-  const { id, bio, username, fullname, createdAt, updatedAt } = user;
-  return { id, bio, username, fullname, createdAt, updatedAt };
 };
 
 export const catchDBKnownError = async <P>(
@@ -43,11 +39,6 @@ export const catchDBKnownError = async <P>(
     throw error;
   }
 };
-
-export interface DBKnownErrorsHandlerOptions {
-  notFoundErrMsg?: string;
-  uniqueFieldName?: string;
-}
 
 export const handleDBKnownErrors = async <T>(
   dbQuery: Promise<T>,
@@ -73,9 +64,10 @@ export const handleDBKnownErrors = async <T>(
 };
 
 export const fieldsToIncludeWithPost = {
-  votes: true,
-  comments: true,
+  comments: { include: { author: true } },
+  votes: { include: { user: true } },
   categories: true,
+  author: true,
 };
 
 export const getTextFilterFromReqQuery = (req: Request) => {
@@ -229,7 +221,6 @@ export default {
   findFilteredPosts,
   handleDBKnownErrors,
   findFilteredComments,
-  convertUserToPublicUser,
   fieldsToIncludeWithPost,
   getTextFilterFromReqQuery,
   getSignedInUserIdFromReqQuery,

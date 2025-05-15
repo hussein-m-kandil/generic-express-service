@@ -7,3 +7,5 @@ export const USERS_URL = `${BASE_URL}/users`;
 export const POSTS_URL = `${BASE_URL}/posts`;
 
 export const SIGNIN_URL = `${BASE_URL}/auth/signin`;
+
+export const VERIFY_URL = `${BASE_URL}/auth/verify`;

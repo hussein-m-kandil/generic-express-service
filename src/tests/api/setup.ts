@@ -1,16 +1,11 @@
-import {
-  AppErrorResponse,
-  NewDefaultUser,
-  AuthResponse,
-  NewUserInput,
-  PostFullData,
-} from '../../types';
+import { AppErrorResponse, AuthResponse, PostFullData } from '../../types';
+import { Prisma } from '../../../prisma/generated/client';
 import { SALT } from '../../lib/config';
 import { expect } from 'vitest';
 import { ZodIssue } from 'zod';
-import bcrypt from 'bcryptjs';
 import app from '../../app';
 import db from '../../lib/db';
+import bcrypt from 'bcryptjs';
 import supertest from 'supertest';
 
 export const setup = async (signinUrl: string) => {
@@ -19,9 +14,12 @@ export const setup = async (signinUrl: string) => {
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
 
-  const createUser = async (data: NewDefaultUser) => {
+  const createUser = async (data: Prisma.UserCreateInput) => {
     const password = bcrypt.hashSync(data.password, SALT);
-    return await db.user.create({ data: { ...data, password } });
+    return await db.user.create({
+      data: { ...data, password },
+      omit: { password: false, isAdmin: false },
+    });
   };
 
   const signin = async (username: string, password: string) => {
@@ -29,12 +27,12 @@ export const setup = async (signinUrl: string) => {
     return signinRes.body as AuthResponse;
   };
 
-  const userData: NewDefaultUser = {
+  const userData = {
     fullname: 'Clark Kent/Kal-El',
     username: 'superman',
     password: 'Ss@12312',
   };
-  const newUserData: NewUserInput = { ...userData, confirm: userData.password };
+  const newUserData = { ...userData, confirm: userData.password };
   const userOneData = {
     username: 'superman',
     fullname: 'clark kent',
