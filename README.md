@@ -61,11 +61,15 @@ A generic Express.js back-end service designed to support multiple front-end app
 
    The API will be available at `http://localhost:8080`.
 
-## Running all tests
+## Running Tests
 
 ```bash
 npm run test -- --run
 ```
+
+## Manual Testing
+
+There are several HTTP request examples in `.rest` files located in the `/requests` directory. These can be used to manually test the API using the _[REST Client (VS Code extension)](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)_, while the development server is running with the command `npm run dev`.
 
 ## Deployment
 
