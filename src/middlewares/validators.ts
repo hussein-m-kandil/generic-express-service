@@ -5,7 +5,10 @@ import passport from '../lib/passport';
 import db from '../lib/db';
 
 const isAdmin = async (id: string): Promise<boolean> => {
-  const dbUser = await db.user.findUnique({ where: { id } });
+  const dbUser = await db.user.findUnique({
+    where: { id },
+    select: { isAdmin: true },
+  });
   return Boolean(dbUser?.isAdmin);
 };
 
@@ -47,9 +50,20 @@ export const authValidator = passport.authenticate('jwt', {
   session: false,
 }) as RequestHandler;
 
+export const optionalAuthValidator = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.headers.authorization) {
+    await authValidator(req, res, next);
+  } else next();
+};
+
 export default {
   authValidator,
   adminValidator,
   createOwnerValidator,
+  optionalAuthValidator,
   createAdminOrOwnerValidator,
 };

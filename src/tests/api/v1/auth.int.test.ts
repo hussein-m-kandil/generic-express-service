@@ -1,52 +1,16 @@
+import { AppErrorResponse, AppJwtPayload, AuthResponse } from '../../../types';
 import { it, expect, describe, afterAll, beforeAll, vi } from 'vitest';
-import { SALT } from '../../../lib/config';
-import {
-  AppErrorResponse,
-  AppJwtPayload,
-  NewDefaultUser,
-  AuthResponse,
-} from '../../../types';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import app from '../../../app';
-import request from 'supertest';
-import db from '../../../lib/db';
 import { User } from '../../../../prisma/generated/client';
+import { SIGNIN_URL, VERIFY_URL } from './utils';
+import jwt from 'jsonwebtoken';
+import setup from '../setup';
 
-describe('Authentication endpoint', () => {
-  const BASE_URL = '/api/v1/auth';
-  const SIGNIN_URL = `${BASE_URL}/signin`;
-  const VERIFY_URL = `${BASE_URL}/verify`;
-
-  const userData: NewDefaultUser = {
-    fullname: 'Clark Kent/Kal-El',
-    username: 'superman',
-    password: 'Ss@12312',
-  };
-
-  const signInData = {
-    username: userData.username,
-    password: userData.password,
-  };
-
-  const api = request(app);
-
-  const deleteAllUsers = async () => {
-    await db.user.deleteMany();
-  };
-
-  const createUser = async () => {
-    await db.user.create({
-      data: {
-        ...userData,
-        password: await bcrypt.hash(userData.password, SALT),
-      },
-    });
-  };
+describe('Authentication endpoint', async () => {
+  const { api, userData, createUser, deleteAllUsers } = await setup(SIGNIN_URL);
 
   beforeAll(async () => {
     await deleteAllUsers();
-    await createUser();
+    await createUser(userData);
   });
 
   afterAll(deleteAllUsers);
@@ -55,7 +19,7 @@ describe('Authentication endpoint', () => {
     it('should not sign in with wrong username', async () => {
       const res = await api
         .post(SIGNIN_URL)
-        .send({ ...signInData, username: 'blah...' });
+        .send({ username: 'blah...', password: userData.password });
       const resBody = res.body as AppErrorResponse;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(400);
@@ -68,7 +32,7 @@ describe('Authentication endpoint', () => {
     it('should not sign in with wrong password', async () => {
       const res = await api
         .post(SIGNIN_URL)
-        .send({ ...signInData, password: 'blah...' });
+        .send({ username: userData.username, password: 'blah...' });
       const resBody = res.body as AppErrorResponse;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(400);
@@ -79,7 +43,7 @@ describe('Authentication endpoint', () => {
     });
 
     it('should sign in and response with JWT and user insensitive-info', async () => {
-      const res = await api.post(SIGNIN_URL).send(signInData);
+      const res = await api.post(SIGNIN_URL).send(userData);
       const resBody = res.body as AuthResponse;
       const resUser = resBody.user as User;
       const resJwtPayload = jwt.decode(
@@ -102,7 +66,7 @@ describe('Authentication endpoint', () => {
 
   describe(`GET ${VERIFY_URL}`, () => {
     it('should verify a valid, fresh token and respond with `true`', async () => {
-      const signinResBody = (await api.post(SIGNIN_URL).send(signInData))
+      const signinResBody = (await api.post(SIGNIN_URL).send(userData))
         .body as AuthResponse;
       const res = await api
         .get(VERIFY_URL)
@@ -113,7 +77,7 @@ describe('Authentication endpoint', () => {
     });
 
     it('should not verify an invalid token and respond 401', async () => {
-      const signinResBody = (await api.post(SIGNIN_URL).send(signInData))
+      const signinResBody = (await api.post(SIGNIN_URL).send(userData))
         .body as AuthResponse;
       const res = await api
         .get(VERIFY_URL)
@@ -122,7 +86,7 @@ describe('Authentication endpoint', () => {
     });
 
     it('should not verify an expired token and respond 401', async () => {
-      const signinResBody = (await api.post(SIGNIN_URL).send(signInData))
+      const signinResBody = (await api.post(SIGNIN_URL).send(userData))
         .body as AuthResponse;
       vi.useFakeTimers();
       const now = new Date();

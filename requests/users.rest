@@ -149,3 +149,30 @@ Content-Type: application/json
   "username": "nowhere_man",
   "password": "Nm@12312"
 }
+
+###
+
+GET http://127.0.0.1:8080/api/v1/users/3f457861-0abb-40a9-9603-dcaad46f224c/posts
+
+###
+
+GET http://127.0.0.1:8080/api/v1/users/3f457861-0abb-40a9-9603-dcaad46f224c/posts
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImU1MmJiNTVmLWI3MzgtNGNlOS1hY2ViLWFiN2VlYzVmYTA5OCIsInVzZXJuYW1lIjoiYW55d2hlcmVfbWFuIiwiZnVsbG5hbWUiOiJBbnl3aGVyZS1NYW4iLCJpYXQiOjE3NDcxOTczMDksImV4cCI6MTc0NzQ1NjUwOX0.t2t7NV3YcCAM-nojXloPWavM2U1WELAyEuF3BghSnzw
+
+###
+
+# The Private posts included, if the JWT is for posts author
+GET http://127.0.0.1:8080/api/v1/users/3f457861-0abb-40a9-9603-dcaad46f224c/posts
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ3MTk3MDI3LCJleHAiOjE3NDc0NTYyMjd9.GDfDZPHmh8TFGJ08jEeYDf0OHoJhuKQ0AdPTwfuIBW4
+
+###
+
+GET http://127.0.0.1:8080/api/v1/users/3f457861-0abb-40a9-9603-dcaad46f224c/comments?q=thanks
+
+###
+
+GET http://127.0.0.1:8080/api/v1/users/3f457861-0abb-40a9-9603-dcaad46f224c/comments?q=foo
+
+###
+
+GET http://127.0.0.1:8080/api/v1/users/cca7d12d-7d0d-47f0-ad7b-dd68cbddaca5/votes?upvote=truthy

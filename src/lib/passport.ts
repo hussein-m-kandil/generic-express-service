@@ -14,13 +14,17 @@ passport.use(
     },
     (username, password, done) => {
       db.user
-        .findUnique({ where: { username: username } })
+        .findUnique({
+          where: { username: username },
+          omit: { password: false },
+        })
         .then((user) => {
           if (user) {
-            bcrypt.compare(password, user.password, (error, verified) => {
+            const { password: dbPassword, ...userPublicData } = user;
+            bcrypt.compare(password, dbPassword, (error, verified) => {
               if (error) done(error, false);
               else if (!verified) done(null, false);
-              else done(null, user);
+              else done(null, userPublicData);
             });
           } else done(null, false);
         })

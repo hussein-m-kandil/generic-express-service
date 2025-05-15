@@ -1,0 +1,185 @@
+GET http://127.0.0.1:8080/api/v1/posts
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts?q=public
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts?q=awesome
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts?q=amazing
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts?categories=fantasy&categories=mist
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts?categories=comedy,fantasy
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts?categories=fantasy&categories=mist,comedy
+
+###
+
+# With JWT to get the private posts
+GET http://127.0.0.1:8080/api/v1/posts
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/593f9987-4ea5-47e2-8be2-0155771761ad
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/count
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/categories/count
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/comments/count
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/votes/count
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/categories/count
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments/count
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/votes/count
+
+###
+
+POST http://127.0.0.1:8080/api/v1/posts
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+{
+  "title": "The Amazing Blog",
+  "content": "I am writing this blog to tell you some amazing things that I don't remember now.",
+  "published": false,
+  "categories": ["Comedy", "Fantasy"]
+}
+
+###
+
+POST http://127.0.0.1:8080/api/v1/posts
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+{
+  "title": "Public Blog",
+  "content": "I am writing this blog to tell you something in public, ...",
+  "published": true,
+  "categories": ["Comedy", "Fantasy"]
+}
+
+###
+
+POST http://127.0.0.1:8080/api/v1/posts
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+{
+  "title": "Awesome Public Blog",
+  "content": "I am writing this blog to tell you something, you are amazing",
+  "published": true,
+  "categories": ["Mist"]
+}
+
+###
+
+PUT http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+{
+  "title": "Public Blog",
+  "content": "I am writing this blog to tell you, good morning.",
+  "published": true,
+  "categories": ["Entertainment"]
+}
+
+###
+
+DELETE http://127.0.0.1:8080/api/v1/posts/dc03a266-1fb6-447b-956b-8e5926ac513e
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNmNDU3ODYxLTBhYmItNDBhOS05NjAzLWRjYWFkNDZmMjI0YyIsInVzZXJuYW1lIjoibm93aGVyZV9tYW4iLCJmdWxsbmFtZSI6Ik5vd2hlcmUtTWFuIiwiaWF0IjoxNzQ2OTQ4ODMyLCJleHAiOjE3NDcyMDgwMzJ9.DaSOc9DMVVkwOp5WhgZrn4nnsWn9o34VF2AtNMdYmgE
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/categories
+
+###
+
+POST http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+Content-Type: application/json
+
+{
+  "content": "Keep it up!"
+}
+
+###
+
+PUT http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments/7dbd4bc4-786c-4db8-a4bc-2783666c14f6
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+Content-Type: application/json
+
+{
+  "content": "Keep it Up"
+}
+
+###
+
+DELETE http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments/7dbd4bc4-786c-4db8-a4bc-2783666c14f6
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+
+###
+
+POST http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/upvote
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+
+###
+
+POST http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/downvote
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/votes
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNjYTdkMTJkLTdkMGQtNDdmMC1hZDdiLWRkNjhjYmRkYWNhNSIsInVzZXJuYW1lIjoic29tZXdoZXJlX21hbiIsImZ1bGxuYW1lIjoiU29tZXdoZXJlLU1hbiIsImlhdCI6MTc0NzAzODM2NSwiZXhwIjoxNzQ3Mjk3NTY1fQ.O95hAI0JA6RYncWxPcNxIkR3-XRVaNMilBIQ-OviDuo
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/comments?q=thanks
+
+###
+
+GET http://127.0.0.1:8080/api/v1/posts/b64637f6-7f4a-4de3-9481-b6c5495ec151/votes?upvote=truthy

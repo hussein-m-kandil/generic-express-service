@@ -1,11 +1,9 @@
 import {
-  AppJwtPayload,
-  NewDefaultUser,
-  NewUserInput,
-  AuthResponse,
   AppErrorResponse,
+  AppJwtPayload,
+  AuthResponse,
+  PostFullData,
 } from '../../../types';
-import { Prisma, User } from '../../../../prisma/generated/client';
 import {
   it,
   expect,
@@ -15,93 +13,69 @@ import {
   beforeEach,
   TestFunction,
 } from 'vitest';
+import {
+  Comment,
+  Prisma,
+  User,
+  VoteOnPost,
+} from '../../../../prisma/generated/client';
+import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
 import { ZodIssue } from 'zod';
-import { ADMIN_SECRET, SALT } from '../../../lib/config';
-import request, { Response } from 'supertest';
-import jwt from 'jsonwebtoken';
-import app from '../../../app';
-import db from '../../../lib/db';
+import setup from '../setup';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import db from '../../../lib/db';
 
-describe('Users endpoint', () => {
-  const BASE_URL = '/api/v1';
-  const USERS_ENDPOINT = `${BASE_URL}/users`;
+describe('Users endpoint', async () => {
+  const {
+    postDataOutput,
+    newUserData,
+    xUserData,
+    adminData,
+    userData,
+    api,
+    createUser,
+    createPost,
+    deleteAllUsers,
+    deleteAllPosts,
+    assertPostData,
+    prepForAuthorizedTest,
+    assertNotFoundErrorRes,
+    assertInvalidIdErrorRes,
+    assertUnauthorizedErrorRes,
+    assertResponseWithValidationError,
+  } = await setup(SIGNIN_URL);
 
-  const userData: NewDefaultUser = {
-    fullname: 'Clark Kent/Kal-El',
-    username: 'superman',
-    password: 'Ss@12312',
+  const resetDB = async () => {
+    await deleteAllPosts();
+    await deleteAllUsers();
   };
 
-  const newUserData: NewUserInput = { ...userData, confirm: userData.password };
+  beforeEach(resetDB);
+  afterAll(resetDB);
 
-  const adminData = {
-    username: 'admin',
-    fullname: 'Administrator',
-    password: 'Aa@12312',
-    isAdmin: true,
-  };
-
-  const api = request(app);
-
-  const deleteAllUsers = async () => {
-    await db.user.deleteMany();
-  };
-
-  const createUser = async (data: NewDefaultUser) => {
-    const password = bcrypt.hashSync(data.password, SALT);
-    return await db.user.create({ data: { ...data, password } });
-  };
-
-  const signin = async (username: string, password: string) => {
-    const signinRes = await api
-      .post(`${BASE_URL}/auth/signin`)
-      .send({ username, password });
-    return signinRes.body as AuthResponse;
-  };
-
-  const createAndSigninAdmin = async () => {
-    await createUser(adminData);
-    return await signin(adminData.username, adminData.password);
-  };
-
-  beforeEach(deleteAllUsers);
-
-  afterAll(deleteAllUsers);
-
-  describe(`POST ${USERS_ENDPOINT}`, () => {
-    const assertResponseWithValidationError = async (
-      res: Response,
-      issueField: string
-    ) => {
-      const issues = res.body as ZodIssue[];
-      const dbUsers = await db.user.findMany();
-      expect(res.type).toMatch(/json/);
-      expect(res.statusCode).toBe(400);
-      expect(dbUsers).toHaveLength(0);
-      expect(issues).toHaveLength(1);
-      expect(issues[0].path).toContain(issueField);
-    };
-
+  describe(`POST ${USERS_URL}`, () => {
     for (const field of Object.keys(newUserData)) {
       it(`should not create a user without ${field}`, async () => {
         const res = await api
-          .post(USERS_ENDPOINT)
+          .post(USERS_URL)
           .send({ ...newUserData, [field]: undefined });
-        await assertResponseWithValidationError(res, field);
+        assertResponseWithValidationError(res, field);
+        expect(await db.user.findMany()).toHaveLength(0);
       });
     }
 
     it(`should not create a user with wrong password confirmation`, async () => {
       const res = await api
-        .post(USERS_ENDPOINT)
+        .post(USERS_URL)
         .send({ ...userData, confirm: 'blah' });
-      await assertResponseWithValidationError(res, 'confirm');
+      assertResponseWithValidationError(res, 'confirm');
+      expect(await db.user.findMany()).toHaveLength(0);
     });
 
     it('should not create a user if the username is already exist', async () => {
       const { id } = await createUser(userData);
-      const res = await api.post(USERS_ENDPOINT).send(newUserData);
+      const res = await api.post(USERS_URL).send(newUserData);
       const resBody = res.body as AppErrorResponse;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(400);
@@ -111,14 +85,15 @@ describe('Users endpoint', () => {
 
     it('should not create an admin user', async () => {
       const res = await api
-        .post(USERS_ENDPOINT)
+        .post(USERS_URL)
         .send({ ...newUserData, secret: 'not_admin' });
-      await assertResponseWithValidationError(res, 'secret');
+      assertResponseWithValidationError(res, 'secret');
+      expect(await db.user.findMany()).toHaveLength(0);
     });
 
     const createPostNewUserTest = (isAdmin: boolean): TestFunction => {
       return async () => {
-        const res = await api.post(USERS_ENDPOINT).send(
+        const res = await api.post(USERS_URL).send(
           isAdmin
             ? {
                 ...newUserData,
@@ -131,6 +106,7 @@ describe('Users endpoint', () => {
         const resUser = resBody.user as User;
         const dbUser = await db.user.findUniqueOrThrow({
           where: { id: resUser.id },
+          omit: { password: false, isAdmin: false },
         });
         const resJwtPayload = jwt.decode(
           resBody.token.replace(/^Bearer /, '')
@@ -155,25 +131,24 @@ describe('Users endpoint', () => {
     it('should create an admin user', createPostNewUserTest(true));
   });
 
-  describe(`GET ${USERS_ENDPOINT}`, () => {
+  describe(`GET ${USERS_URL}`, () => {
     it('should respond with 401 on request without JWT', async () => {
-      const res = await api.get(USERS_ENDPOINT);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const res = await api.get(USERS_URL);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 401 on request with non-admin JWT', async () => {
       await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
-      const res = await api.get(USERS_ENDPOINT).set('Authorization', token);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(USERS_URL);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with users list, on request with admin JWT', async () => {
-      const { token } = await createAndSigninAdmin();
+      await createUser(adminData);
       const dbUser = await createUser(userData);
-      const res = await api.get(USERS_ENDPOINT).set('Authorization', token);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(USERS_URL);
       const users = res.body as User[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
@@ -184,87 +159,56 @@ describe('Users endpoint', () => {
     });
   });
 
-  describe(`GET ${USERS_ENDPOINT}/:id`, () => {
+  describe(`GET ${USERS_URL}/:id`, () => {
     it('should respond with 401 on request without JWT', async () => {
       const dbUser = await createUser(userData);
-      const res = await api.get(`${USERS_ENDPOINT}/${dbUser.id}`);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const res = await api.get(`${USERS_URL}/${dbUser.id}`);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 401 on request with non-admin/owner JWT', async () => {
-      const anotherUserData = {
-        username: 'another_user',
-        fullname: 'Another user',
-        password: 'Aa@12312',
-      };
-      await createUser(anotherUserData);
-      const { token } = await signin(
-        anotherUserData.username,
-        anotherUserData.password
-      );
+      await createUser(xUserData);
       const dbUser = await createUser(userData);
-      const res = await api
-        .get(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}`);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 401, on request with owner JWT', async () => {
       await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
-      const res = await api
-        .get(`${USERS_ENDPOINT}/foo`)
-        .set('Authorization', token);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(`${USERS_URL}/foo`);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 400 if given an invalid id, on request with admin JWT', async () => {
-      const { token } = await createAndSigninAdmin();
-      const res = await api
-        .get(`${USERS_ENDPOINT}/foo`)
-        .set('Authorization', token);
-      const resBody = res.body as AppErrorResponse;
-      expect(res.type).toMatch(/json/);
-      expect(res.statusCode).toBe(400);
-      expect(resBody.error.message).toMatch(/id/i);
-      expect(resBody.error.message).toMatch(/invalid/i);
+      await createUser(adminData);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(`${USERS_URL}/foo`);
+      assertInvalidIdErrorRes(res);
     });
 
     it('should respond with 404 if user does not exit, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
       await db.user.delete({ where: { id: dbUser.id } });
-      const res = await api
-        .get(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
-      const resBody = res.body as AppErrorResponse;
-      expect(res.type).toMatch(/json/);
-      expect(res.statusCode).toBe(404);
-      expect(resBody.error.message).toMatch(/not found/i);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}`);
+      assertNotFoundErrorRes(res);
     });
 
     it('should respond with 404 if user does not exit, on request with admin JWT', async () => {
+      await createUser(adminData);
       const dbUser = await createUser(userData);
-      const { token } = await createAndSigninAdmin();
       await db.user.delete({ where: { id: dbUser.id } });
-      const res = await api
-        .get(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
-      const resBody = res.body as AppErrorResponse;
-      expect(res.type).toMatch(/json/);
-      expect(res.statusCode).toBe(404);
-      expect(resBody.error.message).toMatch(/not found/i);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}`);
+      assertNotFoundErrorRes(res);
     });
 
     it('should respond with the found user, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
-      const res = await api
-        .get(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}`);
       const resUser = res.body as User;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
@@ -275,22 +219,21 @@ describe('Users endpoint', () => {
     });
 
     it('should respond with the found user, on request with admin JWT', async () => {
-      const { token } = await createAndSigninAdmin();
+      await createUser(adminData);
       const dbUser = await createUser(userData);
-      const res = await api
-        .get(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}`);
       const resUser = res.body as User;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
       expect(resUser.id).toBe(dbUser.id);
-      expect(resUser.username).toBe(dbUser.username);
-      expect(resUser.password).toBeUndefined();
       expect(resUser.isAdmin).toBeUndefined();
+      expect(resUser.password).toBeUndefined();
+      expect(resUser.username).toBe(dbUser.username);
     });
   });
 
-  describe(`PATCH ${USERS_ENDPOINT}/:id`, () => {
+  describe(`PATCH ${USERS_URL}/:id`, () => {
     let longString = '';
     for (let i = 0; i < 1000; i++) longString += 'x';
 
@@ -307,16 +250,13 @@ describe('Users endpoint', () => {
       credentials: { username: string; password: string }
     ) => {
       return async () => {
-        const { token } = await signin(
-          credentials.username,
-          credentials.password
-        );
-        const res = await api
-          .patch(`${USERS_ENDPOINT}/${dbUser.id}`)
-          .set('Authorization', token)
+        const { authorizedApi } = await prepForAuthorizedTest(credentials);
+        const res = await authorizedApi
+          .patch(`${USERS_URL}/${dbUser.id}`)
           .send(data);
         const updatedDBUser = await db.user.findUnique({
           where: { id: dbUser.id },
+          omit: { password: false, isAdmin: false },
         });
         expect(res.statusCode).toBe(204);
         expect(updatedDBUser).toBeTruthy();
@@ -357,13 +297,9 @@ describe('Users endpoint', () => {
       credentials: { username: string; password: string }
     ) => {
       return async () => {
-        const { token } = await signin(
-          credentials.username,
-          credentials.password
-        );
-        const res = await api
-          .patch(`${USERS_ENDPOINT}/${dbUser.id}`)
-          .set('Authorization', token)
+        const { authorizedApi } = await prepForAuthorizedTest(credentials);
+        const res = await authorizedApi
+          .patch(`${USERS_URL}/${dbUser.id}`)
           .send(data);
         const issues = res.body as ZodIssue[];
         expect(res.type).toMatch(/json/);
@@ -374,38 +310,26 @@ describe('Users endpoint', () => {
 
     it('should respond with 401, on a request without JWT', async () => {
       const res = await api
-        .patch(`${USERS_ENDPOINT}/${dbUser.id}`)
+        .patch(`${USERS_URL}/${dbUser.id}`)
         .send({ username: 'foobar' });
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 401, on a request with non-owner/admin JWT', async () => {
-      const otherUserData = {
-        username: 'other_user',
-        fullname: 'Other User',
-        password: 'Oo@12312',
-      };
-      await createUser(otherUserData);
-      const { token } = await signin(
-        otherUserData.username,
-        otherUserData.password
-      );
-      const res = await api
-        .patch(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token)
+      await createUser(xUserData);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi
+        .patch(`${USERS_URL}/${dbUser.id}`)
         .send({ username: 'foobar' });
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should not change username if the given is already exists, on request with owner JWT', async () => {
       const username = 'foobar';
       await createUser({ ...userData, username });
-      const { token } = await signin(userData.username, userData.password);
-      const res = await api
-        .patch(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token)
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi
+        .patch(`${USERS_URL}/${dbUser.id}`)
         .send({ username });
       const resBody = res.body as AppErrorResponse;
       expect(res.type).toMatch(/json/);
@@ -510,76 +434,335 @@ describe('Users endpoint', () => {
     );
   });
 
-  describe(`DELETE ${USERS_ENDPOINT}/:id`, () => {
+  describe(`DELETE ${USERS_URL}/:id`, () => {
     it('should respond with 401 on request without JWT', async () => {
       const dbUser = await createUser(userData);
-      const res = await api.delete(`${USERS_ENDPOINT}/${dbUser.id}`);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const res = await api.delete(`${USERS_URL}/${dbUser.id}`);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 401 on request with non-owner/admin JWT', async () => {
       await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
-      const userDataToDel = {
-        username: 'to_delete',
-        fullname: 'To Delete',
-        password: 'Dd@12312',
-      };
-      const dbUser = await createUser(userDataToDel);
-      const res = await api
-        .delete(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const dbUser = await createUser(xUserData);
+      const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 204 if found a user and deleted it, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
-      const res = await api
-        .delete(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
       expect(res.statusCode).toBe(204);
     });
 
     it('should respond with 204 if found a user and deleted it, on request with admin JWT', async () => {
+      await createUser(adminData);
       const dbUser = await createUser(userData);
-      const { token } = await createAndSigninAdmin();
-      const res = await api
-        .delete(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
       expect(res.statusCode).toBe(204);
     });
 
-    it('should respond with 204 if not found a user, on request with owner JWT', async () => {
+    it('should respond with 404 if not found a user, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
       await db.user.delete({ where: { id: dbUser.id } });
-      const res = await api
-        .delete(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
-      expect(res.statusCode).toBe(204);
+      const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
+      assertNotFoundErrorRes(res);
     });
 
-    it('should respond with 204 if not found a user, on request with admin JWT', async () => {
+    it('should respond with 404 if not found a user, on request with admin JWT', async () => {
+      await createUser(adminData);
       const dbUser = await createUser(userData);
       await db.user.delete({ where: { id: dbUser.id } });
-      const { token } = await createAndSigninAdmin();
-      const res = await api
-        .delete(`${USERS_ENDPOINT}/${dbUser.id}`)
-        .set('Authorization', token);
-      expect(res.statusCode).toBe(204);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
+      assertNotFoundErrorRes(res);
     });
 
     it('should respond with 401 if the id is invalid', async () => {
       await createUser(userData);
-      const { token } = await signin(userData.username, userData.password);
-      const res = await api
-        .delete(`${USERS_ENDPOINT}/foo`)
-        .set('Authorization', token);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.delete(`${USERS_URL}/foo`);
+      assertUnauthorizedErrorRes(res);
+    });
+  });
+
+  describe(`GET ${USERS_URL}/:id/posts`, () => {
+    const populateUsersAndPosts = async () => {
+      const dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      const userPosts = [
+        { ...postDataOutput, authorId: dbUser.id, published: false },
+        { ...postDataOutput, authorId: dbUser.id },
+      ];
+      const allUsersPosts = [
+        { ...postDataOutput, authorId: dbXUser.id },
+        ...userPosts,
+      ];
+      for (const postData of allUsersPosts) {
+        await createPost(postData);
+      }
+      return { dbUser, dbXUser, userPosts, allUsersPosts };
+    };
+
+    it('should respond with 400 if the user id is invalid', async () => {
+      const res = await api.get(`${USERS_URL}/123/posts`);
+      assertInvalidIdErrorRes(res);
+    });
+
+    it('should respond with and empty array if the user is not found', async () => {
+      const dbUser = await createUser(userData);
+      await db.user.delete({ where: { id: dbUser.id } });
+      const res = await api.get(`${USERS_URL}/${dbUser.id}/posts`);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty array of posts', async () => {
+      const dbUser = await createUser(userData);
+      const res = await api.get(`${USERS_URL}/${dbUser.id}/posts`);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an array of user public posts on request without JWT', async () => {
+      const { dbUser, userPosts } = await populateUsersAndPosts();
+      const res = await api.get(`${USERS_URL}/${dbUser.id}/posts`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(1);
+      assertPostData(resBody[0], userPosts[1]);
+    });
+
+    it('should respond with an array of user public posts on request with non-post-author JWT', async () => {
+      const { dbUser, userPosts } = await populateUsersAndPosts();
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}/posts`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(1);
+      assertPostData(resBody[0], userPosts[1]);
+    });
+
+    it('should respond with an array of user all posts on request with post-author JWT', async () => {
+      const { dbUser, userPosts } = await populateUsersAndPosts();
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}/posts`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(2);
+      assertPostData(resBody[0], userPosts[0]);
+      assertPostData(resBody[1], userPosts[1]);
+    });
+  });
+
+  describe(`GET ${USERS_URL}/:id/comments`, () => {
+    const populateDBForCommentSearch = async (published = true) => {
+      const dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      const authorId = dbUser.id;
+      const commentOne = { authorId: dbXUser.id, content: 'Nice blog' };
+      const commentTwo = { authorId, content: 'Thanks a lot' };
+      const commentThree = { authorId: dbXUser.id, content: 'You are welcome' };
+      const comments = [commentOne, commentTwo, commentThree];
+      const postData = { ...postDataOutput, published, authorId, comments };
+      const dbPost = await createPost(postData);
+      return { dbPost, dbUser, dbXUser, commentOne, commentTwo, commentThree };
+    };
+
+    it('should respond with an array of comments', async () => {
+      const { dbXUser, commentOne, commentThree } =
+        await populateDBForCommentSearch();
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/comments`);
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(2);
+      expect(commentContents).toContain(commentOne.content);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an empty array if the request without JWT and the post is private', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/comments`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty array if the request without JWT and the post is private', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/comments`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with the comment array if the request wit a post author JWT and the post is private', async () => {
+      const { dbXUser, commentOne, commentThree } =
+        await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/comments`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(2);
+      expect(commentContents).toContain(commentOne.content);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an array of comments based on search by full text', async () => {
+      const { dbUser, commentTwo } = await populateDBForCommentSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbUser.id}/comments?q=${encodeURI('thanks a lot')}`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentTwo.content);
+    });
+
+    it('should respond with an array of comments based on search by part of the text', async () => {
+      const { dbXUser, commentThree } = await populateDBForCommentSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbXUser.id}/comments?q=welcome`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an empty comment array if post comment is private and there is no JWT', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/comments?q=thanks`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty comment array if post comment is private and there is non-post-author JWT', async () => {
+      const { dbXUser } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/comments?q=thanks`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with a comment array if post comment is private and there is post-author JWT', async () => {
+      const { dbUser, commentTwo } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbUser.id}/comments?q=thanks`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentTwo.content);
+    });
+  });
+
+  describe(`GET ${USERS_URL}/:id/votes`, () => {
+    const populateDBForVoteSearch = async (published = true) => {
+      const dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      const dbAdmin = await createUser(adminData);
+      const voteOne = { userId: dbXUser.id, isUpvote: false };
+      const voteTwo = { userId: dbUser.id, isUpvote: true };
+      const voteThree = { userId: dbAdmin.id, isUpvote: true };
+      const votes = [voteOne, voteTwo, voteThree];
+      const postData = {
+        ...postDataOutput,
+        authorId: dbUser.id,
+        published,
+        votes,
+      };
+      const dbPost = await createPost(postData);
+      return { dbUser, dbXUser, dbAdmin, dbPost, voteOne, voteTwo, voteThree };
+    };
+
+    it('should respond with an upvote array', async () => {
+      const { dbXUser } = await populateDBForVoteSearch();
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/votes`);
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
+
+    it('should respond with an upvote array based on search by vote type', async () => {
+      const { dbAdmin } = await populateDBForVoteSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbAdmin.id}/votes?upvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(true);
+    });
+
+    it('should respond with an upvote array based on search by vote type', async () => {
+      const { dbXUser } = await populateDBForVoteSearch();
+      const res = await api.get(
+        `${USERS_URL}/${dbXUser.id}/votes?downvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
+
+    it('should respond with an empty vote array if the post is private and there is no JWT', async () => {
+      const { dbXUser } = await populateDBForVoteSearch(false);
+      const res = await api.get(`${USERS_URL}/${dbXUser.id}/votes`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty vote array if the post is private and there is non-post-author JWT', async () => {
+      const { dbXUser } = await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbXUser.id}/votes`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with a upvote array if the post is private and there is post-author JWT', async () => {
+      const { dbAdmin } = await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbAdmin.id}/votes?upvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(true);
+    });
+
+    it('should respond with a downvote array if the post is private and there is post-author JWT', async () => {
+      const { dbXUser } = await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(
+        `${USERS_URL}/${dbXUser.id}/votes?downvote=true`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
     });
   });
 });
