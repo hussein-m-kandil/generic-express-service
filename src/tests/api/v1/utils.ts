@@ -9,3 +9,5 @@ export const POSTS_URL = `${BASE_URL}/posts`;
 export const SIGNIN_URL = `${BASE_URL}/auth/signin`;
 
 export const VERIFY_URL = `${BASE_URL}/auth/verify`;
+
+export const SIGNED_IN_USER_URL = `${BASE_URL}/auth/me`;

@@ -39,7 +39,16 @@ passport.use(
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: SECRET,
     },
-    (jwtPayload: AppJwtPayload, done) => done(null, jwtPayload)
+    (jwtPayload: AppJwtPayload, done) => {
+      const { id } = jwtPayload;
+      db.user
+        .findUnique({ where: { id } })
+        .then((user) => {
+          if (user) done(null, user);
+          else done(null, false);
+        })
+        .catch((error: unknown) => done(error, false));
+    }
   )
 );
 

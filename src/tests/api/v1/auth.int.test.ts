@@ -1,16 +1,25 @@
-import { AppErrorResponse, AppJwtPayload, AuthResponse } from '../../../types';
+import { AppErrorResponse, AuthResponse } from '../../../types';
 import { it, expect, describe, afterAll, beforeAll, vi } from 'vitest';
 import { User } from '../../../../prisma/generated/client';
-import { SIGNIN_URL, VERIFY_URL } from './utils';
+import { SIGNIN_URL, VERIFY_URL, SIGNED_IN_USER_URL } from './utils';
 import jwt from 'jsonwebtoken';
 import setup from '../setup';
 
 describe('Authentication endpoint', async () => {
-  const { api, userData, createUser, deleteAllUsers } = await setup(SIGNIN_URL);
+  const {
+    api,
+    userData,
+    createUser,
+    deleteAllUsers,
+    prepForAuthorizedTest,
+    assertUnauthorizedErrorRes,
+  } = await setup(SIGNIN_URL);
+
+  let dbUser: User;
 
   beforeAll(async () => {
     await deleteAllUsers();
-    await createUser(userData);
+    dbUser = await createUser(userData);
   });
 
   afterAll(deleteAllUsers);
@@ -48,19 +57,21 @@ describe('Authentication endpoint', async () => {
       const resUser = resBody.user as User;
       const resJwtPayload = jwt.decode(
         resBody.token.replace(/^Bearer /, '')
-      ) as AppJwtPayload;
+      ) as User;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
       expect(resUser.username).toBe(userData.username);
       expect(resUser.fullname).toBe(userData.fullname);
+      expect(resUser.isAdmin).toStrictEqual(false);
       expect(resUser.password).toBeUndefined();
-      expect(resUser.isAdmin).toBeUndefined();
       expect(resBody.token).toMatch(/^Bearer /i);
-      expect(resJwtPayload.id).toBeTypeOf('string');
-      expect(resJwtPayload.username).toBe(userData.username);
-      expect(resJwtPayload.fullname).toBe(userData.fullname);
+      expect(resJwtPayload.id).toStrictEqual(dbUser.id);
+      expect(resJwtPayload.isAdmin).toStrictEqual(false);
+      expect(resJwtPayload.username).toBeUndefined();
+      expect(resJwtPayload.fullname).toBeUndefined();
       expect(resJwtPayload.password).toBeUndefined();
-      expect(resJwtPayload.isAdmin).toBeUndefined();
+      expect(resJwtPayload.createdAt).toBeUndefined();
+      expect(resJwtPayload.updatedAt).toBeUndefined();
     });
   });
 
@@ -96,6 +107,36 @@ describe('Authentication endpoint', async () => {
         .get(VERIFY_URL)
         .set('Authorization', signinResBody.token);
       expect(res.statusCode).toBe(401);
+    });
+  });
+
+  describe(`GET ${SIGNED_IN_USER_URL}`, () => {
+    it('should respond with 401 if the user is not found', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      await deleteAllUsers();
+      const res = await authorizedApi.get(SIGNED_IN_USER_URL);
+      dbUser = await createUser(userData); // All tests expects this user to be exist
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 401 if the JWT is invalid', async () => {
+      const res = await api
+        .get(SIGNED_IN_USER_URL)
+        .set('Authorization', 'blah');
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with current signed in user data base on the JWT', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(SIGNED_IN_USER_URL);
+      const resBody = res.body as User;
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.password).toBeUndefined();
+      expect(resBody.id).toStrictEqual(dbUser.id);
+      expect(resBody.isAdmin).toStrictEqual(false);
+      expect(resBody.username).toBe(dbUser.username);
+      expect(resBody.fullname).toBe(dbUser.fullname);
     });
   });
 });

@@ -33,6 +33,10 @@ authRouter.post('/signin', async (req, res, next) => {
   )(req, res, next);
 });
 
+authRouter.get('/me', authValidator, (req, res) => {
+  res.json(req.user);
+});
+
 authRouter.get('/verify', authValidator, (req, res) => {
   res.json(true);
 });

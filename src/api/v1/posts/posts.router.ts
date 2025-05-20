@@ -14,7 +14,7 @@ import {
   getVoteFilterOptionsFromReqQuery,
 } from '../../../lib/helpers';
 import { Request, Response, Router } from 'express';
-import { AppJwtPayload } from '../../../types';
+import { PublicUser } from '../../../types';
 import postsService from './posts.service';
 import postSchema, { commentSchema } from './post.schema';
 
@@ -55,7 +55,7 @@ postsRouter.get('/', optionalAuthValidator, async (req, res) => {
 });
 
 postsRouter.get('/count', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const postsCount = await postsService.countPostsByAuthorId(user.id);
   res.json(postsCount);
 });
@@ -65,14 +65,14 @@ postsRouter.get('/categories', async (req, res) => {
 });
 
 postsRouter.get('/categories/count', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const categoriesCount =
     await postsService.countPostsCategoriesByPostsAuthorId(user.id);
   res.json(categoriesCount);
 });
 
 postsRouter.get('/comments/count', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const commentsCount = await postsService.countPostsCommentsByPostsAuthorId(
     user.id
   );
@@ -80,7 +80,7 @@ postsRouter.get('/comments/count', authValidator, async (req, res) => {
 });
 
 postsRouter.get('/votes/count', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const votesCount = await postsService.countPostsVotesByPostsAuthorId(user.id);
   res.json(votesCount);
 });
@@ -148,20 +148,20 @@ postsRouter.get(
 );
 
 postsRouter.post('/', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const postData = { ...postSchema.parse(req.body), authorId: user.id };
   const createdPost = await postsService.createPost(postData);
   res.status(201).json(createdPost);
 });
 
 postsRouter.post('/:id/upvote', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const upvotedPost = await postsService.upvotePost(req.params.id, user.id);
   res.json(upvotedPost);
 });
 
 postsRouter.post('/:id/downvote', authValidator, async (req, res) => {
-  const user = req.user as AppJwtPayload;
+  const user = req.user as PublicUser;
   const downvotedPost = await postsService.downvotePost(req.params.id, user.id);
   res.json(downvotedPost);
 });
@@ -170,7 +170,7 @@ postsRouter.post(
   '/:id/comments',
   authValidator,
   async (req: Request<{ id: string }, unknown, { content: string }>, res) => {
-    const user = req.user as AppJwtPayload;
+    const user = req.user as PublicUser;
     const commentData = commentSchema.parse(req.body);
     const updatedPost = await postsService.findPostByIdAndCreateComment(
       req.params.id,
@@ -197,7 +197,7 @@ postsRouter.put(
   authValidator,
   createOwnerValidator(getCommentAuthorId),
   async (req, res) => {
-    const user = req.user as AppJwtPayload;
+    const user = req.user as PublicUser;
     const commentData = commentSchema.parse(req.body);
     const updatedPost = await postsService.findPostCommentByCompoundIdAndUpdate(
       req.params.pId,

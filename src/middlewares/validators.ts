@@ -1,22 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { RequestHandler } from 'express';
-import { AppJwtPayload } from '../types';
+import { PublicUser } from '../types';
 import passport from '../lib/passport';
-import db from '../lib/db';
-
-const isAdmin = async (id: string): Promise<boolean> => {
-  const dbUser = await db.user.findUnique({
-    where: { id },
-    select: { isAdmin: true },
-  });
-  return Boolean(dbUser?.isAdmin);
-};
 
 export const createOwnerValidator = (
   getOwnerId: (req: Request, res: Response) => unknown
 ): RequestHandler => {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const reqUser = req.user as AppJwtPayload | undefined;
+    const reqUser = req.user as PublicUser | undefined;
     const owner = reqUser?.id === (await getOwnerId(req, res));
     if (owner) next();
     else res.status(401).end();
@@ -27,21 +18,21 @@ export const createAdminOrOwnerValidator = (
   getOwnerId: (req: Request, res: Response) => unknown
 ): RequestHandler => {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const reqUser = req.user as AppJwtPayload | undefined;
-    const admin = reqUser && (await isAdmin(reqUser.id));
+    const reqUser = req.user as PublicUser | undefined;
+    const admin = reqUser?.isAdmin;
     const owner = reqUser?.id === (await getOwnerId(req, res));
     if (admin || owner) next();
     else res.status(401).end();
   };
 };
 
-export const adminValidator = async (
+export const adminValidator = (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const reqUser = req.user as AppJwtPayload | undefined;
-  const admin = reqUser && (await isAdmin(reqUser.id));
+  const reqUser = req.user as PublicUser | undefined;
+  const admin = reqUser?.isAdmin;
   if (admin) next();
   else res.status(401).end();
 };
