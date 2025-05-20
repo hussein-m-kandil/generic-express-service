@@ -11,7 +11,6 @@ export interface DBKnownErrorsHandlerOptions {
 
 export interface UserSensitiveDataToOmit {
   password: true;
-  isAdmin: true;
 }
 
 export type CustomPrismaClient = PrismaClient<{
@@ -29,7 +28,7 @@ export type NewUserInput = z.input<typeof userSchema>;
 export type NewUserOutput = z.output<typeof userSchema>;
 
 export type JwtUser = Prisma.UserGetPayload<{
-  select: { id: true; username: true; fullname: true };
+  select: { id: true; isAdmin: true };
 }>;
 
 export type AppJwtPayload = JwtPayload & JwtUser;

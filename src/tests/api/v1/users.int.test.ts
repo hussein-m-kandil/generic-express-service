@@ -1,9 +1,4 @@
-import {
-  AppErrorResponse,
-  AppJwtPayload,
-  AuthResponse,
-  PostFullData,
-} from '../../../types';
+import { AppErrorResponse, AuthResponse, PostFullData } from '../../../types';
 import {
   it,
   expect,
@@ -106,23 +101,26 @@ describe('Users endpoint', async () => {
         const resUser = resBody.user as User;
         const dbUser = await db.user.findUniqueOrThrow({
           where: { id: resUser.id },
-          omit: { password: false, isAdmin: false },
+          omit: { password: false },
         });
         const resJwtPayload = jwt.decode(
           resBody.token.replace(/^Bearer /, '')
-        ) as AppJwtPayload;
+        ) as User;
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(201);
+        expect(resUser.password).toBeUndefined();
+        expect(resUser.isAdmin).toStrictEqual(isAdmin);
         expect(resUser.username).toBe(newUserData.username);
         expect(resUser.fullname).toBe(newUserData.fullname);
-        expect(resUser.password).toBeUndefined();
-        expect(resUser.isAdmin).toBeUndefined();
+        expect(resBody.token).toMatch(/^Bearer /i);
+        expect(resJwtPayload.isAdmin).toStrictEqual(isAdmin);
+        expect(resJwtPayload.id).toStrictEqual(dbUser.id);
+        expect(resJwtPayload.createdAt).toBeUndefined();
+        expect(resJwtPayload.updatedAt).toBeUndefined();
+        expect(resJwtPayload.username).toBeUndefined();
+        expect(resJwtPayload.fullname).toBeUndefined();
         expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
         expect(dbUser.isAdmin).toBe(isAdmin);
-        expect(resBody.token).toMatch(/^Bearer /i);
-        expect(resJwtPayload.id).toBeTypeOf('string');
-        expect(resJwtPayload.username).toBe(userData.username);
-        expect(resJwtPayload.fullname).toBe(userData.fullname);
       };
     };
 
@@ -188,12 +186,12 @@ describe('Users endpoint', async () => {
       assertInvalidIdErrorRes(res);
     });
 
-    it('should respond with 404 if user does not exit, on request with owner JWT', async () => {
+    it('should respond with 401 if user does not exit, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       await db.user.delete({ where: { id: dbUser.id } });
       const res = await authorizedApi.get(`${USERS_URL}/${dbUser.id}`);
-      assertNotFoundErrorRes(res);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 404 if user does not exit, on request with admin JWT', async () => {
@@ -213,9 +211,10 @@ describe('Users endpoint', async () => {
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
       expect(resUser.id).toBe(dbUser.id);
+      expect(resUser.isAdmin).toStrictEqual(false);
       expect(resUser.username).toBe(dbUser.username);
+      expect(resUser.fullname).toBe(dbUser.fullname);
       expect(resUser.password).toBeUndefined();
-      expect(resUser.isAdmin).toBeUndefined();
     });
 
     it('should respond with the found user, on request with admin JWT', async () => {
@@ -227,9 +226,10 @@ describe('Users endpoint', async () => {
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
       expect(resUser.id).toBe(dbUser.id);
-      expect(resUser.isAdmin).toBeUndefined();
-      expect(resUser.password).toBeUndefined();
+      expect(resUser.isAdmin).toStrictEqual(false);
       expect(resUser.username).toBe(dbUser.username);
+      expect(resUser.fullname).toBe(dbUser.fullname);
+      expect(resUser.password).toBeUndefined();
     });
   });
 
@@ -256,7 +256,7 @@ describe('Users endpoint', async () => {
           .send(data);
         const updatedDBUser = await db.user.findUnique({
           where: { id: dbUser.id },
-          omit: { password: false, isAdmin: false },
+          omit: { password: false },
         });
         expect(res.statusCode).toBe(204);
         expect(updatedDBUser).toBeTruthy();
@@ -464,12 +464,12 @@ describe('Users endpoint', async () => {
       expect(res.statusCode).toBe(204);
     });
 
-    it('should respond with 404 if not found a user, on request with owner JWT', async () => {
+    it('should respond with 401 if not found a user, on request with owner JWT', async () => {
       const dbUser = await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       await db.user.delete({ where: { id: dbUser.id } });
       const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
-      assertNotFoundErrorRes(res);
+      assertUnauthorizedErrorRes(res);
     });
 
     it('should respond with 404 if not found a user, on request with admin JWT', async () => {

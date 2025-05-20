@@ -1,4 +1,4 @@
-import { AppErrorResponse, AppJwtPayload, AuthResponse } from '../../../types';
+import { AppErrorResponse, AuthResponse } from '../../../types';
 import { it, expect, describe, afterAll, beforeAll, vi } from 'vitest';
 import { User } from '../../../../prisma/generated/client';
 import { SIGNIN_URL, VERIFY_URL } from './utils';
@@ -8,9 +8,11 @@ import setup from '../setup';
 describe('Authentication endpoint', async () => {
   const { api, userData, createUser, deleteAllUsers } = await setup(SIGNIN_URL);
 
+  let dbUser: User;
+
   beforeAll(async () => {
     await deleteAllUsers();
-    await createUser(userData);
+    dbUser = await createUser(userData);
   });
 
   afterAll(deleteAllUsers);
@@ -48,19 +50,21 @@ describe('Authentication endpoint', async () => {
       const resUser = resBody.user as User;
       const resJwtPayload = jwt.decode(
         resBody.token.replace(/^Bearer /, '')
-      ) as AppJwtPayload;
+      ) as User;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
       expect(resUser.username).toBe(userData.username);
       expect(resUser.fullname).toBe(userData.fullname);
+      expect(resUser.isAdmin).toStrictEqual(false);
       expect(resUser.password).toBeUndefined();
-      expect(resUser.isAdmin).toBeUndefined();
       expect(resBody.token).toMatch(/^Bearer /i);
-      expect(resJwtPayload.id).toBeTypeOf('string');
-      expect(resJwtPayload.username).toBe(userData.username);
-      expect(resJwtPayload.fullname).toBe(userData.fullname);
+      expect(resJwtPayload.id).toStrictEqual(dbUser.id);
+      expect(resJwtPayload.isAdmin).toStrictEqual(false);
+      expect(resJwtPayload.username).toBeUndefined();
+      expect(resJwtPayload.fullname).toBeUndefined();
       expect(resJwtPayload.password).toBeUndefined();
-      expect(resJwtPayload.isAdmin).toBeUndefined();
+      expect(resJwtPayload.createdAt).toBeUndefined();
+      expect(resJwtPayload.updatedAt).toBeUndefined();
     });
   });
 

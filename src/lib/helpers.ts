@@ -19,8 +19,8 @@ import db from './db';
 import ms from 'ms';
 
 export const createJwtForUser = (user: PublicUser): string => {
-  const { id, username, fullname } = user;
-  const payload: AppJwtPayload = { id, username, fullname };
+  const { id, isAdmin } = user;
+  const payload: AppJwtPayload = { id, isAdmin };
   const token = jwt.sign(payload, SECRET, {
     expiresIn: TOKEN_EXP_PERIOD as ms.StringValue,
   });
@@ -88,7 +88,7 @@ export const getVoteTypeFilterFromReqQuery = (req: Request) => {
 export const getSignedInUserIdFromReqQuery = (req: Request) => {
   let userId;
   if (req.user) {
-    userId = (req.user as AppJwtPayload).id;
+    userId = (req.user as PublicUser).id;
   }
   return userId;
 };
