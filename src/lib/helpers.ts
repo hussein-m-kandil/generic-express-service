@@ -70,6 +70,10 @@ export const fieldsToIncludeWithPost = {
   author: true,
 };
 
+export const fieldsToIncludeWithComment = { post: true, author: true };
+
+export const fieldsToIncludeWithVote = { post: true, user: true };
+
 export const getTextFilterFromReqQuery = (req: Request) => {
   let text;
   if (typeof req.query.q === 'string') {
@@ -188,7 +192,7 @@ export const findFilteredComments = async (
         ? { content: { contains: options.text, mode: 'insensitive' } }
         : {}),
     },
-    include: { post: { include: fieldsToIncludeWithPost } },
+    include: fieldsToIncludeWithComment,
   });
   const comments = await handleDBKnownErrors(dbQuery);
   return comments;
@@ -208,7 +212,7 @@ export const findFilteredVotes = async (
         : { post: { published: true } }),
       ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
     },
-    include: { post: { include: fieldsToIncludeWithPost } },
+    include: fieldsToIncludeWithVote,
   });
   const comments = await handleDBKnownErrors(dbQuery);
   return comments;
@@ -222,7 +226,9 @@ export default {
   handleDBKnownErrors,
   findFilteredComments,
   fieldsToIncludeWithPost,
+  fieldsToIncludeWithVote,
   getTextFilterFromReqQuery,
+  fieldsToIncludeWithComment,
   getSignedInUserIdFromReqQuery,
   getVoteTypeFilterFromReqQuery,
   getCategoriesFilterFromReqQuery,
