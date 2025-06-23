@@ -1,14 +1,23 @@
 import { z } from 'zod';
 import { ADMIN_SECRET } from '../../../lib/config';
 
+export const bioSchema = z
+  .string({ invalid_type_error: 'Use bio must be a string' })
+  .trim()
+  .optional();
+
 export const usernameSchema = z
   .string({
     required_error: 'Username is required',
     invalid_type_error: 'Username must be a string',
   })
   .trim()
-  .min(3, 'Username must contain at least 3 character(s)')
-  .max(48, 'Username must contain at most 48 character(s)');
+  .regex(
+    /^\w+$/,
+    'Username Can only have letters, numbers, and underscores (_)'
+  )
+  .min(3, 'Username must contain at least 3 characters')
+  .max(48, 'Username must contain at most 48 characters');
 
 export const fullnameSchema = z
   .string({
@@ -16,8 +25,8 @@ export const fullnameSchema = z
     invalid_type_error: 'Fullname must be a string',
   })
   .trim()
-  .min(3, 'Fullname must contain at least 3 character(s)')
-  .max(96, 'Fullname must contain at most 96 character(s)');
+  .min(3, 'Fullname must contain at least 3 characters')
+  .max(96, 'Fullname must contain at most 96 characters');
 
 export const passwordSchema = z
   .object({
@@ -60,15 +69,12 @@ export const userSchema = passwordSchema
       username: usernameSchema,
       fullname: fullnameSchema,
       secret: secretSchema,
+      bio: bioSchema,
     })
   )
-  .transform((data) => {
-    return {
-      isAdmin: Boolean(data.secret),
-      username: data.username,
-      fullname: data.fullname,
-      password: data.password,
-    };
+  .transform(({ secret, username, fullname, password, bio }) => {
+    const isAdmin = Boolean(secret);
+    return { isAdmin, username, fullname, password, bio };
   });
 
 export default userSchema;

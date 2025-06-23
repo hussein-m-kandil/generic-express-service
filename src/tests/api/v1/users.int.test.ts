@@ -50,7 +50,7 @@ describe('Users endpoint', async () => {
   afterAll(resetDB);
 
   describe(`POST ${USERS_URL}`, () => {
-    for (const field of Object.keys(newUserData)) {
+    for (const field of Object.keys(newUserData).filter((k) => k !== 'bio')) {
       it(`should not create a user without ${field}`, async () => {
         const res = await api
           .post(USERS_URL)
@@ -67,6 +67,17 @@ describe('Users endpoint', async () => {
       assertResponseWithValidationError(res, 'confirm');
       expect(await db.user.findMany()).toHaveLength(0);
     });
+
+    const invalidUsernames = ['user-x', 'user x', 'user@x', 'user(x)'];
+    for (const username of invalidUsernames) {
+      it(`should not create a user while the username having a space`, async () => {
+        const res = await api
+          .post(USERS_URL)
+          .send({ ...newUserData, username });
+        assertResponseWithValidationError(res, 'username');
+        expect(await db.user.findMany()).toHaveLength(0);
+      });
+    }
 
     it('should not create a user if the username is already exist', async () => {
       const { id } = await createUser(userData);
@@ -121,6 +132,8 @@ describe('Users endpoint', async () => {
         expect(resJwtPayload.fullname).toBeUndefined();
         expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
         expect(dbUser.isAdmin).toBe(isAdmin);
+        expect(dbUser.bio).toBe(newUserData.bio);
+        expect(resUser.bio).toBe(newUserData.bio);
       };
     };
 

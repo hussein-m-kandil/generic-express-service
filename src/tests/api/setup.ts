@@ -28,6 +28,7 @@ export const setup = async (signinUrl: string) => {
   };
 
   const userData = {
+    bio: 'Coming from krypton with super power.',
     fullname: 'Clark Kent/Kal-El',
     username: 'superman',
     password: 'Ss@12312',
