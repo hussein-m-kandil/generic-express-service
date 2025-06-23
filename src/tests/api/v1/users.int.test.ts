@@ -158,14 +158,8 @@ describe('Users endpoint', async () => {
     });
   });
 
-  describe(`GET ${USERS_URL}/:id`, () => {
-    it('should respond with 400 if given an invalid id', async () => {
-      await createUser(adminData);
-      const res = await api.get(`${USERS_URL}/foo`);
-      assertInvalidIdErrorRes(res);
-    });
-
-    it('should respond with 404 if user does not exit', async () => {
+  describe(`GET ${USERS_URL}/:idOrUsername`, () => {
+    it('should respond with 404 on request with id, if user does not exit', async () => {
       await createUser(adminData);
       const dbUser = await createUser(userData);
       await db.user.delete({ where: { id: dbUser.id } });
@@ -173,18 +167,26 @@ describe('Users endpoint', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with the found user', async () => {
+    it('should respond with 404 on request with username, if user does not exit', async () => {
+      await createUser(adminData);
+      const res = await api.get(`${USERS_URL}/not_user`);
+      assertNotFoundErrorRes(res);
+    });
+
+    it('should respond with the found user on request with id or username', async () => {
       await createUser(adminData);
       const dbUser = await createUser(userData);
-      const res = await api.get(`${USERS_URL}/${dbUser.id}`);
-      const resUser = res.body as User;
-      expect(res.type).toMatch(/json/);
-      expect(res.statusCode).toBe(200);
-      expect(resUser.id).toBe(dbUser.id);
-      expect(resUser.isAdmin).toStrictEqual(false);
-      expect(resUser.username).toBe(dbUser.username);
-      expect(resUser.fullname).toBe(dbUser.fullname);
-      expect(resUser.password).toBeUndefined();
+      for (const param of [dbUser.id, dbUser.username]) {
+        const res = await api.get(`${USERS_URL}/${param}`);
+        const resUser = res.body as User;
+        expect(res.type).toMatch(/json/);
+        expect(res.statusCode).toBe(200);
+        expect(resUser.id).toBe(dbUser.id);
+        expect(resUser.isAdmin).toStrictEqual(false);
+        expect(resUser.username).toBe(dbUser.username);
+        expect(resUser.fullname).toBe(dbUser.fullname);
+        expect(resUser.password).toBeUndefined();
+      }
     });
   });
 

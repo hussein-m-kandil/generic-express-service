@@ -1,7 +1,7 @@
+import { AppInvalidIdError, AppNotFoundError } from '../../../lib/app-error';
 import { Prisma } from '../../../../prisma/generated/client';
 import { NewUserOutput, PublicUser } from '../../../types';
 import { handleDBKnownErrors } from '../../../lib/helpers';
-import { AppNotFoundError } from '../../../lib/app-error';
 import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
 import bcrypt from 'bcryptjs';
@@ -27,8 +27,30 @@ export const findUserById = async (id: string): Promise<PublicUser | null> => {
   return user;
 };
 
-export const findUserByIdOrThrow = async (id: string) => {
-  const user = await findUserById(id);
+export const findUserByUsername = async (
+  username: string
+): Promise<PublicUser | null> => {
+  const dbQuery = db.user.findUnique({ where: { username } });
+  const user = await handleDBKnownErrors(dbQuery);
+  return user;
+};
+
+export const findUserByIdOrUsername = async (
+  idOrUsername: string
+): Promise<PublicUser | null> => {
+  try {
+    return await findUserById(idOrUsername);
+  } catch (error) {
+    if (error instanceof AppInvalidIdError) {
+      // So, the id was not a valid UUID, and could be a username
+      return await findUserByUsername(idOrUsername);
+    }
+    throw error;
+  }
+};
+
+export const findUserByIdOrByUsernameOrThrow = async (idOrUsername: string) => {
+  const user = await findUserByIdOrUsername(idOrUsername);
   if (!user) throw new AppNotFoundError('User not found');
   return user;
 };
@@ -55,7 +77,9 @@ export const deleteUser = async (id: string): Promise<void> => {
 };
 
 export default {
-  findUserByIdOrThrow,
+  findUserByIdOrByUsernameOrThrow,
+  findUserByIdOrUsername,
+  findUserByUsername,
   findUserById,
   getAllUsers,
   createUser,

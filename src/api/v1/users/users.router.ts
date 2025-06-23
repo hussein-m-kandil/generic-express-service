@@ -36,8 +36,10 @@ usersRouter.get('/', async (req, res) => {
   res.json(users);
 });
 
-usersRouter.get('/:id', async (req, res) => {
-  const user = await usersService.findUserByIdOrThrow(req.params.id);
+usersRouter.get('/:idOrUsername', async (req, res) => {
+  const user = await usersService.findUserByIdOrByUsernameOrThrow(
+    req.params.idOrUsername
+  );
   res.json(user);
 });
 
