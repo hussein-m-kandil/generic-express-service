@@ -12,7 +12,6 @@ import { AuthResponse, NewUserInput } from '../../../types';
 import { Prisma } from '../../../../prisma/generated/client';
 import {
   authValidator,
-  adminValidator,
   optionalAuthValidator,
   createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
@@ -26,20 +25,21 @@ import usersService from './users.service';
 
 export const usersRouter = Router();
 
-usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
+/*
+ * NOTE: There are no restriction on any GET method,
+ * because the API responding on a limited set of origins.
+ * See the CORS settings in the app's entry point.
+ */
+
+usersRouter.get('/', async (req, res) => {
   const users = await usersService.getAllUsers();
   res.json(users);
 });
 
-usersRouter.get(
-  '/:id',
-  authValidator,
-  createAdminOrOwnerValidator((req) => req.params.id),
-  async (req, res) => {
-    const user = await usersService.findUserByIdOrThrow(req.params.id);
-    res.json(user);
-  }
-);
+usersRouter.get('/:id', async (req, res) => {
+  const user = await usersService.findUserByIdOrThrow(req.params.id);
+  res.json(user);
+});
 
 usersRouter.get('/:id/posts', optionalAuthValidator, async (req, res) => {
   const authorId = req.params.id;
