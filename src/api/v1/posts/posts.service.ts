@@ -7,6 +7,7 @@ import {
 import {
   handleDBKnownErrors,
   fieldsToIncludeWithPost,
+  fieldsToIncludeWithComment,
 } from '../../../lib/helpers';
 import { Prisma } from '../../../../prisma/generated/client';
 import db from '../../../lib/db';
@@ -162,6 +163,7 @@ export const findPostCommentByCompoundIdOrThrow = async (
           : { post: { published: true } },
       },
     },
+    include: fieldsToIncludeWithComment,
   });
   const comment = await handleDBKnownErrors(dbQuery);
   if (!comment) throw new AppNotFoundError('Post/Comment Not Found');
