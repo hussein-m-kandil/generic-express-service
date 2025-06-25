@@ -18,6 +18,7 @@ model User {
   updatedAt    DateTime     @updatedAt @map("updated_at")
   votesOnPosts VoteOnPost[]
   comments     Comment[]
+  images       Image[]
   posts        Post[]
   bio          String?
 
@@ -49,6 +50,8 @@ model Post {
   comments   Comment[]
   content    String
   title      String
+  image      Image?              @relation(fields: [imageId], references: [id])
+  imageId    String?             @map("image_id") @db.Uuid
 
   @@map("posts")
 }
@@ -81,4 +84,21 @@ model VoteOnPost {
 
   @@unique([userId, postId])
   @@map("votes_on_posts")
+}
+
+model Image {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId         String   @map("author_id") @db.Uuid
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  storageFullPath String   @map("storage_full_path")
+  storageId       String   @map("storage_id")
+  alt             String   @default("")
+  src             String   @unique
+  mimetype        String
+  size            Int
+  Post            Post[]
+
+  @@map("images")
 }
