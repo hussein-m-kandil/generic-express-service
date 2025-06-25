@@ -1,6 +1,8 @@
 import {
   saveImage,
   uploadImage,
+  getAllImages,
+  findImageById,
   getValidImageFileFormReq,
 } from './images.service';
 import { createFileProcessor } from '../../../middlewares/file-processor';
@@ -9,6 +11,14 @@ import { Request, Response, Router } from 'express';
 import { PublicUser } from '../../../types';
 
 export const imagesRouter = Router();
+
+imagesRouter.get('/', async (req, res) => {
+  res.json(await getAllImages());
+});
+
+imagesRouter.get('/:id', async (req, res) => {
+  res.json(await findImageById(req.params.id));
+});
 
 imagesRouter.post(
   '/',
