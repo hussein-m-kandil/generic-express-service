@@ -115,6 +115,34 @@ export const setup = async (signinUrl: string) => {
     });
   };
 
+  const imgOne = {
+    storageFullPath: 'full-path-1.jpg',
+    storageId: 'storage-id-1',
+    mimetype: 'image/jpeg',
+    ownerId: dbUserOne.id,
+    src: 'src-1.jpg',
+    alt: 'img-alt-1',
+    size: 2000000,
+  };
+
+  const imgTwo = {
+    storageFullPath: 'full-path-2.jpg',
+    storageId: 'storage-id-2',
+    mimetype: 'image/jpeg',
+    ownerId: dbUserTwo.id,
+    src: 'src-2.jpg',
+    alt: 'img-alt-2',
+    size: 1250000,
+  };
+
+  const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
+    return await db.image.create({ data: imageData });
+  };
+
+  const createManyImages = async (imageData: Prisma.ImageCreateManyInput[]) => {
+    return await db.image.createMany({ data: imageData });
+  };
+
   const assertPostData = (
     actualPost: PostFullData,
     expectedPost: typeof postFullData
@@ -196,14 +224,18 @@ export const setup = async (signinUrl: string) => {
     userData,
     dbAdmin,
     dbXUser,
+    imgOne,
+    imgTwo,
     api,
     signin,
     createUser,
     createPost,
+    createImage,
     deleteAllPosts,
     deleteAllUsers,
-    deleteAllImages,
     assertPostData,
+    deleteAllImages,
+    createManyImages,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,

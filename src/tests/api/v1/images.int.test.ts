@@ -36,10 +36,16 @@ vi.mock('@supabase/supabase-js', () => {
 describe('Images endpoint', async () => {
   const {
     api,
+    imgOne,
+    imgTwo,
     userOneData,
+    createImage,
     deleteAllUsers,
     deleteAllImages,
+    createManyImages,
     prepForAuthorizedTest,
+    assertNotFoundErrorRes,
+    assertInvalidIdErrorRes,
     assertUnauthorizedErrorRes,
   } = await setup(SIGNIN_URL);
 
@@ -48,6 +54,47 @@ describe('Images endpoint', async () => {
   afterAll(async () => {
     await deleteAllImages();
     await deleteAllUsers();
+  });
+
+  describe(`GET ${IMAGES_URL}`, () => {
+    it('should respond with an empty array', async () => {
+      const res = await api.get(IMAGES_URL);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an array of image objects', async () => {
+      await createManyImages([imgOne, imgTwo]);
+      const res = await api.get(IMAGES_URL);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toHaveLength(2);
+    });
+  });
+
+  describe(`GET ${IMAGES_URL}/:id`, () => {
+    const randImgId = crypto.randomUUID();
+
+    it('should respond with 404', async () => {
+      const res = await api.get(`${IMAGES_URL}/${randImgId}`);
+      assertNotFoundErrorRes(res);
+    });
+
+    it('should respond with 400 on invalid id', async () => {
+      const res = await api.get(`${IMAGES_URL}/${randImgId}x_@`);
+      assertInvalidIdErrorRes(res);
+    });
+
+    it('should respond with an image object', async () => {
+      const dbImg = await createImage(imgOne);
+      const res = await api.get(`${IMAGES_URL}/${dbImg.id}`);
+      const resBody = res.body as { src: string; alt: string };
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.src).toStrictEqual(imgOne.src);
+      expect(resBody.alt).toStrictEqual(imgOne.alt);
+    });
   });
 
   describe(`POST ${IMAGES_URL}`, () => {

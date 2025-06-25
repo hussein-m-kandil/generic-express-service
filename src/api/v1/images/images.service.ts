@@ -5,10 +5,23 @@ import {
   SUPABASE_BUCKET_URL,
 } from '../../../lib/config';
 import { handleDBKnownErrors } from '../../../lib/helpers';
-import { AppError } from '../../../lib/app-error';
+import { AppError, AppNotFoundError } from '../../../lib/app-error';
 import { PublicUser } from '../../../types';
 import { Request } from 'express';
 import db from '../../../lib/db';
+
+export const getAllImages = async () => {
+  const dbQuery = db.image.findMany({});
+  return await handleDBKnownErrors(dbQuery);
+};
+
+export const findImageById = async (id: string) => {
+  const notFoundErrMsg = 'image not found';
+  const dbQuery = db.image.findUnique({ where: { id } });
+  const image = await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
+  if (!image) throw new AppNotFoundError(notFoundErrMsg);
+  return image;
+};
 
 export const getValidImageFileFormReq = (
   req: Request & { file?: Express.Multer.File }
@@ -72,4 +85,10 @@ export const saveImage = async (
   return savedImage;
 };
 
-export default { getValidImageFileFormReq, uploadImage, saveImage };
+export default {
+  getValidImageFileFormReq,
+  findImageById,
+  getAllImages,
+  uploadImage,
+  saveImage,
+};
