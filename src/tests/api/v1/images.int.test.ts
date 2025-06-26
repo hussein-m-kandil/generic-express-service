@@ -12,25 +12,25 @@ import { IMAGES_URL, SIGNIN_URL } from './utils';
 import setup from '../setup';
 import fs from 'node:fs';
 
-vi.mock('@supabase/supabase-js', () => {
-  const data = {
+const { storage, upload } = vi.hoisted(() => {
+  const uploadRes = {
     fullPath: 'test-file-full-path.jpg',
     path: 'test-file-path.jpg',
     id: 'test-file-id',
   };
-  const supabase = {
-    storage: {
-      from: vi.fn(() => ({
-        upload: vi.fn(
-          () =>
-            new Promise((resolve) =>
-              setImmediate(() => resolve({ data, error: null }))
-            )
-        ),
-      })),
-    },
-  };
-  return { createClient: vi.fn(() => supabase) };
+  const upload = vi.fn(
+    () =>
+      new Promise((resolve) =>
+        setImmediate(() => resolve({ data: uploadRes, error: null }))
+      )
+  );
+  const from = vi.fn(() => ({ upload }));
+  const storage = { from };
+  return { uploadRes, storage, upload, from };
+});
+
+vi.mock('@supabase/supabase-js', () => {
+  return { createClient: vi.fn(() => ({ storage })) };
 });
 
 describe('Images endpoint', async () => {
@@ -40,8 +40,10 @@ describe('Images endpoint', async () => {
     imgTwo,
     userOneData,
     createImage,
+    assertErrorRes,
     deleteAllUsers,
     deleteAllImages,
+    assertImageData,
     createManyImages,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
@@ -49,7 +51,12 @@ describe('Images endpoint', async () => {
     assertUnauthorizedErrorRes,
   } = await setup(SIGNIN_URL);
 
-  beforeEach(async () => await deleteAllImages());
+  const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await deleteAllImages();
+  });
 
   afterAll(async () => {
     await deleteAllImages();
@@ -109,7 +116,6 @@ describe('Images endpoint', async () => {
     });
 
     it('should respond with 400 on request with too large image', async () => {
-      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       stream = fs.createReadStream('src/tests/files/bad.jpg');
       const res = await authorizedApi.post(IMAGES_URL).attach('image', stream);
       const resBody = res.body as AppErrorResponse;
@@ -119,7 +125,6 @@ describe('Images endpoint', async () => {
     });
 
     it('should respond with 400 on request with invalid image type', async () => {
-      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       stream = fs.createReadStream('src/tests/files/ugly.txt');
       const res = await authorizedApi.post(IMAGES_URL).attach('image', stream);
       const resBody = res.body as AppErrorResponse;
@@ -128,15 +133,61 @@ describe('Images endpoint', async () => {
       expect(resBody.error.message).toMatch(/invalid image/i);
     });
 
-    it('should upload an image', async () => {
-      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+    it('should upload the image', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi.post(IMAGES_URL).attach('image', stream);
-      const resBody = res.body as { url: string };
       expect(res.statusCode).toBe(201);
-      expect(res.type).toMatch(/json/);
-      expect(resBody.url).toBeTypeOf('string');
-      expect(resBody.url).toMatch(/\.jpg$/);
+      assertImageData(res);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+  });
+
+  describe(`PUT ${IMAGES_URL}/:id`, () => {
+    let url: string;
+
+    beforeEach(async () => {
+      const dbImg = await createImage(imgOne);
+      url = `${IMAGES_URL}/${dbImg.id}`;
+    });
+
+    let stream: fs.ReadStream | undefined;
+
+    afterEach(() => {
+      if (stream && !stream.destroyed) stream.destroy();
+    });
+
+    it('should respond with 401 on unauthorized request', async () => {
+      const res = await api.put(url).send();
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 404', async () => {
+      const res = await authorizedApi
+        .put(`${IMAGES_URL}/${crypto.randomUUID()}`)
+        .send();
+      assertNotFoundErrorRes(res);
+    });
+
+    it('should respond with 400 on request with too large image', async () => {
+      stream = fs.createReadStream('src/tests/files/bad.jpg');
+      const res = await authorizedApi.put(url).attach('image', stream);
+      assertErrorRes(res, /too large/i);
+    });
+
+    it('should respond with 400 on request with invalid image type', async () => {
+      stream = fs.createReadStream('src/tests/files/ugly.txt');
+      const res = await authorizedApi.put(url).attach('image', stream);
+      assertErrorRes(res, /invalid image/i);
+    });
+
+    it('should update the image', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi.put(url).attach('image', stream);
+      expect(res.statusCode).toBe(200);
+      assertImageData(res);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', true);
     });
   });
 });

@@ -137,6 +137,13 @@ export const setup = async (signinUrl: string) => {
     return await db.image.createMany({ data: imageData });
   };
 
+  const assertImageData = (res: supertest.Response) => {
+    const resBody = res.body as { url: string };
+    expect(res.type).toMatch(/json/);
+    expect(resBody.url).toBeTypeOf('string');
+    expect(resBody.url).toMatch(/\.jpg$/);
+  };
+
   const assertPostData = (
     actualPost: PostFullData,
     expectedPost: typeof postFullData
@@ -170,6 +177,16 @@ export const setup = async (signinUrl: string) => {
       .agent(app)
       .set('Authorization', signedInUserData.token);
     return { signedInUserData, authorizedApi };
+  };
+
+  const assertErrorRes = (
+    res: supertest.Response,
+    expected: RegExp | string
+  ) => {
+    const resBody = res.body as AppErrorResponse;
+    expect(res.statusCode).toBe(400);
+    expect(res.type).toMatch(/json/);
+    expect(resBody.error.message).toMatch(expected);
   };
 
   const assertNotFoundErrorRes = (res: supertest.Response) => {
@@ -228,6 +245,8 @@ export const setup = async (signinUrl: string) => {
     deleteAllPosts,
     deleteAllUsers,
     assertPostData,
+    assertErrorRes,
+    assertImageData,
     deleteAllImages,
     createManyImages,
     prepForAuthorizedTest,

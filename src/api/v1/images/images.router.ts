@@ -5,8 +5,12 @@ import {
   findImageById,
   getValidImageFileFormReq,
 } from './images.service';
+import {
+  authValidator,
+  createOwnerValidator,
+} from '../../../middlewares/validators';
 import { createFileProcessor } from '../../../middlewares/file-processor';
-import { authValidator } from '../../../middlewares/validators';
+import { Image } from '../../../../prisma/generated/client';
 import { Request, Response, Router } from 'express';
 import { PublicUser } from '../../../types';
 
@@ -30,6 +34,25 @@ imagesRouter.post(
     const uploadRes = await uploadImage(imageFile, user);
     const savedImage = await saveImage(uploadRes, user);
     res.status(201).json(savedImage);
+  }
+);
+
+imagesRouter.put(
+  '/:id',
+  authValidator,
+  createOwnerValidator(async (req, res) => {
+    const image = await findImageById(req.params.id, { rowImage: true });
+    res.locals.image = image;
+    return image.ownerId;
+  }),
+  createFileProcessor('image'),
+  async (req: Request, res: Response<unknown, { image: Image }>) => {
+    const { image } = res.locals;
+    const user = req.user as PublicUser;
+    const imageFile = getValidImageFileFormReq(req);
+    const uploadRes = await uploadImage(imageFile, user, image);
+    const savedImage = await saveImage(uploadRes, user);
+    res.json(savedImage);
   }
 );
 

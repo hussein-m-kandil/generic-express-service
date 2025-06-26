@@ -23,6 +23,20 @@ export interface OmitUserSensitiveData {
 
 export type PublicUser = Prisma.UserGetPayload<OmitUserSensitiveData>;
 
+export interface OmitImageSensitiveData {
+  storageId: true;
+  storageFullPath: true;
+}
+
+export interface AggregateImageData {
+  owner: OmitUserSensitiveData;
+}
+
+export type PublicImage = Prisma.ImageGetPayload<{
+  include: AggregateImageData;
+  omit: OmitImageSensitiveData;
+}>;
+
 export type NewUserInput = z.input<typeof userSchema>;
 
 export type NewUserOutput = z.output<typeof userSchema>;
