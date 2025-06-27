@@ -5,22 +5,26 @@ import {
   createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
 import {
-  findFilteredComments,
   findFilteredPosts,
   findFilteredVotes,
-  getCommentFilterOptionsFromReqQuery,
-  getPostFilterOptionsFromReqQuery,
+  findFilteredComments,
   getSignedInUserIdFromReqQuery,
+  getPostFilterOptionsFromReqQuery,
   getVoteFilterOptionsFromReqQuery,
+  getCommentFilterOptionsFromReqQuery,
 } from '../../../lib/helpers';
+import { PostFullData, PublicUser } from '../../../types';
+import { postSchema, commentSchema } from './post.schema';
 import { Request, Response, Router } from 'express';
-import { PublicUser } from '../../../types';
 import postsService from './posts.service';
-import postSchema, { commentSchema } from './post.schema';
 
-const getPostAuthorId = async (req: Request) => {
+const getPostAuthorIdAndInjectPostInResLocals = async (
+  req: Request,
+  res: Response
+) => {
   const userId = getSignedInUserIdFromReqQuery(req);
   const post = await postsService.findPostByIdOrThrow(req.params.id, userId);
+  res.locals.post = post;
   return post.authorId;
 };
 
@@ -184,7 +188,7 @@ postsRouter.post(
 postsRouter.put(
   '/:id',
   authValidator,
-  createAdminOrOwnerValidator(getPostAuthorId),
+  createAdminOrOwnerValidator(getPostAuthorIdAndInjectPostInResLocals),
   async (req, res) => {
     const postData = postSchema.parse(req.body);
     const createdPost = await postsService.updatePost(req.params.id, postData);
@@ -212,10 +216,12 @@ postsRouter.put(
 postsRouter.delete(
   '/:id',
   authValidator,
-  createAdminOrOwnerValidator(async (req) => await getPostAuthorId(req)),
-  async (req, res) => {
+  createAdminOrOwnerValidator(
+    async (req, res) => await getPostAuthorIdAndInjectPostInResLocals(req, res)
+  ),
+  async (req, res: Response<unknown, { post: PostFullData }>) => {
     const userId = getSignedInUserIdFromReqQuery(req);
-    await postsService.deletePost(req.params.id, userId);
+    await postsService.deletePost(res.locals.post, userId);
     res.status(204).end();
   }
 );
@@ -223,10 +229,13 @@ postsRouter.delete(
 postsRouter.delete(
   '/:pId/comments/:cId',
   authValidator,
-  createAdminOrOwnerValidator(async (req) => {
+  createAdminOrOwnerValidator(async (req, res) => {
     const userId = getSignedInUserIdFromReqQuery(req);
     req.params.id = req.params.pId; // For `getPostAuthorId(req)`
-    const postAuthorId = await getPostAuthorId(req);
+    const postAuthorId = await getPostAuthorIdAndInjectPostInResLocals(
+      req,
+      res
+    );
     return postAuthorId === userId
       ? postAuthorId
       : await getCommentAuthorId(req);
