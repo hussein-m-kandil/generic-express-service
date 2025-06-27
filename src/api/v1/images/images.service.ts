@@ -5,32 +5,26 @@ import {
   SUPABASE_BUCKET_URL,
 } from '../../../lib/config';
 import {
-  PublicUser,
-  PublicImage,
-  ImageSensitiveDataToOmit,
-  ImageDataToAggregate,
-} from '../../../types';
+  handleDBKnownErrors,
+  fieldsToIncludeWithImage,
+} from '../../../lib/helpers';
 import { AppError, AppNotFoundError } from '../../../lib/app-error';
 import { Image } from '../../../../prisma/generated/client';
-import { handleDBKnownErrors } from '../../../lib/helpers';
+import { PublicUser, PublicImage } from '../../../types';
 import { Request, Response } from 'express';
 import db from '../../../lib/db';
 import path from 'path';
 
-const omit: ImageSensitiveDataToOmit = {
-  storageFullPath: true,
-  storageId: true,
-};
-const include: ImageDataToAggregate = { owner: { omit: { password: true } } };
+const include = fieldsToIncludeWithImage;
 const notFoundErrMsg = 'image not found';
 
 export const getAllImages = async (): Promise<PublicImage[]> => {
-  const dbQuery = db.image.findMany({ include, omit });
+  const dbQuery = db.image.findMany({ include });
   return await handleDBKnownErrors(dbQuery);
 };
 
 export const findImageById = async (id: string): Promise<PublicImage> => {
-  const dbQuery = db.image.findUnique({ where: { id }, include, omit });
+  const dbQuery = db.image.findUnique({ where: { id }, include });
   const image = await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
   if (!image) throw new AppNotFoundError(notFoundErrMsg);
   return image;
@@ -96,7 +90,6 @@ export const saveImage = async (
     update: imageData,
     where: { url },
     include,
-    omit,
   });
   const savedImage = await handleDBKnownErrors(dbQuery, {
     uniqueFieldName: 'url',
@@ -124,7 +117,10 @@ export const getImageOwnerAndInjectImageInResLocals = async (
   req: Request,
   res: Response
 ) => {
-  const dbQuery = db.image.findUnique({ where: { id: req.params.id } });
+  const dbQuery = db.image.findUnique({
+    where: { id: req.params.id },
+    omit: { storageFullPath: false, storageId: false },
+  });
   const image = await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
   if (!image) throw new AppNotFoundError(notFoundErrMsg);
   res.locals.image = image;

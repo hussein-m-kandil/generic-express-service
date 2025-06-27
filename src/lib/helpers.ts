@@ -6,8 +6,9 @@ import {
 import {
   PublicUser,
   AppJwtPayload,
-  PostFiltrationOptions,
+  ImageDataToAggregate,
   VoteFiltrationOptions,
+  PostFiltrationOptions,
   CommentFiltrationOptions,
   DBKnownErrorsHandlerOptions,
 } from '../types';
@@ -63,7 +64,12 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
+export const fieldsToIncludeWithImage: ImageDataToAggregate = {
+  owner: { omit: { password: true } },
+};
+
 export const fieldsToIncludeWithPost = {
+  image: { include: fieldsToIncludeWithImage },
   comments: { include: { author: true } },
   votes: { include: { user: true } },
   categories: true,
