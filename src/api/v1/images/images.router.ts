@@ -4,11 +4,15 @@ import {
   getAllImages,
   findImageById,
   updateImageData,
+  deleteImageById,
+  removeUploadedImage,
   getValidImageFileFormReq,
+  getImageOwnerAndInjectImageInResLocals,
 } from './images.service';
 import {
   authValidator,
   createOwnerValidator,
+  createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
 import { createFileProcessor } from '../../../middlewares/file-processor';
 import { Image } from '../../../../prisma/generated/client';
@@ -47,11 +51,7 @@ imagesRouter.post(
 imagesRouter.put(
   '/:id',
   authValidator,
-  createOwnerValidator(async (req, res) => {
-    const image = await findImageById(req.params.id, { rowImage: true });
-    res.locals.image = image;
-    return image.ownerId;
-  }),
+  createOwnerValidator(getImageOwnerAndInjectImageInResLocals),
   createFileProcessor('image'),
   async (req: Request, res: Response<unknown, { image: Image }>) => {
     const { image } = res.locals;
@@ -71,6 +71,18 @@ imagesRouter.put(
       const updatedImage = await updateImageData(data, req.params.id);
       res.json(updatedImage);
     }
+  }
+);
+
+imagesRouter.delete(
+  '/:id',
+  authValidator,
+  createAdminOrOwnerValidator(getImageOwnerAndInjectImageInResLocals),
+  async (req, res: Response<unknown, { image: Image }>) => {
+    const { image } = res.locals;
+    await removeUploadedImage(image);
+    await deleteImageById(image.id);
+    res.status(204).send();
   }
 );
 
