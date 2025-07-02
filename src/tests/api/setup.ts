@@ -3,6 +3,7 @@ import {
   AuthResponse,
   PostFullData,
   AppErrorResponse,
+  NewPostParsedData,
 } from '../../types';
 import { fieldsToIncludeWithPost } from '../../lib/helpers';
 import { Prisma } from '../../../prisma/generated/client';
@@ -71,7 +72,38 @@ export const setup = async (signinUrl: string) => {
   const dbAdmin = await createUser(adminData);
   const dbXUser = await createUser(xUserData);
 
-  const postDataInput = {
+  const imgOne: Prisma.ImageCreateWithoutOwnerInput & { ownerId: string } = {
+    storageFullPath: 'full-path-1.jpg',
+    storageId: 'storage-id-1',
+    mimetype: 'image/jpeg',
+    ownerId: dbUserOne.id,
+    src: 'src-1.jpg',
+    size: 2000000,
+  };
+
+  const imgTwo: typeof imgOne = {
+    storageFullPath: 'full-path-2.jpg',
+    storageId: 'storage-id-2',
+    mimetype: 'image/jpeg',
+    ownerId: dbUserTwo.id,
+    src: 'src-2.jpg',
+    alt: 'img-alt-2',
+    size: 1250000,
+  };
+
+  const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
+    return await db.image.upsert({
+      where: { src: imageData.src },
+      create: imageData,
+      update: imageData,
+    });
+  };
+
+  const createManyImages = async (imageData: Prisma.ImageCreateManyInput[]) => {
+    return await db.image.createMany({ data: imageData });
+  };
+
+  const postDataInput: NewPostParsedData = {
     published: true,
     title: 'Test Post',
     content: 'Test post content...',
@@ -100,6 +132,7 @@ export const setup = async (signinUrl: string) => {
     return await db.post.create({
       data: {
         title: data.title,
+        imageId: data.image,
         content: data.content,
         authorId: data.authorId,
         published: data.published,
@@ -117,33 +150,6 @@ export const setup = async (signinUrl: string) => {
     });
   };
 
-  const imgOne: Prisma.ImageCreateWithoutOwnerInput & { ownerId: string } = {
-    storageFullPath: 'full-path-1.jpg',
-    storageId: 'storage-id-1',
-    mimetype: 'image/jpeg',
-    ownerId: dbUserOne.id,
-    src: 'src-1.jpg',
-    size: 2000000,
-  };
-
-  const imgTwo: typeof imgOne = {
-    storageFullPath: 'full-path-2.jpg',
-    storageId: 'storage-id-2',
-    mimetype: 'image/jpeg',
-    ownerId: dbUserTwo.id,
-    src: 'src-2.jpg',
-    alt: 'img-alt-2',
-    size: 1250000,
-  };
-
-  const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
-    return await db.image.create({ data: imageData });
-  };
-
-  const createManyImages = async (imageData: Prisma.ImageCreateManyInput[]) => {
-    return await db.image.createMany({ data: imageData });
-  };
-
   const assertImageData = (
     res: supertest.Response,
     expected: typeof imgOne
@@ -157,12 +163,13 @@ export const setup = async (signinUrl: string) => {
 
   const assertPostData = (
     actualPost: PostFullData,
-    expectedPost: typeof postFullData
+    expectedPost: typeof postFullData & { image?: string }
   ) => {
     expect(actualPost.title).toBe(expectedPost.title);
     expect(actualPost.content).toBe(expectedPost.content);
     expect(actualPost.authorId).toBe(expectedPost.authorId);
     expect(actualPost.published).toBe(expectedPost.published);
+    expect(actualPost.imageId).toStrictEqual(expectedPost.image ?? null);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.categories.length).toBe(expectedPost.categories.length);
     expect(

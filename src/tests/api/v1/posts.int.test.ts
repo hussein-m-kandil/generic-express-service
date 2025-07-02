@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { POSTS_URL, SIGNIN_URL } from './utils';
 import {
   Comment,
   Category,
   VoteOnPost,
   CategoriesOnPosts,
 } from '../../../../prisma/generated/client';
-import { PostFullData } from '../../../types';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { PostFullData, PublicImage } from '../../../types';
+import { POSTS_URL, SIGNIN_URL } from './utils';
 import { ZodIssue } from 'zod';
-import db from '../../../lib/db';
 import setup from '../setup';
+import db from '../../../lib/db';
 
 describe('Posts endpoint', async () => {
   const {
@@ -24,18 +24,26 @@ describe('Posts endpoint', async () => {
     dbUserOne,
     dbUserTwo,
     dbXUser,
+    imgOne,
     api,
     signin,
     createPost,
+    createImage,
     assertPostData,
     deleteAllPosts,
     deleteAllUsers,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
+    assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
-  beforeEach(async () => await deleteAllPosts());
+  let dbImgOne: Omit<PublicImage, 'owner'>;
+
+  beforeEach(async () => {
+    await deleteAllPosts();
+    dbImgOne = await createImage(imgOne);
+  });
 
   afterAll(async () => {
     await deleteAllPosts();
@@ -53,10 +61,11 @@ describe('Posts endpoint', async () => {
       expect(resBody.length).toBe(0);
     });
 
-    it('should respond with an array of posts', async () => {
+    it('should respond with an array of posts with their images', async () => {
       const POST_COUNT = 2;
+      const postData = { ...postFullData, image: dbImgOne.id };
       for (let i = 0; i < POST_COUNT; i++) {
-        await createPost(postFullData);
+        await createPost(postData);
       }
       const res = await api.get(POSTS_URL);
       const resBody = res.body as PostFullData[];
@@ -66,7 +75,7 @@ describe('Posts endpoint', async () => {
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.length).toBe(POST_COUNT);
       for (const post of resBody) {
-        assertPostData(post, postFullData);
+        assertPostData(post, postData);
       }
     });
 
@@ -235,22 +244,24 @@ describe('Posts endpoint', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with a public post on request without JWT', async () => {
-      const dbPost = await createPost(postFullData);
+    it('should respond with a public post with its image on request without JWT', async () => {
+      const postData = { ...postFullData, image: dbImgOne.id };
+      const dbPost = await createPost(postData);
       const res = await api.get(`${POSTS_URL}/${dbPost.id}`);
       const resBody = res.body as PostFullData;
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody).toBeTypeOf('object');
-      assertPostData(resBody, postFullData);
+      assertPostData(resBody, postData);
     });
 
-    it('should respond with a public post even if the JWT not for the post author', async () => {
+    it('should respond with a public post with its image even if the JWT not for the post author', async () => {
       const { token } = await signin(
         userOneData.username,
         userOneData.password
       );
-      const dbPost = await createPost(postFullData);
+      const postData = { ...postFullData, image: dbImgOne.id };
+      const dbPost = await createPost(postData);
       const res = await api
         .get(`${POSTS_URL}/${dbPost.id}`)
         .set('Authorization', token);
@@ -258,10 +269,10 @@ describe('Posts endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody).toBeTypeOf('object');
-      assertPostData(resBody, postFullData);
+      assertPostData(resBody, postData);
     });
 
-    it('should respond with a private post authored by the current signed-in user', async () => {
+    it('should respond with a private post with its image authored by the current signed-in user', async () => {
       const { token, user } = await signin(
         userOneData.username,
         userOneData.password
@@ -270,6 +281,7 @@ describe('Posts endpoint', async () => {
         ...postFullData,
         published: false,
         authorId: user.id,
+        image: dbImgOne.id,
       };
       const dbPost = await createPost(currentUserPostFullData);
       const res = await api
@@ -461,6 +473,58 @@ describe('Posts endpoint', async () => {
           categories: postDataOutput.categories.map((c) => c.toLowerCase()),
         });
       });
+
+      it(`should ${VERB} a post with an image`, async () => {
+        const res = await sendRequest({
+          ...postDataInput,
+          image: dbImgOne.id,
+        });
+        const resBody = res.body as PostFullData;
+        expect(res.statusCode).toBe(SUCCESS_CODE);
+        expect(res.type).toMatch(/json/);
+        expect(
+          await db.post.findUnique({ where: { id: resBody.id } })
+        ).not.toBeNull();
+        assertPostData(resBody, {
+          ...postDataOutput,
+          authorId: signedInUserData.user.id,
+          image: dbImgOne.id,
+        });
+      });
+
+      it(`should ${VERB} a post without image id`, async () => {
+        const res = await sendRequest({
+          ...postDataInput,
+          image: undefined,
+        });
+        const resBody = res.body as PostFullData;
+        expect(res.statusCode).toBe(SUCCESS_CODE);
+        expect(res.type).toMatch(/json/);
+        expect(
+          await db.post.findUnique({ where: { id: resBody.id } })
+        ).not.toBeNull();
+        assertPostData(resBody, {
+          ...postDataOutput,
+          authorId: signedInUserData.user.id,
+          image: undefined,
+        });
+      });
+
+      it(`should respond with 400 on {VERB} request with invalid image id`, async () => {
+        const res = await sendRequest({
+          ...postDataInput,
+          image: `${crypto.randomUUID()}x_@`,
+        });
+        assertResponseWithValidationError(res, 'image');
+      });
+
+      it(`should respond with 400 on {VERB} request with unknown image id`, async () => {
+        const res = await sendRequest({
+          ...postDataInput,
+          image: crypto.randomUUID(),
+        });
+        assertInvalidIdErrorRes(res);
+      });
     };
   };
 
@@ -477,6 +541,7 @@ describe('Posts endpoint', async () => {
       const postDataToDelete = {
         ...postFullData,
         authorId: signedInUserData.user.id,
+        image: undefined,
       };
 
       const getSignedInUserCommentId = (post: PostFullData) => {
@@ -680,6 +745,63 @@ describe('Posts endpoint', async () => {
         it('should respond with 400 on invalid id', async () => {
           const res = await authorizedApi.delete(`${POSTS_URL}/321`);
           assertInvalidIdErrorRes(res);
+        });
+
+        it(`should delete the post and its image if it is owned by the post author`, async () => {
+          const dbPost = await createPost({
+            ...postDataToDelete,
+            image: dbImgOne.id,
+          });
+          const res = await authorizedApi.delete(`${POSTS_URL}/${dbPost.id}`);
+          expect(res.statusCode).toBe(204);
+          expect(res.body).toStrictEqual({});
+          expect(
+            await db.post.findUnique({ where: { id: dbPost.id } })
+          ).toBeNull();
+          expect(
+            await db.image.findUnique({ where: { id: dbImgOne.id } })
+          ).toBeNull();
+        });
+
+        it(`should delete the post without its image if it is not owned by the post author`, async () => {
+          const { authorizedApi, signedInUserData } =
+            await prepForAuthorizedTest(xUserData);
+          const dbPost = await createPost({
+            ...postDataToDelete,
+            image: dbImgOne.id,
+            authorId: signedInUserData.user.id,
+          });
+          const res = await authorizedApi.delete(`${POSTS_URL}/${dbPost.id}`);
+          expect(res.statusCode).toBe(204);
+          expect(res.body).toStrictEqual({});
+          expect(
+            await db.post.findUnique({ where: { id: dbPost.id } })
+          ).toBeNull();
+          expect(
+            (await db.image.findUnique({ where: { id: dbImgOne.id } }))?.src
+          ).toStrictEqual(dbImgOne.src);
+        });
+
+        it(`should delete the post without its image if it is in use on another post`, async () => {
+          const { signedInUserData } = await prepForAuthorizedTest(xUserData);
+          await createPost({
+            ...postDataToDelete,
+            image: dbImgOne.id,
+            authorId: signedInUserData.user.id, // Another user post with same image
+          });
+          const dbPost = await createPost({
+            ...postDataToDelete,
+            image: dbImgOne.id,
+          });
+          const res = await authorizedApi.delete(`${POSTS_URL}/${dbPost.id}`);
+          expect(res.statusCode).toBe(204);
+          expect(res.body).toStrictEqual({});
+          expect(
+            await db.post.findUnique({ where: { id: dbPost.id } })
+          ).toBeNull();
+          expect(
+            (await db.image.findUnique({ where: { id: dbImgOne.id } }))?.src
+          ).toStrictEqual(dbImgOne.src);
         });
       }
     };
