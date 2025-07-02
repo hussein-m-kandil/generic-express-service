@@ -1,9 +1,15 @@
-import { AppErrorResponse, AuthResponse, PostFullData } from '../../types';
+import {
+  AppErrorResponse,
+  AuthResponse,
+  PostFullData,
+  PublicImage,
+} from '../../types';
 import { Prisma } from '../../../prisma/generated/client';
 import { SALT } from '../../lib/config';
 import { expect } from 'vitest';
 import { ZodIssue } from 'zod';
 import app from '../../app';
+import path from 'node:path';
 import db from '../../lib/db';
 import bcrypt from 'bcryptjs';
 import supertest from 'supertest';
@@ -115,17 +121,16 @@ export const setup = async (signinUrl: string) => {
     });
   };
 
-  const imgOne = {
+  const imgOne: Prisma.ImageCreateWithoutOwnerInput & { ownerId: string } = {
     storageFullPath: 'full-path-1.jpg',
     storageId: 'storage-id-1',
     mimetype: 'image/jpeg',
     ownerId: dbUserOne.id,
     src: 'src-1.jpg',
-    alt: 'img-alt-1',
     size: 2000000,
   };
 
-  const imgTwo = {
+  const imgTwo: typeof imgOne = {
     storageFullPath: 'full-path-2.jpg',
     storageId: 'storage-id-2',
     mimetype: 'image/jpeg',
@@ -141,6 +146,17 @@ export const setup = async (signinUrl: string) => {
 
   const createManyImages = async (imageData: Prisma.ImageCreateManyInput[]) => {
     return await db.image.createMany({ data: imageData });
+  };
+
+  const assertImageData = (
+    res: supertest.Response,
+    expected: typeof imgOne
+  ) => {
+    const resBody = res.body as PublicImage;
+    expect(res.type).toMatch(/json/);
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    expect(resBody.src).toMatch(new RegExp(`${path.extname(expected.src)}$`));
+    expect(resBody.alt).toStrictEqual(expected.alt ?? '');
   };
 
   const assertPostData = (
@@ -176,6 +192,16 @@ export const setup = async (signinUrl: string) => {
       .agent(app)
       .set('Authorization', signedInUserData.token);
     return { signedInUserData, authorizedApi };
+  };
+
+  const assertErrorRes = (
+    res: supertest.Response,
+    expected: RegExp | string
+  ) => {
+    const resBody = res.body as AppErrorResponse;
+    expect(res.statusCode).toBe(400);
+    expect(res.type).toMatch(/json/);
+    expect(resBody.error.message).toMatch(expected);
   };
 
   const assertNotFoundErrorRes = (res: supertest.Response) => {
@@ -234,6 +260,8 @@ export const setup = async (signinUrl: string) => {
     deleteAllPosts,
     deleteAllUsers,
     assertPostData,
+    assertErrorRes,
+    assertImageData,
     deleteAllImages,
     createManyImages,
     prepForAuthorizedTest,

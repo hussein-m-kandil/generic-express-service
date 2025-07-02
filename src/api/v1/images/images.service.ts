@@ -1,23 +1,41 @@
 import {
-  STORAGE_ROOT_DIR,
   supabase,
   SUPABASE_BUCKET,
+  STORAGE_ROOT_DIR,
   SUPABASE_BUCKET_URL,
 } from '../../../lib/config';
-import { handleDBKnownErrors } from '../../../lib/helpers';
+import {
+  PublicUser,
+  PublicImage,
+  OmitImageSensitiveData,
+  AggregateImageData,
+} from '../../../types';
 import { AppError, AppNotFoundError } from '../../../lib/app-error';
-import { PublicUser } from '../../../types';
+import { Image } from '../../../../prisma/generated/client';
+import { handleDBKnownErrors } from '../../../lib/helpers';
 import { Request } from 'express';
 import db from '../../../lib/db';
 
-export const getAllImages = async () => {
-  const dbQuery = db.image.findMany({});
+const omit: OmitImageSensitiveData = { storageFullPath: true, storageId: true };
+const include: AggregateImageData = { owner: { omit: { password: true } } };
+
+export const getAllImages = async (): Promise<PublicImage[]> => {
+  const dbQuery = db.image.findMany({ include, omit });
   return await handleDBKnownErrors(dbQuery);
 };
 
-export const findImageById = async (id: string) => {
+export const findImageById = async (
+  id: string,
+  options = { rowImage: false }
+): Promise<Image | PublicImage> => {
   const notFoundErrMsg = 'image not found';
-  const dbQuery = db.image.findUnique({ where: { id } });
+  const dbQuery: Promise<Image | PublicImage | null> = options.rowImage
+    ? db.image.findUnique({ where: { id } })
+    : db.image.findUnique({
+        where: { id },
+        include,
+        omit,
+      });
   const image = await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
   if (!image) throw new AppNotFoundError(notFoundErrMsg);
   return image;
@@ -47,18 +65,30 @@ export const getValidImageFileFormReq = (
 };
 
 export const uploadImage = async (
-  file: ReturnType<typeof getValidImageFileFormReq>,
-  user: PublicUser
+  imageFile: ReturnType<typeof getValidImageFileFormReq>,
+  user: PublicUser,
+  imageData?: Image
 ) => {
-  const randomSuffix = Math.round(Math.random() * Date.now()) % 10 ** 8;
-  const uniqueFileName = `${user.id}-${randomSuffix}${file.ext}`;
-  const filePath = `${STORAGE_ROOT_DIR}/${user.username}/${uniqueFileName}`;
-  const { data, error } = await supabase.storage
-    .from(SUPABASE_BUCKET)
-    .upload(filePath, file.buffer, { contentType: file.mimetype });
-  if (error) {
-    throw new AppError(error.message, 500, error.name);
+  let bucket = SUPABASE_BUCKET,
+    upsert = false,
+    filePath: string;
+  if (imageData) {
+    const [bucketName, ...splittedPath] = imageData.storageFullPath.split('/');
+    filePath = splittedPath.join('/');
+    bucket = bucketName;
+    upsert = true;
+  } else {
+    const randomSuffix = Math.round(Math.random() * Date.now()) % 10 ** 8;
+    const uniqueFileName = `${user.id}-${randomSuffix}${imageFile.ext}`;
+    filePath = `${STORAGE_ROOT_DIR}/${user.username}/${uniqueFileName}`;
   }
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, imageFile.buffer, {
+      contentType: imageFile.mimetype,
+      upsert,
+    });
+  if (error) throw new AppError(error.message, 500, error.name);
   return data;
 };
 
@@ -66,19 +96,33 @@ export const saveImage = async (
   uploadImageRes: Awaited<ReturnType<typeof uploadImage>>,
   data: { alt?: string; mimetype: string; size: number },
   user: PublicUser
-) => {
+): Promise<PublicImage> => {
   const src = `${SUPABASE_BUCKET_URL}/${uploadImageRes.path}`;
-  const dbQuery = db.image.create({
-    data: {
-      ...data,
-      src,
-      ownerId: user.id,
-      storageId: uploadImageRes.id,
-      storageFullPath: uploadImageRes.fullPath,
-    },
-    omit: { storageFullPath: true, storageId: true },
-    include: { owner: true },
+  const imageData = {
+    ...data,
+    src,
+    ownerId: user.id,
+    storageId: uploadImageRes.id,
+    storageFullPath: uploadImageRes.fullPath,
+  };
+  const dbQuery = db.image.upsert({
+    create: imageData,
+    update: imageData,
+    where: { src },
+    include,
+    omit,
   });
+  const savedImage = await handleDBKnownErrors(dbQuery, {
+    uniqueFieldName: 'src',
+  });
+  return savedImage;
+};
+
+export const updateImageData = async (
+  data: { alt?: string },
+  id: string
+): Promise<PublicImage> => {
+  const dbQuery = db.image.update({ where: { id }, data, omit, include });
   const savedImage = await handleDBKnownErrors(dbQuery, {
     uniqueFieldName: 'src',
   });
