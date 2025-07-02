@@ -13,28 +13,32 @@ export interface UserSensitiveDataToOmit {
   password: true;
 }
 
-export type CustomPrismaClient = PrismaClient<{
-  omit: { user: UserSensitiveDataToOmit };
-}>;
-
 export interface OmitUserSensitiveData {
   omit: UserSensitiveDataToOmit;
 }
 
 export type PublicUser = Prisma.UserGetPayload<OmitUserSensitiveData>;
 
-export interface OmitImageSensitiveData {
+export interface ImageSensitiveDataToOmit {
   storageId: true;
   storageFullPath: true;
 }
 
-export interface AggregateImageData {
+export interface OmitImageSensitiveData {
+  omit: ImageSensitiveDataToOmit;
+}
+
+export interface ImageDataToAggregate {
   owner: OmitUserSensitiveData;
 }
 
 export type PublicImage = Prisma.ImageGetPayload<{
-  include: AggregateImageData;
-  omit: OmitImageSensitiveData;
+  omit: ImageSensitiveDataToOmit;
+  include: ImageDataToAggregate;
+}>;
+
+export type CustomPrismaClient = PrismaClient<{
+  omit: { image: ImageSensitiveDataToOmit; user: UserSensitiveDataToOmit };
 }>;
 
 export type NewUserInput = z.input<typeof userSchema>;
@@ -61,12 +65,11 @@ export interface AppErrorResponse {
 
 export type PostFullData = Prisma.PostGetPayload<{
   include: {
-    comments: {
-      include: { author: OmitUserSensitiveData };
-    };
+    image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
+    comments: { include: { author: OmitUserSensitiveData } };
     votes: { include: { user: OmitUserSensitiveData } };
-    categories: true;
     author: OmitUserSensitiveData;
+    categories: true;
   };
 }>;
 

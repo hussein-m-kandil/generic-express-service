@@ -1,9 +1,10 @@
 import {
-  AppErrorResponse,
+  PublicImage,
   AuthResponse,
   PostFullData,
-  PublicImage,
+  AppErrorResponse,
 } from '../../types';
+import { fieldsToIncludeWithPost } from '../../lib/helpers';
 import { Prisma } from '../../../prisma/generated/client';
 import { SALT } from '../../lib/config';
 import { expect } from 'vitest';
@@ -112,12 +113,7 @@ export const setup = async (signinUrl: string) => {
           })),
         },
       },
-      include: {
-        comments: { include: { author: true } },
-        votes: { include: { user: true } },
-        categories: true,
-        author: true,
-      },
+      include: fieldsToIncludeWithPost,
     });
   };
 
