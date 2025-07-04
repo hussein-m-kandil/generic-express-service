@@ -40,6 +40,7 @@ describe('Images endpoint', async () => {
     api,
     imgOne,
     imgTwo,
+    imgData,
     adminData,
     userOneData,
     userTwoData,
@@ -53,6 +54,7 @@ describe('Images endpoint', async () => {
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
     assertUnauthorizedErrorRes,
+    assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
   const { authorizedApi } = await prepForAuthorizedTest(userOneData);
@@ -156,17 +158,75 @@ describe('Images endpoint', async () => {
       expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
     });
 
-    it('should upload the image with alt', async () => {
-      const imgData = { ...imgOne, alt: 'test-img-alt' };
+    it('should upload the image with data', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi
         .post(IMAGES_URL)
+        .field('scale', imgData.scale)
+        .field('xPos', imgData.xPos)
+        .field('yPos', imgData.yPos)
         .field('alt', imgData.alt)
         .attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, imgData);
       expect(upload).toHaveBeenCalledOnce();
       expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+
+    it('should upload the image with data and truncate the given position values', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('xPos', imgData.xPos + 0.25)
+        .field('yPos', imgData.yPos + 0.75)
+        .field('scale', imgData.scale)
+        .field('alt', imgData.alt)
+        .attach('image', stream);
+      expect(res.statusCode).toBe(201);
+      assertImageData(res, imgData);
+    });
+
+    it('should upload the image with extra info', async () => {
+      const info = 'Extra info...';
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('info', info)
+        .attach('image', stream);
+      expect(res.statusCode).toBe(201);
+      assertImageData(res, { ...imgOne, info });
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+
+    it('should not upload the image with invalid `xPos` type', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('xPos', '25px')
+        .attach('image', stream);
+      assertResponseWithValidationError(res, 'xPos');
+      expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should not upload the image with invalid `yPos` type', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('yPos', '25px')
+        .attach('image', stream);
+      assertResponseWithValidationError(res, 'yPos');
+      expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should not upload the image with invalid `scale` type', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('scale', '125%')
+        .attach('image', stream);
+      assertResponseWithValidationError(res, 'scale');
+      expect(upload).not.toHaveBeenCalledOnce();
     });
   });
 
@@ -218,11 +278,13 @@ describe('Images endpoint', async () => {
       expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', true);
     });
 
-    it('should update the image with alt', async () => {
-      const imgData = { ...imgOne, alt: 'test-img-alt' };
+    it('should update the image with data', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi
         .put(url)
+        .field('scale', imgData.scale)
+        .field('xPos', imgData.xPos)
+        .field('yPos', imgData.yPos)
         .field('alt', imgData.alt)
         .attach('image', stream);
       expect(res.statusCode).toBe(200);
@@ -231,19 +293,70 @@ describe('Images endpoint', async () => {
       expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', true);
     });
 
-    it('should update the alt only', async () => {
-      const res = await authorizedApi.put(url).send({ alt: imgTwo.alt });
+    it('should update the image with data and truncate the given position values', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .put(url)
+        .field('xPos', imgData.xPos + 0.25)
+        .field('yPos', imgData.yPos + 0.75)
+        .field('scale', imgData.scale)
+        .field('alt', imgData.alt)
+        .attach('image', stream);
       expect(res.statusCode).toBe(200);
-      assertImageData(res, imgTwo);
+      assertImageData(res, imgData);
+    });
+
+    it('should update only the data', async () => {
+      const res = await authorizedApi.put(url).send(imgData);
+      expect(res.statusCode).toBe(200);
+      assertImageData(res, { ...imgOne, ...imgData });
       expect(upload).not.toHaveBeenCalledOnce();
     });
 
-    it('should not change a defined alt value into undefined', async () => {
-      const imgData = { ...imgOne, alt: 'test', src: 'test.webp' };
-      const dbImg = await createImage(imgData);
+    it('should not change a defined data values into undefined', async () => {
+      const extImgData = { ...imgData, info: 'Extra info...' };
+      const dbImg = await createImage(extImgData);
       const res = await authorizedApi.put(`${IMAGES_URL}/${dbImg.id}`).send({});
       expect(res.statusCode).toBe(200);
-      assertImageData(res, imgData);
+      assertImageData(res, extImgData);
+      expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should update the image extra info', async () => {
+      const info = 'Extra info...';
+      const res = await authorizedApi.put(url).send({ info });
+      expect(res.statusCode).toBe(200);
+      assertImageData(res, { ...imgOne, info });
+      expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should not update the image with invalid `xPos` type', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .put(url)
+        .field('xPos', '25px')
+        .attach('image', stream);
+      assertResponseWithValidationError(res, 'xPos');
+      expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should not update the image with invalid `yPos` type', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .put(url)
+        .field('yPos', '25px')
+        .attach('image', stream);
+      assertResponseWithValidationError(res, 'yPos');
+      expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should not update the image with invalid `scale` type', async () => {
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .put(url)
+        .field('scale', '125%')
+        .attach('image', stream);
+      assertResponseWithValidationError(res, 'scale');
       expect(upload).not.toHaveBeenCalledOnce();
     });
   });

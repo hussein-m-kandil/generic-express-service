@@ -3,6 +3,7 @@ import { PrismaClient, Prisma } from '../prisma/generated/client';
 import { userSchema } from './api/v1/users/user.schema';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
+import { imageSchema } from './api/v1/images/image.schema';
 
 export interface DBKnownErrorsHandlerOptions {
   notFoundErrMsg?: string;
@@ -95,3 +96,19 @@ export interface VoteFiltrationOptions {
   authorId?: string;
   isUpvote?: boolean;
 }
+
+export interface ImageMetadata {
+  mimetype: string;
+  height: number;
+  width: number;
+  size: number;
+}
+
+export interface ImageFile extends Express.Multer.File, ImageMetadata {
+  format: string;
+  ext: string;
+}
+
+export type ImageDataInput = z.output<typeof imageSchema>;
+
+export type FullImageData = ImageDataInput & ImageMetadata;

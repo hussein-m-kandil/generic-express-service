@@ -8,6 +8,7 @@ import {
   removeUploadedImage,
   getValidImageFileFormReq,
   getImageOwnerAndInjectImageInResLocals,
+  getImageMetadata,
 } from './images.service';
 import {
   authValidator,
@@ -36,11 +37,10 @@ imagesRouter.post(
   createFileProcessor('image'),
   async (req: Request, res: Response) => {
     const user = req.user as PublicUser;
-    const imageFile = getValidImageFileFormReq(req);
+    const imageFile = await getValidImageFileFormReq(req);
     const data = {
       ...imageSchema.parse(req.body),
-      mimetype: imageFile.mimetype,
-      size: imageFile.size,
+      ...getImageMetadata(imageFile),
     };
     const uploadRes = await uploadImage(imageFile, user);
     const savedImage = await saveImage(uploadRes, data, user);
@@ -57,11 +57,10 @@ imagesRouter.put(
     const { image } = res.locals;
     const user = req.user as PublicUser;
     if (req.file) {
-      const imageFile = getValidImageFileFormReq(req);
+      const imageFile = await getValidImageFileFormReq(req);
       const data = {
         ...imageSchema.parse(req.body),
-        mimetype: imageFile.mimetype,
-        size: imageFile.size,
+        ...getImageMetadata(imageFile),
       };
       const uploadRes = await uploadImage(imageFile, user, image);
       const savedImage = await saveImage(uploadRes, data, user);

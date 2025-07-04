@@ -8,11 +8,19 @@ import {
   handleDBKnownErrors,
   fieldsToIncludeWithImage,
 } from '../../../lib/helpers';
+import {
+  ImageFile,
+  PublicUser,
+  PublicImage,
+  ImageMetadata,
+  FullImageData,
+  ImageDataInput,
+} from '../../../types';
 import { AppError, AppNotFoundError } from '../../../lib/app-error';
 import { Image } from '../../../../prisma/generated/client';
-import { PublicUser, PublicImage } from '../../../types';
 import { Request, Response } from 'express';
 import db from '../../../lib/db';
+import sharp from 'sharp';
 
 const include = fieldsToIncludeWithImage;
 const notFoundErrMsg = 'image not found';
@@ -29,31 +37,39 @@ export const findImageById = async (id: string): Promise<PublicImage> => {
   return image;
 };
 
-export const getValidImageFileFormReq = (
+export const getValidImageFileFormReq = async (
   req: Request & { file?: Express.Multer.File }
-): Express.Multer.File & { ext: string } => {
+): Promise<ImageFile> => {
   if (req.file) {
-    return {
-      ...req.file,
-      ext: (() => {
-        switch (req.file.mimetype) {
-          case 'image/png':
-            return '.png';
-          case 'image/jpeg':
-            return '.jpg';
-          case 'image/webp':
-            return '.webp';
-          default:
-            throw new AppError('invalid image type', 400, 'InvalidImageError');
+    let metadata: sharp.Metadata;
+    try {
+      metadata = await sharp(req.file.buffer).metadata();
+    } catch {
+      throw new AppError('Invalid image file', 400, 'InvalidImageError');
+    }
+    const { format, width, height } = metadata;
+    const mimetype = `image/${format}`;
+    const ext = (() => {
+      switch (mimetype) {
+        case 'image/png':
+          return '.png';
+        case 'image/jpeg':
+          return '.jpg';
+        case 'image/webp':
+          return '.webp';
+        default: {
+          const message = 'Unsupported image type (expect png, jpg, or webp)';
+          throw new AppError(message, 400, 'UnsupportedImageTypeError');
         }
-      })(),
-    };
+      }
+    })();
+    return { ...req.file, mimetype, format, width, height, ext };
   }
   throw new AppError('image is required', 400, 'FileNotExistError');
 };
 
 export const uploadImage = async (
-  imageFile: ReturnType<typeof getValidImageFileFormReq>,
+  imageFile: ImageFile,
   user: PublicUser,
   imageData?: Image
 ) => {
@@ -80,9 +96,18 @@ export const uploadImage = async (
   return data;
 };
 
+export const getImageMetadata = ({
+  mimetype,
+  width,
+  height,
+  size,
+}: ImageFile): ImageMetadata => {
+  return { mimetype, width, height, size };
+};
+
 export const saveImage = async (
   uploadImageRes: Awaited<ReturnType<typeof uploadImage>>,
-  data: { alt?: string; mimetype: string; size: number },
+  data: FullImageData,
   user: PublicUser
 ): Promise<PublicImage> => {
   const src = `${SUPABASE_BUCKET_URL}/${uploadImageRes.path}`;
@@ -106,7 +131,7 @@ export const saveImage = async (
 };
 
 export const updateImageData = async (
-  data: { alt?: string },
+  data: ImageDataInput,
   id: string
 ): Promise<PublicImage> => {
   const dbQuery = db.image.update({ where: { id }, data, include });
@@ -150,6 +175,9 @@ export default {
   getImageOwnerAndInjectImageInResLocals,
   getValidImageFileFormReq,
   removeUploadedImage,
+  getImageMetadata,
+  deleteImageById,
+  updateImageData,
   findImageById,
   getAllImages,
   uploadImage,

@@ -79,6 +79,8 @@ export const setup = async (signinUrl: string) => {
     ownerId: dbUserOne.id,
     src: 'src-1.jpg',
     size: 2000000,
+    height: 2048,
+    width: 2048,
   };
 
   const imgTwo: typeof imgOne = {
@@ -89,6 +91,16 @@ export const setup = async (signinUrl: string) => {
     src: 'src-2.jpg',
     alt: 'img-alt-2',
     size: 1250000,
+    height: 2048,
+    width: 2048,
+  };
+
+  const imgData = {
+    ...imgOne,
+    alt: 'test-img-alt',
+    scale: 1.25,
+    xPos: 10,
+    yPos: 25,
   };
 
   const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
@@ -158,7 +170,14 @@ export const setup = async (signinUrl: string) => {
     expect(res.type).toMatch(/json/);
     // eslint-disable-next-line security/detect-non-literal-regexp
     expect(resBody.src).toMatch(new RegExp(`${path.extname(expected.src)}$`));
+    expect(resBody.info).toStrictEqual(expected.info ?? '');
     expect(resBody.alt).toStrictEqual(expected.alt ?? '');
+    expect(resBody.scale).toBe(expected.scale ?? 1.0);
+    expect(resBody.mimetype).toBe(expected.mimetype);
+    expect(resBody.xPos).toBe(expected.xPos ?? 0);
+    expect(resBody.yPos).toBe(expected.yPos ?? 0);
+    expect(resBody.height).toBe(expected.height);
+    expect(resBody.width).toBe(expected.width);
   };
 
   const assertPostData = (
@@ -253,6 +272,7 @@ export const setup = async (signinUrl: string) => {
     userData,
     dbAdmin,
     dbXUser,
+    imgData,
     imgOne,
     imgTwo,
     api,

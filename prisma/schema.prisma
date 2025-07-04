@@ -94,10 +94,16 @@ model Image {
   updatedAt       DateTime @updatedAt @map("updated_at")
   storageFullPath String   @map("storage_full_path")
   storageId       String   @map("storage_id")
+  info            String   @default("")
   alt             String   @default("")
   src             String   @unique
   mimetype        String
   size            Int
+  width           Int
+  height          Int
+  xPos            Int      @default(0) @map("x_pos")
+  yPos            Int      @default(0) @map("y_pos")
+  scale           Float    @default(1.0)
   Post            Post[]
 
   @@map("images")
