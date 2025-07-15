@@ -1,4 +1,4 @@
-import { Request, Router } from 'express';
+import { NextFunction, Request, Router } from 'express';
 import {
   createJwtForUser,
   findFilteredPosts,
@@ -31,12 +31,23 @@ usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
   res.json(users);
 });
 
-usersRouter.get('/:idOrUsername', async (req, res) => {
-  const user = await usersService.findUserByIdOrByUsernameOrThrow(
-    req.params.idOrUsername
-  );
-  res.json(user);
-});
+usersRouter.get(
+  '/:idOrUsername',
+  optionalAuthValidator,
+  async (req, res, next) => {
+    const param = req.params.idOrUsername;
+    const user = await usersService.findUserByIdOrByUsernameOrThrow(param);
+    if (param === user.id) {
+      res.json(user);
+    } else {
+      const nextWrapper: NextFunction = (x: unknown) => {
+        if (x) next(x);
+        else res.json(user);
+      };
+      await createAdminOrOwnerValidator(() => user.id)(req, res, nextWrapper);
+    }
+  }
+);
 
 usersRouter.get('/:id/posts', optionalAuthValidator, async (req, res) => {
   const authorId = req.params.id;
