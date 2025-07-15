@@ -143,6 +143,18 @@ describe('Users endpoint', async () => {
   });
 
   describe(`GET ${USERS_URL}`, () => {
+    it('should respond with 401 on request without JWT', async () => {
+      const res = await api.get(USERS_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 401 on request with non-admin JWT', async () => {
+      await createUser(userData);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(USERS_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
     it('should respond with users list, on request with admin JWT', async () => {
       await createUser(adminData);
       const dbUser = await createUser(userData);
@@ -173,14 +185,35 @@ describe('Users endpoint', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with the found user on request with id or username', async () => {
-      await createUser(adminData);
+    it('should respond with 401 on non-owner request with username', async () => {
+      await createUser(xUserData);
       const dbUser = await createUser(userData);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.username}`);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with the found user on request with id for anyone', async () => {
+      const dbUser = await createUser(userData);
+      const res = await api.get(`${USERS_URL}/${dbUser.id}`);
+      const resUser = res.body as User;
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resUser.id).toBe(dbUser.id);
+      expect(resUser.isAdmin).toStrictEqual(false);
+      expect(resUser.username).toBe(dbUser.username);
+      expect(resUser.fullname).toBe(dbUser.fullname);
+      expect(resUser.password).toBeUndefined();
+    });
+
+    it('should respond with the found user on owner request with id or username', async () => {
+      const dbUser = await createUser(userData);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
       for (const param of [dbUser.id, dbUser.username]) {
-        const res = await api.get(`${USERS_URL}/${param}`);
+        const res = await authorizedApi.get(`${USERS_URL}/${param}`);
         const resUser = res.body as User;
-        expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
         expect(resUser.id).toBe(dbUser.id);
         expect(resUser.isAdmin).toStrictEqual(false);
         expect(resUser.username).toBe(dbUser.username);
