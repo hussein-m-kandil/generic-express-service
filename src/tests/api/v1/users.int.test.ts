@@ -143,6 +143,18 @@ describe('Users endpoint', async () => {
   });
 
   describe(`GET ${USERS_URL}`, () => {
+    it('should respond with 401 on request without JWT', async () => {
+      const res = await api.get(USERS_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 401 on request with non-admin JWT', async () => {
+      await createUser(userData);
+      const { authorizedApi } = await prepForAuthorizedTest(userData);
+      const res = await authorizedApi.get(USERS_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
     it('should respond with users list, on request with admin JWT', async () => {
       await createUser(adminData);
       const dbUser = await createUser(userData);
