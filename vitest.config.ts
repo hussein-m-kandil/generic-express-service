@@ -3,8 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
-    isolate: false,
+    isolate: true,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } }, // avoid conflicts in db interactions
+    poolOptions: { forks: { maxForks: 1, minForks: 0 } }, // avoid conflicts in db interactions
   },
 });

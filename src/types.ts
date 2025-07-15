@@ -3,6 +3,7 @@ import { PrismaClient, Prisma } from '../prisma/generated/client';
 import { userSchema } from './api/v1/users/user.schema';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
+import { imageSchema } from './api/v1/images/image.schema';
 
 export interface DBKnownErrorsHandlerOptions {
   notFoundErrMsg?: string;
@@ -13,15 +14,33 @@ export interface UserSensitiveDataToOmit {
   password: true;
 }
 
-export type CustomPrismaClient = PrismaClient<{
-  omit: { user: UserSensitiveDataToOmit };
-}>;
-
 export interface OmitUserSensitiveData {
   omit: UserSensitiveDataToOmit;
 }
 
 export type PublicUser = Prisma.UserGetPayload<OmitUserSensitiveData>;
+
+export interface ImageSensitiveDataToOmit {
+  storageId: true;
+  storageFullPath: true;
+}
+
+export interface OmitImageSensitiveData {
+  omit: ImageSensitiveDataToOmit;
+}
+
+export interface ImageDataToAggregate {
+  owner: OmitUserSensitiveData;
+}
+
+export type PublicImage = Prisma.ImageGetPayload<{
+  omit: ImageSensitiveDataToOmit;
+  include: ImageDataToAggregate;
+}>;
+
+export type CustomPrismaClient = PrismaClient<{
+  omit: { image: ImageSensitiveDataToOmit; user: UserSensitiveDataToOmit };
+}>;
 
 export type NewUserInput = z.input<typeof userSchema>;
 
@@ -47,12 +66,11 @@ export interface AppErrorResponse {
 
 export type PostFullData = Prisma.PostGetPayload<{
   include: {
-    comments: {
-      include: { author: OmitUserSensitiveData };
-    };
+    image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
+    comments: { include: { author: OmitUserSensitiveData } };
     votes: { include: { user: OmitUserSensitiveData } };
-    categories: true;
     author: OmitUserSensitiveData;
+    categories: true;
   };
 }>;
 
@@ -78,3 +96,19 @@ export interface VoteFiltrationOptions {
   authorId?: string;
   isUpvote?: boolean;
 }
+
+export interface ImageMetadata {
+  mimetype: string;
+  height: number;
+  width: number;
+  size: number;
+}
+
+export interface ImageFile extends Express.Multer.File, ImageMetadata {
+  format: string;
+  ext: string;
+}
+
+export type ImageDataInput = z.output<typeof imageSchema>;
+
+export type FullImageData = ImageDataInput & ImageMetadata;

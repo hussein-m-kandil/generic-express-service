@@ -19,7 +19,10 @@ if (globalForPrisma.prisma) {
     // Read the URL programmatically to support replacing .env with .env.test in CLI
     datasourceUrl: process.env.DATABASE_URL,
     // Globally omit the password field; need to be sat to false explicitly, to retrieve a user with password
-    omit: { user: { password: true } },
+    omit: {
+      image: { storageFullPath: true, storageId: true },
+      user: { password: true },
+    },
   });
 }
 

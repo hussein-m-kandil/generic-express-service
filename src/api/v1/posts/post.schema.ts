@@ -18,6 +18,12 @@ export const titleSchema = z
   .trim()
   .nonempty('A post must have a title');
 
+export const imageSchema = z
+  .string()
+  .trim()
+  .uuid({ message: 'expect image to be UUID' })
+  .optional();
+
 export const contentSchema = z
   .string(getRequiredAndTypeErrors('Post-Content'))
   .trim()
@@ -49,6 +55,7 @@ export const commentSchema = z.object({
 export const postSchema = z
   .object({
     title: titleSchema,
+    image: imageSchema,
     content: contentSchema,
     published: publishedSchema.optional(),
     categories: categoriesSchema.optional(),

@@ -3,6 +3,7 @@ import {
   NewPostParsedData,
   NewCommentParsedData,
   NewPostAuthorizedData,
+  PostFullData,
 } from '../../../types';
 import {
   handleDBKnownErrors,
@@ -20,6 +21,7 @@ export const createPost = async (data: NewPostAuthorizedData) => {
   const dbQuery = db.post.create({
     data: {
       title: data.title,
+      imageId: data.image,
       content: data.content,
       authorId: data.authorId,
       published: data.published,
@@ -62,6 +64,7 @@ export const updatePost = async (id: string, data: NewPostParsedData) => {
           where: { id },
           data: {
             title: data.title,
+            imageId: data.image,
             content: data.content,
             published: data.published,
             categories: {
@@ -136,16 +139,28 @@ export const downvotePost = async (postId: string, userId: string) => {
   }
 };
 
-export const deletePost = async (id: string, authorId?: string) => {
-  const dbQuery = db.post.delete({
+export const deletePost = async (post: PostFullData, authorId?: string) => {
+  const delPostQ = db.post.delete({
     where: {
-      id,
+      id: post.id,
       AND: authorId
         ? { OR: [{ published: true }, { authorId }] }
         : { published: true },
     },
   });
-  await handleDBKnownErrors(dbQuery);
+  // Delete the post with its image if both owned by the same user
+  if (post.authorId === post.image?.ownerId) {
+    const sameImagePosts = await handleDBKnownErrors(
+      db.post.findMany({ where: { imageId: post.image.id } })
+    );
+    // Delete the post with its image if there are no other posts using it
+    if (sameImagePosts.length === 1 && sameImagePosts[0].id === post.id) {
+      const delImgQ = db.image.delete({ where: { id: post.image.id } });
+      return await handleDBKnownErrors(db.$transaction([delPostQ, delImgQ]));
+    }
+  }
+  // Otherwise, only delete the post and leave its image alone ;)
+  return await handleDBKnownErrors(delPostQ);
 };
 
 export const findPostCommentByCompoundIdOrThrow = async (

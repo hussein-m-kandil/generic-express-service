@@ -1,9 +1,17 @@
-import { AppErrorResponse, AuthResponse, PostFullData } from '../../types';
+import {
+  PublicImage,
+  AuthResponse,
+  PostFullData,
+  AppErrorResponse,
+  NewPostParsedData,
+} from '../../types';
+import { fieldsToIncludeWithPost } from '../../lib/helpers';
 import { Prisma } from '../../../prisma/generated/client';
 import { SALT } from '../../lib/config';
 import { expect } from 'vitest';
 import { ZodIssue } from 'zod';
 import app from '../../app';
+import path from 'node:path';
 import db from '../../lib/db';
 import bcrypt from 'bcryptjs';
 import supertest from 'supertest';
@@ -13,6 +21,7 @@ export const setup = async (signinUrl: string) => {
 
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
+  const deleteAllImages = async () => await db.image.deleteMany({});
 
   const createUser = async (data: Prisma.UserCreateInput) => {
     const password = bcrypt.hashSync(data.password, SALT);
@@ -63,7 +72,50 @@ export const setup = async (signinUrl: string) => {
   const dbAdmin = await createUser(adminData);
   const dbXUser = await createUser(xUserData);
 
-  const postDataInput = {
+  const imgOne: Prisma.ImageCreateWithoutOwnerInput & { ownerId: string } = {
+    storageFullPath: 'full-path-1.jpg',
+    storageId: 'storage-id-1',
+    mimetype: 'image/jpeg',
+    ownerId: dbUserOne.id,
+    src: 'src-1.jpg',
+    size: 2000000,
+    height: 2048,
+    width: 2048,
+  };
+
+  const imgTwo: typeof imgOne = {
+    storageFullPath: 'full-path-2.jpg',
+    storageId: 'storage-id-2',
+    mimetype: 'image/jpeg',
+    ownerId: dbUserTwo.id,
+    src: 'src-2.jpg',
+    alt: 'img-alt-2',
+    size: 1250000,
+    height: 2048,
+    width: 2048,
+  };
+
+  const imgData = {
+    ...imgOne,
+    alt: 'test-img-alt',
+    scale: 1.25,
+    xPos: 10,
+    yPos: 25,
+  };
+
+  const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
+    return await db.image.upsert({
+      where: { src: imageData.src },
+      create: imageData,
+      update: imageData,
+    });
+  };
+
+  const createManyImages = async (imageData: Prisma.ImageCreateManyInput[]) => {
+    return await db.image.createMany({ data: imageData });
+  };
+
+  const postDataInput: NewPostParsedData = {
     published: true,
     title: 'Test Post',
     content: 'Test post content...',
@@ -92,6 +144,7 @@ export const setup = async (signinUrl: string) => {
     return await db.post.create({
       data: {
         title: data.title,
+        imageId: data.image,
         content: data.content,
         authorId: data.authorId,
         published: data.published,
@@ -105,23 +158,37 @@ export const setup = async (signinUrl: string) => {
           })),
         },
       },
-      include: {
-        comments: { include: { author: true } },
-        votes: { include: { user: true } },
-        categories: true,
-        author: true,
-      },
+      include: fieldsToIncludeWithPost,
     });
+  };
+
+  const assertImageData = (
+    res: supertest.Response,
+    expected: typeof imgOne
+  ) => {
+    const resBody = res.body as PublicImage;
+    expect(res.type).toMatch(/json/);
+    // eslint-disable-next-line security/detect-non-literal-regexp
+    expect(resBody.src).toMatch(new RegExp(`${path.extname(expected.src)}$`));
+    expect(resBody.info).toStrictEqual(expected.info ?? '');
+    expect(resBody.alt).toStrictEqual(expected.alt ?? '');
+    expect(resBody.scale).toBe(expected.scale ?? 1.0);
+    expect(resBody.mimetype).toBe(expected.mimetype);
+    expect(resBody.xPos).toBe(expected.xPos ?? 0);
+    expect(resBody.yPos).toBe(expected.yPos ?? 0);
+    expect(resBody.height).toBe(expected.height);
+    expect(resBody.width).toBe(expected.width);
   };
 
   const assertPostData = (
     actualPost: PostFullData,
-    expectedPost: typeof postFullData
+    expectedPost: typeof postFullData & { image?: string }
   ) => {
     expect(actualPost.title).toBe(expectedPost.title);
     expect(actualPost.content).toBe(expectedPost.content);
     expect(actualPost.authorId).toBe(expectedPost.authorId);
     expect(actualPost.published).toBe(expectedPost.published);
+    expect(actualPost.imageId).toStrictEqual(expectedPost.image ?? null);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.categories.length).toBe(expectedPost.categories.length);
     expect(
@@ -147,6 +214,16 @@ export const setup = async (signinUrl: string) => {
       .agent(app)
       .set('Authorization', signedInUserData.token);
     return { signedInUserData, authorizedApi };
+  };
+
+  const assertErrorRes = (
+    res: supertest.Response,
+    expected: RegExp | string
+  ) => {
+    const resBody = res.body as AppErrorResponse;
+    expect(res.statusCode).toBe(400);
+    expect(res.type).toMatch(/json/);
+    expect(resBody.error.message).toMatch(expected);
   };
 
   const assertNotFoundErrorRes = (res: supertest.Response) => {
@@ -195,13 +272,21 @@ export const setup = async (signinUrl: string) => {
     userData,
     dbAdmin,
     dbXUser,
+    imgData,
+    imgOne,
+    imgTwo,
     api,
     signin,
     createUser,
     createPost,
+    createImage,
     deleteAllPosts,
     deleteAllUsers,
     assertPostData,
+    assertErrorRes,
+    assertImageData,
+    deleteAllImages,
+    createManyImages,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
