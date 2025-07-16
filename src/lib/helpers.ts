@@ -135,6 +135,7 @@ export const getCommentFilterOptionsFromReqQuery = (
   return {
     authorId: getSignedInUserIdFromReqQuery(req),
     text: getTextFilterFromReqQuery(req),
+    ...getPaginationFiltersFromReq(req),
   };
 };
 
@@ -227,6 +228,7 @@ export const findFilteredComments = async (
         : {}),
     },
     include: fieldsToIncludeWithComment,
+    ...(options ? getPaginationArgs(options) : {}),
   });
   const comments = await handleDBKnownErrors(dbQuery);
   return comments;
