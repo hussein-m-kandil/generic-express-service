@@ -286,7 +286,7 @@ export const countPostComments = async (postId: string, authorId?: string) => {
 };
 
 export const countPostVotes = async (postId: string, authorId?: string) => {
-  return (await findPostByIdOrThrow(postId, authorId)).comments.length;
+  return (await findPostByIdOrThrow(postId, authorId)).votes.length;
 };
 
 export const postsService = {
