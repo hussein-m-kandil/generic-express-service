@@ -143,6 +143,7 @@ export const getVoteFilterOptionsFromReqQuery = (req: Request) => {
   return {
     authorId: getSignedInUserIdFromReqQuery(req),
     isUpvote: getVoteTypeFilterFromReqQuery(req),
+    ...getPaginationFiltersFromReq(req),
   };
 };
 
@@ -249,6 +250,7 @@ export const findFilteredVotes = async (
       ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
     },
     include: fieldsToIncludeWithVote,
+    ...(options ? getPaginationArgs(options) : {}),
   });
   const comments = await handleDBKnownErrors(dbQuery);
   return comments;
