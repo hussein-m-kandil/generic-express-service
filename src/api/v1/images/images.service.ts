@@ -5,6 +5,7 @@ import {
   SUPABASE_BUCKET_URL,
 } from '../../../lib/config';
 import {
+  getPaginationArgs,
   handleDBKnownErrors,
   fieldsToIncludeWithImage,
 } from '../../../lib/helpers';
@@ -15,6 +16,7 @@ import {
   ImageMetadata,
   FullImageData,
   ImageDataInput,
+  PaginationFilters,
 } from '../../../types';
 import { AppError, AppNotFoundError } from '../../../lib/app-error';
 import { Image } from '../../../../prisma/generated/client';
@@ -25,8 +27,13 @@ import sharp from 'sharp';
 const include = fieldsToIncludeWithImage;
 const notFoundErrMsg = 'image not found';
 
-export const getAllImages = async (): Promise<PublicImage[]> => {
-  const dbQuery = db.image.findMany({ include });
+export const getAllImages = async (
+  filters?: PaginationFilters
+): Promise<PublicImage[]> => {
+  const dbQuery = db.image.findMany({
+    include,
+    ...(filters ? getPaginationArgs(filters) : {}),
+  });
   return await handleDBKnownErrors(dbQuery);
 };
 
