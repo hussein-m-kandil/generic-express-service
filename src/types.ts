@@ -80,19 +80,25 @@ export type NewPostAuthorizedData = NewPostParsedData & { authorId: string };
 
 export type NewCommentParsedData = z.output<typeof commentSchema>;
 
-export interface PostFiltrationOptions {
-  authorId?: string;
-  text?: string;
-  categories?: string[];
+export interface PaginationFilters {
+  sort?: Prisma.SortOrder;
+  cursor?: number;
+  limit?: number;
 }
 
-export interface CommentFiltrationOptions {
+export interface PostFiltrationOptions extends PaginationFilters {
+  categories?: string[];
+  authorId?: string;
+  text?: string;
+}
+
+export interface CommentFiltrationOptions extends PaginationFilters {
   authorId?: string;
   postId?: string;
   text?: string;
 }
 
-export interface VoteFiltrationOptions {
+export interface VoteFiltrationOptions extends PaginationFilters {
   authorId?: string;
   isUpvote?: boolean;
 }
