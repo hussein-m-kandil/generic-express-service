@@ -6,6 +6,7 @@ import {
 import {
   PublicUser,
   AppJwtPayload,
+  PaginationFilters,
   ImageDataToAggregate,
   VoteFiltrationOptions,
   PostFiltrationOptions,
@@ -15,9 +16,10 @@ import {
 import { Request } from 'express';
 import { Prisma } from '../../prisma/generated/client';
 import { SECRET, TOKEN_EXP_PERIOD } from './config';
-import jwt from 'jsonwebtoken';
-import db from './db';
+import { z } from 'zod';
 import ms from 'ms';
+import db from './db';
+import jwt from 'jsonwebtoken';
 
 export const createJwtForUser = (user: PublicUser): string => {
   const { id, isAdmin } = user;
@@ -88,6 +90,17 @@ export const getTextFilterFromReqQuery = (req: Request) => {
   return text;
 };
 
+export const getPaginationFiltersFromReq = (
+  req: Request
+): PaginationFilters => {
+  const { cursor, sort, limit } = req.query;
+  return {
+    sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
+    cursor: z.coerce.number().int().min(0).safeParse(cursor).data,
+    limit: z.coerce.number().int().min(0).safeParse(limit).data,
+  };
+};
+
 export const getVoteTypeFilterFromReqQuery = (req: Request) => {
   let isUpvote;
   if (req.query.upvote && !req.query.downvote) isUpvote = true;
@@ -139,6 +152,20 @@ export const getPostFilterOptionsFromReqQuery = (
     categories: getCategoriesFilterFromReqQuery(req),
     authorId: getSignedInUserIdFromReqQuery(req),
     text: getTextFilterFromReqQuery(req),
+    ...getPaginationFiltersFromReq(req),
+  };
+};
+
+export const getPaginationArgs = (options: PaginationFilters, take = 3) => {
+  return {
+    orderBy: { order: options.sort ?? 'asc' },
+    take: options.limit ?? take,
+    ...(options.cursor
+      ? {
+          cursor: { order: options.cursor },
+          skip: options.cursor > 1 ? 1 : 0,
+        }
+      : {}),
   };
 };
 
@@ -179,6 +206,7 @@ export const findFilteredPosts = async (
       },
     },
     include: fieldsToIncludeWithPost,
+    ...(options ? getPaginationArgs(options) : {}),
   });
   return await handleDBKnownErrors(dbQuery);
 };
@@ -229,12 +257,14 @@ export default {
   catchDBKnownError,
   findFilteredVotes,
   findFilteredPosts,
+  prepPaginationArgs: getPaginationArgs,
   handleDBKnownErrors,
   findFilteredComments,
   fieldsToIncludeWithPost,
   fieldsToIncludeWithVote,
   getTextFilterFromReqQuery,
   fieldsToIncludeWithComment,
+  getPaginationFiltersFromReq,
   getSignedInUserIdFromReqQuery,
   getVoteTypeFilterFromReqQuery,
   getCategoriesFilterFromReqQuery,
