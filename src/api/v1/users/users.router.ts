@@ -1,4 +1,3 @@
-import { NextFunction, Request, Router } from 'express';
 import {
   createJwtForUser,
   findFilteredPosts,
@@ -6,6 +5,7 @@ import {
   findFilteredComments,
   getPostFiltersFromReqQuery,
   getVoteFiltersFromReqQuery,
+  getPaginationFiltersFromReq,
   getCommentFiltersFromReqQuery,
 } from '../../../lib/helpers';
 import { AuthResponse, NewUserInput } from '../../../types';
@@ -22,12 +22,14 @@ import userSchema, {
   fullnameSchema,
   passwordSchema,
 } from './user.schema';
+import { NextFunction, Request, Router } from 'express';
 import usersService from './users.service';
 
 export const usersRouter = Router();
 
 usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
-  const users = await usersService.getAllUsers();
+  const filters = getPaginationFiltersFromReq(req);
+  const users = await usersService.getAllUsers(filters);
   res.json(users);
 });
 
