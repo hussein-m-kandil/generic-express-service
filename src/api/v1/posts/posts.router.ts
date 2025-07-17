@@ -8,10 +8,10 @@ import {
   findFilteredPosts,
   findFilteredVotes,
   findFilteredComments,
+  getPostFiltersFromReqQuery,
+  getVoteFiltersFromReqQuery,
   getSignedInUserIdFromReqQuery,
-  getPostFilterOptionsFromReqQuery,
-  getVoteFilterOptionsFromReqQuery,
-  getCommentFilterOptionsFromReqQuery,
+  getCommentFiltersFromReqQuery,
 } from '../../../lib/helpers';
 import { PostFullData, PublicUser } from '../../../types';
 import { postSchema, commentSchema } from './post.schema';
@@ -53,7 +53,7 @@ const createHandlersForGettingPrivatePostData = (
 export const postsRouter = Router();
 
 postsRouter.get('/', optionalAuthValidator, async (req, res) => {
-  const filters = getPostFilterOptionsFromReqQuery(req);
+  const filters = getPostFiltersFromReqQuery(req);
   const posts = await findFilteredPosts(filters);
   res.json(posts);
 });
@@ -109,7 +109,7 @@ postsRouter.get(
   optionalAuthValidator,
   async (req: Request, res: Response) => {
     const postId = req.params.id;
-    const filters = getCommentFilterOptionsFromReqQuery(req);
+    const filters = getCommentFiltersFromReqQuery(req);
     const comments = await findFilteredComments(filters, { postId });
     res.json(comments);
   }
@@ -120,7 +120,7 @@ postsRouter.get(
   optionalAuthValidator,
   async (req: Request, res: Response) => {
     const postId = req.params.id;
-    const filters = getVoteFilterOptionsFromReqQuery(req);
+    const filters = getVoteFiltersFromReqQuery(req);
     const votes = await findFilteredVotes(filters, { postId });
     res.json(votes);
   }

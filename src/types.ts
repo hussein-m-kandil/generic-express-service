@@ -86,19 +86,19 @@ export interface PaginationFilters {
   limit?: number;
 }
 
-export interface PostFiltrationOptions extends PaginationFilters {
+export interface PostFilters extends PaginationFilters {
   categories?: string[];
   authorId?: string;
   text?: string;
 }
 
-export interface CommentFiltrationOptions extends PaginationFilters {
+export interface CommentFilters extends PaginationFilters {
   authorId?: string;
   postId?: string;
   text?: string;
 }
 
-export interface VoteFiltrationOptions extends PaginationFilters {
+export interface VoteFilters extends PaginationFilters {
   authorId?: string;
   isUpvote?: boolean;
 }
