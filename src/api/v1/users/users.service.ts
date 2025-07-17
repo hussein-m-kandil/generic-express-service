@@ -1,14 +1,18 @@
+import { NewUserOutput, PaginationFilters, PublicUser } from '../../../types';
+import { getPaginationArgs, handleDBKnownErrors } from '../../../lib/helpers';
 import { AppInvalidIdError, AppNotFoundError } from '../../../lib/app-error';
 import { Prisma } from '../../../../prisma/generated/client';
-import { NewUserOutput, PublicUser } from '../../../types';
-import { handleDBKnownErrors } from '../../../lib/helpers';
 import { SALT } from '../../../lib/config';
 import db from '../../../lib/db';
 import bcrypt from 'bcryptjs';
 
 const hashPassword = (password: string) => bcrypt.hash(password, SALT);
 
-export const getAllUsers = async () => await db.user.findMany();
+export const getAllUsers = async (filters?: PaginationFilters) => {
+  return await db.user.findMany({
+    ...(filters ? getPaginationArgs(filters) : {}),
+  });
+};
 
 export const createUser = async (
   newUser: NewUserOutput
