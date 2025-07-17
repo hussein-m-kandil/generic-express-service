@@ -4,9 +4,9 @@ import {
   findFilteredPosts,
   findFilteredVotes,
   findFilteredComments,
-  getPostFilterOptionsFromReqQuery,
-  getVoteFilterOptionsFromReqQuery,
-  getCommentFilterOptionsFromReqQuery,
+  getPostFiltersFromReqQuery,
+  getVoteFiltersFromReqQuery,
+  getCommentFiltersFromReqQuery,
 } from '../../../lib/helpers';
 import { AuthResponse, NewUserInput } from '../../../types';
 import { Prisma } from '../../../../prisma/generated/client';
@@ -51,21 +51,21 @@ usersRouter.get(
 
 usersRouter.get('/:id/posts', optionalAuthValidator, async (req, res) => {
   const authorId = req.params.id;
-  const filters = getPostFilterOptionsFromReqQuery(req);
+  const filters = getPostFiltersFromReqQuery(req);
   const userPosts = await findFilteredPosts(filters, { authorId });
   res.json(userPosts);
 });
 
 usersRouter.get('/:id/comments', optionalAuthValidator, async (req, res) => {
   const authorId = req.params.id;
-  const filters = getCommentFilterOptionsFromReqQuery(req);
+  const filters = getCommentFiltersFromReqQuery(req);
   const comments = await findFilteredComments(filters, { authorId });
   res.json(comments);
 });
 
 usersRouter.get('/:id/votes', optionalAuthValidator, async (req, res) => {
   const userId = req.params.id;
-  const filters = getVoteFilterOptionsFromReqQuery(req);
+  const filters = getVoteFiltersFromReqQuery(req);
   const votes = await findFilteredVotes(filters, { userId });
   res.json(votes);
 });

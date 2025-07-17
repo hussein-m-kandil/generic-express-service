@@ -8,9 +8,9 @@ import {
   AppJwtPayload,
   PaginationFilters,
   ImageDataToAggregate,
-  VoteFiltrationOptions,
-  PostFiltrationOptions,
-  CommentFiltrationOptions,
+  VoteFilters,
+  PostFilters,
+  CommentFilters,
   DBKnownErrorsHandlerOptions,
 } from '../types';
 import { Request } from 'express';
@@ -83,11 +83,7 @@ export const fieldsToIncludeWithComment = { post: true, author: true };
 export const fieldsToIncludeWithVote = { post: true, user: true };
 
 export const getTextFilterFromReqQuery = (req: Request) => {
-  let text;
-  if (typeof req.query.q === 'string') {
-    text = req.query.q;
-  }
-  return text;
+  return z.string().nonempty().safeParse(req.query.q).data;
 };
 
 export const getPaginationFiltersFromReq = (
@@ -109,74 +105,70 @@ export const getVoteTypeFilterFromReqQuery = (req: Request) => {
 };
 
 export const getSignedInUserIdFromReqQuery = (req: Request) => {
-  let userId;
-  if (req.user) {
-    userId = (req.user as PublicUser).id;
-  }
-  return userId;
+  return (req.user as PublicUser | undefined)?.id;
 };
 
 export const getCategoriesFilterFromReqQuery = (req: Request) => {
-  let categories;
-  if (typeof req.query.categories === 'string') {
-    categories = req.query.categories.split(',');
-  } else if (
-    Array.isArray(req.query.categories) &&
-    req.query.categories.every((c) => typeof c === 'string')
-  ) {
-    categories = req.query.categories.flatMap((item) => item.split(','));
-  }
-  return categories;
+  /* E.g. `...?categories=x,y,z`, or `...?categories=x&blah=0&categories=y,z` */
+  const strCatsSchema = z
+    .string()
+    .nonempty()
+    .transform((cats) => cats.split(','));
+  return strCatsSchema
+    .or(z.array(strCatsSchema).transform((cats) => cats.flat()))
+    .safeParse(req.query.categories).data;
 };
 
-export const getCommentFilterOptionsFromReqQuery = (
+export const getCommonFiltersFromReqQuery = (
   req: Request
-): CommentFiltrationOptions => {
+): PaginationFilters & { authorId?: string } => {
   return {
     authorId: getSignedInUserIdFromReqQuery(req),
-    text: getTextFilterFromReqQuery(req),
     ...getPaginationFiltersFromReq(req),
   };
 };
 
-export const getVoteFilterOptionsFromReqQuery = (req: Request) => {
+export const getCommentFiltersFromReqQuery = (req: Request): CommentFilters => {
   return {
-    authorId: getSignedInUserIdFromReqQuery(req),
+    ...getCommonFiltersFromReqQuery(req),
+    text: getTextFilterFromReqQuery(req),
+  };
+};
+
+export const getVoteFiltersFromReqQuery = (req: Request) => {
+  return {
+    ...getCommonFiltersFromReqQuery(req),
     isUpvote: getVoteTypeFilterFromReqQuery(req),
-    ...getPaginationFiltersFromReq(req),
   };
 };
 
-export const getPostFilterOptionsFromReqQuery = (
-  req: Request
-): PostFiltrationOptions => {
+export const getPostFiltersFromReqQuery = (req: Request): PostFilters => {
+  // Same as the comments filtration + categories filter
   return {
+    ...getCommentFiltersFromReqQuery(req),
     categories: getCategoriesFilterFromReqQuery(req),
-    authorId: getSignedInUserIdFromReqQuery(req),
-    text: getTextFilterFromReqQuery(req),
-    ...getPaginationFiltersFromReq(req),
   };
 };
 
-export const getPaginationArgs = (options: PaginationFilters, take = 3) => {
+export const getPaginationArgs = (filters: PaginationFilters, take = 3) => {
   return {
-    orderBy: { order: options.sort ?? 'asc' },
-    take: options.limit ?? take,
-    ...(options.cursor
+    orderBy: { order: filters.sort ?? 'asc' },
+    take: filters.limit ?? take,
+    ...(filters.cursor
       ? {
-          cursor: { order: options.cursor },
-          skip: options.cursor > 1 ? 1 : 0,
+          cursor: { order: filters.cursor },
+          skip: filters.cursor > 1 ? 1 : 0,
         }
       : {}),
   };
 };
 
 export const findFilteredPosts = async (
-  options?: PostFiltrationOptions,
+  filters?: PostFilters,
   extraWhereClause?: object
 ) => {
-  const baseWhereClause = options?.authorId
-    ? { OR: [{ published: true }, { authorId: options.authorId }] }
+  const baseWhereClause = filters?.authorId
+    ? { OR: [{ published: true }, { authorId: filters.authorId }] }
     : { published: true };
   const dbQuery = db.post.findMany({
     where: {
@@ -185,19 +177,19 @@ export const findFilteredPosts = async (
       AND: {
         OR: [
           {
-            OR: options?.text
+            OR: filters?.text
               ? [
-                  { title: { contains: options.text, mode: 'insensitive' } },
-                  { content: { contains: options.text, mode: 'insensitive' } },
+                  { title: { contains: filters.text, mode: 'insensitive' } },
+                  { content: { contains: filters.text, mode: 'insensitive' } },
                 ]
               : [],
           },
-          options?.categories
+          filters?.categories
             ? {
                 categories: {
                   some: {
                     categoryName: {
-                      in: options.categories,
+                      in: filters.categories,
                       mode: 'insensitive',
                     },
                   },
@@ -208,39 +200,39 @@ export const findFilteredPosts = async (
       },
     },
     include: fieldsToIncludeWithPost,
-    ...(options ? getPaginationArgs(options) : {}),
+    ...(filters ? getPaginationArgs(filters) : {}),
   });
   return await handleDBKnownErrors(dbQuery);
 };
 
 export const findFilteredComments = async (
-  options?: CommentFiltrationOptions,
+  filters?: CommentFilters,
   extraWhereClause = {}
 ) => {
-  const authorId = options?.authorId;
+  const authorId = filters?.authorId;
   const dbQuery = db.comment.findMany({
     where: {
       ...extraWhereClause,
       ...(authorId
         ? { OR: [{ post: { authorId } }, { post: { published: true } }] }
         : { post: { published: true } }),
-      ...(options?.text
-        ? { content: { contains: options.text, mode: 'insensitive' } }
+      ...(filters?.text
+        ? { content: { contains: filters.text, mode: 'insensitive' } }
         : {}),
     },
     include: fieldsToIncludeWithComment,
-    ...(options ? getPaginationArgs(options) : {}),
+    ...(filters ? getPaginationArgs(filters) : {}),
   });
   const comments = await handleDBKnownErrors(dbQuery);
   return comments;
 };
 
 export const findFilteredVotes = async (
-  options?: VoteFiltrationOptions,
+  filters?: VoteFilters,
   extraWhereClause = {}
 ) => {
-  const authorId = options?.authorId;
-  const isUpvote = options?.isUpvote;
+  const authorId = filters?.authorId;
+  const isUpvote = filters?.isUpvote;
   const dbQuery = db.voteOnPost.findMany({
     where: {
       ...extraWhereClause,
@@ -250,7 +242,7 @@ export const findFilteredVotes = async (
       ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
     },
     include: fieldsToIncludeWithVote,
-    ...(options ? getPaginationArgs(options) : {}),
+    ...(filters ? getPaginationArgs(filters) : {}),
   });
   const comments = await handleDBKnownErrors(dbQuery);
   return comments;
@@ -261,18 +253,19 @@ export default {
   catchDBKnownError,
   findFilteredVotes,
   findFilteredPosts,
-  prepPaginationArgs: getPaginationArgs,
+  getPaginationArgs,
   handleDBKnownErrors,
   findFilteredComments,
-  fieldsToIncludeWithPost,
   fieldsToIncludeWithVote,
+  fieldsToIncludeWithPost,
   getTextFilterFromReqQuery,
+  getPostFiltersFromReqQuery,
+  getVoteFiltersFromReqQuery,
   fieldsToIncludeWithComment,
   getPaginationFiltersFromReq,
+  getCommonFiltersFromReqQuery,
   getSignedInUserIdFromReqQuery,
   getVoteTypeFilterFromReqQuery,
+  getCommentFiltersFromReqQuery,
   getCategoriesFilterFromReqQuery,
-  getPostFilterOptionsFromReqQuery,
-  getVoteFilterOptionsFromReqQuery,
-  getCommentFilterOptionsFromReqQuery,
 };
