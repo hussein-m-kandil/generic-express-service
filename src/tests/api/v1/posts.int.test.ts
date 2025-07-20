@@ -816,9 +816,12 @@ describe('Posts endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(res.body)).toBe(true);
-      for (const name of postFullData.categories) {
-        expect(resBody).toContainEqual({ name });
-      }
+      postFullData.categories.forEach((category, i) => {
+        // eslint-disable-next-line security/detect-object-injection
+        expect(resBody[i].name.toLowerCase()).toStrictEqual(
+          category.toLowerCase()
+        );
+      });
     });
   });
 
