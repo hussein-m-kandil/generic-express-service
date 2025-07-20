@@ -32,6 +32,7 @@ describe('Posts endpoint', async () => {
     assertPostData,
     deleteAllPosts,
     deleteAllUsers,
+    deleteAllCategories,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
@@ -42,6 +43,7 @@ describe('Posts endpoint', async () => {
 
   beforeEach(async () => {
     await deleteAllPosts();
+    await deleteAllCategories();
     dbImgOne = await createImage(imgOne);
   });
 
@@ -811,6 +813,7 @@ describe('Posts endpoint', async () => {
 
   describe(`GET ${POSTS_URL}/categories`, () => {
     it('should respond with 200 and an array of categories', async () => {
+      await createPost(postFullData);
       const res = await api.get(`${POSTS_URL}/categories`);
       const resBody = res.body as Category[];
       expect(res.statusCode).toBe(200);
@@ -822,6 +825,26 @@ describe('Posts endpoint', async () => {
           category.toLowerCase()
         );
       });
+    });
+
+    it('should respond an array of filtered categories', async () => {
+      const categories = ['123', '765', '45'];
+      await createPost({ ...postFullData, categories });
+      const urls = [
+        `${POSTS_URL}/categories?categories=2,7`,
+        `${POSTS_URL}/categories?categories=2&blah=foo&categories=7`,
+      ];
+      for (const url of urls) {
+        const res = await api.get(url);
+        const resBody = res.body as Category[];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(Array.isArray(res.body)).toBe(true);
+        categories.slice(0, 2).forEach((category, i) => {
+          // eslint-disable-next-line security/detect-object-injection
+          expect(resBody[i].name).toStrictEqual(category);
+        });
+      }
     });
   });
 
@@ -1385,11 +1408,10 @@ describe('Posts endpoint', async () => {
         published: false,
         authorId: signedInUserData.user.id,
       };
-      for (const dbPromise of [
-        createPost(postDataToComment),
-        createPost(privatePostData),
+      for (const dbPost of [
+        await createPost(postDataToComment),
+        await createPost(privatePostData),
       ]) {
-        const dbPost = await dbPromise;
         const cId = getCommentId(dbPost, signedInUserData.user.id);
         const res = await authorizedApi
           .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)

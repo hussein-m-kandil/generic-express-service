@@ -22,6 +22,7 @@ export const setup = async (signinUrl: string) => {
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
   const deleteAllImages = async () => await db.image.deleteMany({});
+  const deleteAllCategories = async () => await db.category.deleteMany({});
 
   const createUser = async (data: Prisma.UserCreateInput) => {
     const password = bcrypt.hashSync(data.password, SALT);
@@ -287,6 +288,7 @@ export const setup = async (signinUrl: string) => {
     assertImageData,
     deleteAllImages,
     createManyImages,
+    deleteAllCategories,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,

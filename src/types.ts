@@ -86,8 +86,10 @@ export interface PaginationFilters {
   limit?: number;
 }
 
+export type CategoriesFilter = string[];
+
 export interface PostFilters extends PaginationFilters {
-  categories?: string[];
+  categories?: CategoriesFilter;
   authorId?: string;
   text?: string;
 }

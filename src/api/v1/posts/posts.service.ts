@@ -1,9 +1,10 @@
 import { AppNotFoundError } from '../../../lib/app-error';
 import {
+  PostFullData,
+  CategoriesFilter,
   NewPostParsedData,
   NewCommentParsedData,
   NewPostAuthorizedData,
-  PostFullData,
 } from '../../../types';
 import {
   handleDBKnownErrors,
@@ -15,7 +16,19 @@ import db from '../../../lib/db';
 
 const include = fieldsToIncludeWithPost;
 
-export const getAllCategories = async () => await db.category.findMany({});
+export const getAllCategories = async (categories?: CategoriesFilter) => {
+  return await db.category.findMany({
+    ...(categories && categories.length > 0
+      ? {
+          where: {
+            OR: categories.map((c) => ({
+              name: { contains: c, mode: 'insensitive' },
+            })),
+          },
+        }
+      : {}),
+  });
+};
 
 export const createPost = async (data: NewPostAuthorizedData) => {
   const dbQuery = db.post.create({

@@ -12,6 +12,7 @@ import {
   getVoteFiltersFromReqQuery,
   getSignedInUserIdFromReqQuery,
   getCommentFiltersFromReqQuery,
+  getCategoriesFilterFromReqQuery,
 } from '../../../lib/helpers';
 import { PostFullData, PublicUser } from '../../../types';
 import { postSchema, commentSchema } from './post.schema';
@@ -65,7 +66,8 @@ postsRouter.get('/count', authValidator, async (req, res) => {
 });
 
 postsRouter.get('/categories', async (req, res) => {
-  res.json(await postsService.getAllCategories());
+  const categoriesFilter = getCategoriesFilterFromReqQuery(req);
+  res.json(await postsService.getAllCategories(categoriesFilter));
 });
 
 postsRouter.get('/categories/count', authValidator, async (req, res) => {
