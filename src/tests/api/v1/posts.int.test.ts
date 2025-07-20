@@ -476,6 +476,14 @@ describe('Posts endpoint', async () => {
         });
       });
 
+      it(`should not ${VERB} a post with more than 7 categories`, async () => {
+        const res = await sendRequest({
+          ...postDataInput,
+          categories: Array.from({ length: 8 }).map((_, i) => `Cat ${i}`),
+        });
+        assertResponseWithValidationError(res, 'categories');
+      });
+
       it(`should ${VERB} a post with an image`, async () => {
         const res = await sendRequest({
           ...postDataInput,

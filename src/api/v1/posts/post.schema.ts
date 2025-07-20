@@ -39,6 +39,7 @@ export const categorySchema = z
 
 export const categoriesSchema = z
   .array(categorySchema)
+  .max(7)
   .transform((categories) => {
     return Array.from(
       new Set(categories.filter((c) => Boolean(c)).map((c) => c.toLowerCase()))
