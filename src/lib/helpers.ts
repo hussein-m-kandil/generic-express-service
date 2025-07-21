@@ -157,7 +157,7 @@ export const getPaginationArgs = (filters: PaginationFilters, take = 3) => {
     ...(filters.cursor
       ? {
           cursor: { order: filters.cursor },
-          skip: filters.cursor > 1 ? 1 : 0,
+          skip: 1,
         }
       : {}),
   };
