@@ -406,20 +406,19 @@ describe('Posts endpoint', async () => {
         expect(resBody[0].message).toMatch(/content|body/i);
       });
 
-      it(`should ${VERB} a post even with duplicated categories`, async () => {
-        const res = await sendRequest({
-          ...postDataInput,
-          categories: [
-            ...postDataInput.categories,
-            ...postDataInput.categories,
-          ],
-        });
+      it(`should ${VERB} a post even with duplicated categories but not save duplication`, async () => {
+        const categories = [
+          ...postDataInput.categories.map((c) => c.toLowerCase()),
+          ...postDataInput.categories.map((c) => c.toUpperCase()),
+        ];
+        const res = await sendRequest({ ...postDataInput, categories });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
         expect(res.type).toMatch(/json/);
         expect(
           await db.post.findUnique({ where: { id: resBody.id } })
         ).not.toBeNull();
+        expect(resBody.categories).toHaveLength(categories.length / 2);
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,

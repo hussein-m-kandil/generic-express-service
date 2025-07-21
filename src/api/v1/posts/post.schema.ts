@@ -42,7 +42,11 @@ export const categoriesSchema = z
   .max(7)
   .transform((categories) => {
     return Array.from(
-      new Set(categories.filter((c) => Boolean(c)).map((c) => c.toLowerCase()))
+      new Set(
+        categories
+          .filter((c) => !!c)
+          .map((c) => `${c[0].toUpperCase()}${c.slice(1).toLowerCase()}`)
+      )
     );
   });
 
