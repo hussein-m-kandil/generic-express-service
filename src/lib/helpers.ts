@@ -152,7 +152,7 @@ export const getPostFiltersFromReqQuery = (req: Request): PostFilters => {
 
 export const getPaginationArgs = (filters: PaginationFilters, take = 3) => {
   return {
-    orderBy: { order: filters.sort ?? 'asc' },
+    orderBy: { order: filters.sort ?? 'desc' },
     take: filters.limit ?? take,
     ...(filters.cursor
       ? {

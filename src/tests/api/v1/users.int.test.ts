@@ -164,6 +164,7 @@ describe('Users endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toHaveLength(2);
+      users.reverse();
       expect(users[1].username).toBe(userData.username);
       expect(users[1].fullname).toBe(userData.fullname);
       await db.user.delete({ where: { id: dbUser.id } });
@@ -548,6 +549,7 @@ describe('Users endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody.length).toBe(2);
+      resBody.reverse();
       assertPostData(resBody[0], userPosts[0]);
       assertPostData(resBody[1], userPosts[1]);
     });

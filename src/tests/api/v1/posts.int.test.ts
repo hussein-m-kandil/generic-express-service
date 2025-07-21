@@ -107,12 +107,13 @@ describe('Posts endpoint', async () => {
       await createPost(postFullData);
       await createPost(privatePostData);
       const res = await api.get(POSTS_URL).set('Authorization', token);
-      const resBody = res.body as PostFullData[];
+      const resBody = res.body as PostFullData[]; // reversed
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody).toBeTypeOf('object');
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.length).toBe(2);
+      resBody.reverse();
       assertPostData(resBody[0], postFullData);
       assertPostData(resBody[1], privatePostData);
     });
@@ -904,6 +905,7 @@ describe('Posts endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
+      resBody.reverse();
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
       expect(
         resBody.map(({ authorId, content }) => ({ authorId, content }))
@@ -934,6 +936,7 @@ describe('Posts endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
+      resBody.reverse();
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
       expect(
         resBody.map(({ authorId, content }) => ({ authorId, content }))
@@ -1254,7 +1257,7 @@ describe('Posts endpoint', async () => {
       expect(resBody[0].message).toMatch(/content|body/i);
     });
 
-    it('should create comment and respond with 20', async () => {
+    it('should create comment and respond with 200', async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
         userOneData
       );
@@ -1263,11 +1266,10 @@ describe('Posts endpoint', async () => {
         published: false,
         authorId: signedInUserData.user.id,
       };
-      for (const dbPromise of [
-        createPost(postDataToComment),
-        createPost(privatePostData),
+      for (const dbPost of [
+        await createPost(postDataToComment),
+        await createPost(privatePostData),
       ]) {
-        const dbPost = await dbPromise;
         const res = await authorizedApi
           .post(`${POSTS_URL}/${dbPost.id}/comments`)
           .send(commentData);
@@ -1597,6 +1599,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
+      resBody.reverse();
       expect(resBody.map((v) => v.id)).toStrictEqual(
         dbPost.votes.map((v) => v.id)
       );
@@ -1608,6 +1611,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
+      resBody.reverse();
       expect(resBody.map((v) => v.id)).toStrictEqual(
         dbPost.votes.map((v) => v.id)
       );
