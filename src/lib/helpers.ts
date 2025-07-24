@@ -66,22 +66,6 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
-export const fieldsToIncludeWithImage: ImageDataToAggregate = {
-  owner: { omit: { password: true } },
-};
-
-export const fieldsToIncludeWithPost = {
-  image: { include: fieldsToIncludeWithImage },
-  comments: { include: { author: true } },
-  votes: { include: { user: true } },
-  categories: true,
-  author: true,
-};
-
-export const fieldsToIncludeWithComment = { post: true, author: true };
-
-export const fieldsToIncludeWithVote = { post: true, user: true };
-
 export const getTextFilterFromReqQuery = (req: Request) => {
   return z.string().nonempty().safeParse(req.query.q).data;
 };
@@ -162,6 +146,22 @@ export const getPaginationArgs = (filters: PaginationFilters, take = 3) => {
       : {}),
   };
 };
+
+export const fieldsToIncludeWithImage: ImageDataToAggregate = {
+  owner: { omit: { password: true } },
+};
+
+export const fieldsToIncludeWithPost = {
+  image: { include: fieldsToIncludeWithImage },
+  comments: { include: { author: true }, ...getPaginationArgs({}) },
+  votes: { include: { user: true }, ...getPaginationArgs({}) },
+  categories: true,
+  author: true,
+};
+
+export const fieldsToIncludeWithComment = { post: true, author: true };
+
+export const fieldsToIncludeWithVote = { post: true, user: true };
 
 export const findFilteredPosts = async (
   filters?: PostFilters,

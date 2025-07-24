@@ -1359,7 +1359,7 @@ describe('Posts endpoint', async () => {
 
     it('should respond with 401 on a non-comment-owner JWT', async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
-        userOneData
+        xUserData
       );
       const dbPost = await createPost(postDataToComment);
       const res = await authorizedApi
@@ -1426,7 +1426,7 @@ describe('Posts endpoint', async () => {
           .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)
           .send(commentData);
         const resBody = res.body as PostFullData;
-        const createdComment = resBody.comments.at(-1) as Comment;
+        const createdComment = resBody.comments.reverse().at(-1) as Comment;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(createdComment).toBeTypeOf('object');
@@ -1598,7 +1598,6 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
-      resBody.reverse();
       expect(resBody.map((v) => v.id)).toStrictEqual(
         dbPost.votes.map((v) => v.id)
       );
@@ -1610,7 +1609,6 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
-      resBody.reverse();
       expect(resBody.map((v) => v.id)).toStrictEqual(
         dbPost.votes.map((v) => v.id)
       );
@@ -1639,7 +1637,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resBody.every(({ isUpvote }) => isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => isUpvote)).toBe(true);
     });
 
     it('should respond with an upvote array based on search by vote type', async () => {
@@ -1650,7 +1648,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
-      expect(resBody.every(({ isUpvote }) => !isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => !isUpvote)).toBe(true);
     });
 
     it('should respond with an empty vote array if the post is private and there is no JWT', async () => {
@@ -1681,7 +1679,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resBody.every(({ isUpvote }) => isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => isUpvote)).toBe(true);
     });
 
     it('should respond with a downvote array if the post is private and there is post-author JWT', async () => {
@@ -1693,7 +1691,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
-      expect(resBody.every(({ isUpvote }) => !isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => !isUpvote)).toBe(true);
     });
   });
 
