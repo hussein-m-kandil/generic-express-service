@@ -5,7 +5,7 @@ import {
   findFilteredComments,
   getPostFiltersFromReqQuery,
   getVoteFiltersFromReqQuery,
-  getPaginationFiltersFromReq,
+  getPaginationFiltersFromReqQuery,
   getCommentFiltersFromReqQuery,
 } from '../../../lib/helpers';
 import { AuthResponse, NewUserInput } from '../../../types';
@@ -28,7 +28,7 @@ import usersService from './users.service';
 export const usersRouter = Router();
 
 usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
-  const filters = getPaginationFiltersFromReq(req);
+  const filters = getPaginationFiltersFromReqQuery(req);
   const users = await usersService.getAllUsers(filters);
   res.json(users);
 });

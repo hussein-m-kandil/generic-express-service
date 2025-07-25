@@ -10,7 +10,7 @@ import {
   findFilteredComments,
   getPostFiltersFromReqQuery,
   getVoteFiltersFromReqQuery,
-  getSignedInUserIdFromReqQuery,
+  getCurrentUserIdFromReq,
   getCommentFiltersFromReqQuery,
   getCategoriesFilterFromReqQuery,
 } from '../../../lib/helpers';
@@ -23,14 +23,14 @@ const getPostAuthorIdAndInjectPostInResLocals = async (
   req: Request,
   res: Response
 ) => {
-  const userId = getSignedInUserIdFromReqQuery(req);
+  const userId = getCurrentUserIdFromReq(req);
   const post = await postsService.findPostByIdOrThrow(req.params.id, userId);
   res.locals.post = post;
   return post.authorId;
 };
 
 const getCommentAuthorId = async (req: Request) => {
-  const userId = getSignedInUserIdFromReqQuery(req);
+  const userId = getCurrentUserIdFromReq(req);
   const comment = await postsService.findPostCommentByCompoundIdOrThrow(
     req.params.pId,
     req.params.cId,
@@ -45,7 +45,7 @@ const createHandlersForGettingPrivatePostData = (
   return [
     optionalAuthValidator,
     async (req: Request, res: Response) => {
-      const userId = getSignedInUserIdFromReqQuery(req);
+      const userId = getCurrentUserIdFromReq(req);
       res.json(await postService(req.params.id, userId));
     },
   ];
@@ -142,7 +142,7 @@ postsRouter.get(
   '/:pId/comments/:cId',
   optionalAuthValidator,
   async (req, res) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
+    const userId = getCurrentUserIdFromReq(req);
     res.json(
       await postsService.findPostCommentByCompoundIdOrThrow(
         req.params.pId,
@@ -222,7 +222,7 @@ postsRouter.delete(
     async (req, res) => await getPostAuthorIdAndInjectPostInResLocals(req, res)
   ),
   async (req, res: Response<unknown, { post: PostFullData }>) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
+    const userId = getCurrentUserIdFromReq(req);
     await postsService.deletePost(res.locals.post, userId);
     res.status(204).end();
   }
@@ -232,7 +232,7 @@ postsRouter.delete(
   '/:pId/comments/:cId',
   authValidator,
   createAdminOrOwnerValidator(async (req, res) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
+    const userId = getCurrentUserIdFromReq(req);
     req.params.id = req.params.pId; // For `getPostAuthorId(req)`
     const postAuthorId = await getPostAuthorIdAndInjectPostInResLocals(
       req,
@@ -243,7 +243,7 @@ postsRouter.delete(
       : await getCommentAuthorId(req);
   }),
   async (req, res) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
+    const userId = getCurrentUserIdFromReq(req);
     await postsService.findPostCommentByCompoundIdAndDelete(
       req.params.pId,
       req.params.cId,

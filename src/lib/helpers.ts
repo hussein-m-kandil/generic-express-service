@@ -66,19 +66,12 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
-export const getTextFilterFromReqQuery = (req: Request) => {
-  return z.string().nonempty().safeParse(req.query.q).data;
+export const getCurrentUserIdFromReq = (req: Request) => {
+  return (req.user as PublicUser | undefined)?.id;
 };
 
-export const getPaginationFiltersFromReq = (
-  req: Request
-): PaginationFilters => {
-  const { cursor, sort, limit } = req.query;
-  return {
-    sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
-    cursor: z.coerce.number().int().min(0).safeParse(cursor).data,
-    limit: z.coerce.number().int().min(0).safeParse(limit).data,
-  };
+export const getTextFilterFromReqQuery = (req: Request) => {
+  return z.string().nonempty().safeParse(req.query.q).data;
 };
 
 export const getVoteTypeFilterFromReqQuery = (req: Request) => {
@@ -86,10 +79,6 @@ export const getVoteTypeFilterFromReqQuery = (req: Request) => {
   if (req.query.upvote && !req.query.downvote) isUpvote = true;
   if (!req.query.upvote && req.query.downvote) isUpvote = false;
   return isUpvote;
-};
-
-export const getSignedInUserIdFromReqQuery = (req: Request) => {
-  return (req.user as PublicUser | undefined)?.id;
 };
 
 export const getCategoriesFilterFromReqQuery = (req: Request) => {
@@ -103,12 +92,23 @@ export const getCategoriesFilterFromReqQuery = (req: Request) => {
     .safeParse(req.query.categories).data;
 };
 
+export const getPaginationFiltersFromReqQuery = (
+  req: Request
+): PaginationFilters => {
+  const { cursor, sort, limit } = req.query;
+  return {
+    sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
+    cursor: z.coerce.number().int().min(0).safeParse(cursor).data,
+    limit: z.coerce.number().int().min(0).safeParse(limit).data,
+  };
+};
+
 export const getCommonFiltersFromReqQuery = (
   req: Request
 ): PaginationFilters & { authorId?: string } => {
   return {
-    authorId: getSignedInUserIdFromReqQuery(req),
-    ...getPaginationFiltersFromReq(req),
+    authorId: getCurrentUserIdFromReq(req),
+    ...getPaginationFiltersFromReqQuery(req),
   };
 };
 
@@ -256,16 +256,17 @@ export default {
   getPaginationArgs,
   handleDBKnownErrors,
   findFilteredComments,
-  fieldsToIncludeWithVote,
+  getCurrentUserIdFromReq,
   fieldsToIncludeWithPost,
+  fieldsToIncludeWithVote,
+  fieldsToIncludeWithImage,
   getTextFilterFromReqQuery,
   getPostFiltersFromReqQuery,
   getVoteFiltersFromReqQuery,
   fieldsToIncludeWithComment,
-  getPaginationFiltersFromReq,
   getCommonFiltersFromReqQuery,
-  getSignedInUserIdFromReqQuery,
   getVoteTypeFilterFromReqQuery,
   getCommentFiltersFromReqQuery,
   getCategoriesFilterFromReqQuery,
+  getPaginationFiltersFromReqQuery,
 };

@@ -16,7 +16,7 @@ import {
   createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
 import { createFileProcessor } from '../../../middlewares/file-processor';
-import { getPaginationFiltersFromReq } from '../../../lib/helpers';
+import { getPaginationFiltersFromReqQuery } from '../../../lib/helpers';
 import { Image } from '../../../../prisma/generated/client';
 import { Request, Response, Router } from 'express';
 import { PublicUser } from '../../../types';
@@ -25,7 +25,7 @@ import { imageSchema } from './image.schema';
 export const imagesRouter = Router();
 
 imagesRouter.get('/', async (req, res) => {
-  res.json(await getAllImages(getPaginationFiltersFromReq(req)));
+  res.json(await getAllImages(getPaginationFiltersFromReqQuery(req)));
 });
 
 imagesRouter.get('/:id', async (req, res) => {
