@@ -1,24 +1,22 @@
 import {
+  PublicUser,
+  PostFilters,
+  AppJwtPayload,
+  CommentFilters,
+  PaginationFilters,
+  ImageDataToAggregate,
+  DBKnownErrorsHandlerOptions,
+} from '../types';
+import {
   AppNotFoundError,
   AppInvalidIdError,
   AppUniqueConstraintViolationError,
 } from '../lib/app-error';
-import {
-  PublicUser,
-  AppJwtPayload,
-  PaginationFilters,
-  ImageDataToAggregate,
-  VoteFilters,
-  PostFilters,
-  CommentFilters,
-  DBKnownErrorsHandlerOptions,
-} from '../types';
-import { Request } from 'express';
 import { Prisma } from '../../prisma/generated/client';
 import { SECRET, TOKEN_EXP_PERIOD } from './config';
+import { Request } from 'express';
 import { z } from 'zod';
 import ms from 'ms';
-import db from './db';
 import jwt from 'jsonwebtoken';
 
 export const createJwtForUser = (user: PublicUser): string => {
@@ -81,6 +79,10 @@ export const getVoteTypeFilterFromReqQuery = (req: Request) => {
   return isUpvote;
 };
 
+export const getAuthorIdFilterFromReqQuery = (req: Request) => {
+  return z.string().uuid().optional().safeParse(req.query.author).data;
+};
+
 export const getCategoriesFilterFromReqQuery = (req: Request) => {
   /* E.g. `...?categories=x,y,z`, or `...?categories=x&blah=0&categories=y,z` */
   const strCatsSchema = z
@@ -105,9 +107,10 @@ export const getPaginationFiltersFromReqQuery = (
 
 export const getCommonFiltersFromReqQuery = (
   req: Request
-): PaginationFilters & { authorId?: string } => {
+): PaginationFilters => {
   return {
-    authorId: getCurrentUserIdFromReq(req),
+    currentUserId: getCurrentUserIdFromReq(req),
+    authorId: getAuthorIdFilterFromReqQuery(req),
     ...getPaginationFiltersFromReqQuery(req),
   };
 };
@@ -134,7 +137,10 @@ export const getPostFiltersFromReqQuery = (req: Request): PostFilters => {
   };
 };
 
-export const getPaginationArgs = (filters: PaginationFilters, take = 3) => {
+export const getPaginationArgs = (
+  filters: PaginationFilters = {},
+  take = 3
+) => {
   return {
     orderBy: { order: filters.sort ?? 'desc' },
     take: filters.limit ?? take,
@@ -153,8 +159,8 @@ export const fieldsToIncludeWithImage: ImageDataToAggregate = {
 
 export const fieldsToIncludeWithPost = {
   image: { include: fieldsToIncludeWithImage },
-  comments: { include: { author: true }, ...getPaginationArgs({}) },
-  votes: { include: { user: true }, ...getPaginationArgs({}) },
+  comments: { include: { author: true }, ...getPaginationArgs() },
+  votes: { include: { user: true }, ...getPaginationArgs() },
   categories: true,
   author: true,
 };
@@ -163,102 +169,14 @@ export const fieldsToIncludeWithComment = { post: true, author: true };
 
 export const fieldsToIncludeWithVote = { post: true, user: true };
 
-export const findFilteredPosts = async (
-  filters?: PostFilters,
-  extraWhereClause?: object
-) => {
-  const baseWhereClause = filters?.authorId
-    ? { OR: [{ published: true }, { authorId: filters.authorId }] }
-    : { published: true };
-  const dbQuery = db.post.findMany({
-    where: {
-      ...extraWhereClause,
-      ...baseWhereClause,
-      AND: {
-        OR: [
-          {
-            OR: filters?.text
-              ? [
-                  { title: { contains: filters.text, mode: 'insensitive' } },
-                  { content: { contains: filters.text, mode: 'insensitive' } },
-                ]
-              : [],
-          },
-          filters?.categories
-            ? {
-                categories: {
-                  some: {
-                    categoryName: {
-                      in: filters.categories,
-                      mode: 'insensitive',
-                    },
-                  },
-                },
-              }
-            : {},
-        ],
-      },
-    },
-    include: fieldsToIncludeWithPost,
-    ...(filters ? getPaginationArgs(filters) : {}),
-  });
-  return await handleDBKnownErrors(dbQuery);
-};
-
-export const findFilteredComments = async (
-  filters?: CommentFilters,
-  extraWhereClause = {}
-) => {
-  const authorId = filters?.authorId;
-  const dbQuery = db.comment.findMany({
-    where: {
-      ...extraWhereClause,
-      ...(authorId
-        ? { OR: [{ post: { authorId } }, { post: { published: true } }] }
-        : { post: { published: true } }),
-      ...(filters?.text
-        ? { content: { contains: filters.text, mode: 'insensitive' } }
-        : {}),
-    },
-    include: fieldsToIncludeWithComment,
-    ...(filters ? getPaginationArgs(filters) : {}),
-  });
-  const comments = await handleDBKnownErrors(dbQuery);
-  return comments;
-};
-
-export const findFilteredVotes = async (
-  filters?: VoteFilters,
-  extraWhereClause = {}
-) => {
-  const authorId = filters?.authorId;
-  const isUpvote = filters?.isUpvote;
-  const dbQuery = db.voteOnPost.findMany({
-    where: {
-      ...extraWhereClause,
-      ...(authorId
-        ? { OR: [{ post: { authorId } }, { post: { published: true } }] }
-        : { post: { published: true } }),
-      ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
-    },
-    include: fieldsToIncludeWithVote,
-    ...(filters ? getPaginationArgs(filters) : {}),
-  });
-  const comments = await handleDBKnownErrors(dbQuery);
-  return comments;
-};
-
 export default {
   createJwtForUser,
   catchDBKnownError,
-  findFilteredVotes,
-  findFilteredPosts,
   getPaginationArgs,
   handleDBKnownErrors,
-  findFilteredComments,
-  getCurrentUserIdFromReq,
   fieldsToIncludeWithPost,
   fieldsToIncludeWithVote,
+  getCurrentUserIdFromReq,
   fieldsToIncludeWithImage,
   getTextFilterFromReqQuery,
   getPostFiltersFromReqQuery,
@@ -267,6 +185,7 @@ export default {
   getCommonFiltersFromReqQuery,
   getVoteTypeFilterFromReqQuery,
   getCommentFiltersFromReqQuery,
+  getAuthorIdFilterFromReqQuery,
   getCategoriesFilterFromReqQuery,
   getPaginationFiltersFromReqQuery,
 };

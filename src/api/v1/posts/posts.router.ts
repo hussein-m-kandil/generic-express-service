@@ -1,19 +1,16 @@
 import {
+  getCurrentUserIdFromReq,
+  getPostFiltersFromReqQuery,
+  getVoteFiltersFromReqQuery,
+  getCommentFiltersFromReqQuery,
+  getCategoriesFilterFromReqQuery,
+} from '../../../lib/helpers';
+import {
   authValidator,
   createOwnerValidator,
   optionalAuthValidator,
   createAdminOrOwnerValidator,
 } from '../../../middlewares/validators';
-import {
-  findFilteredPosts,
-  findFilteredVotes,
-  findFilteredComments,
-  getPostFiltersFromReqQuery,
-  getVoteFiltersFromReqQuery,
-  getCurrentUserIdFromReq,
-  getCommentFiltersFromReqQuery,
-  getCategoriesFilterFromReqQuery,
-} from '../../../lib/helpers';
 import { PostFullData, PublicUser } from '../../../types';
 import { postSchema, commentSchema } from './post.schema';
 import { Request, Response, Router } from 'express';
@@ -55,7 +52,7 @@ export const postsRouter = Router();
 
 postsRouter.get('/', optionalAuthValidator, async (req, res) => {
   const filters = getPostFiltersFromReqQuery(req);
-  const posts = await findFilteredPosts(filters);
+  const posts = await postsService.findFilteredPosts(filters);
   res.json(posts);
 });
 
@@ -68,6 +65,16 @@ postsRouter.get('/count', authValidator, async (req, res) => {
 postsRouter.get('/categories', async (req, res) => {
   const categoriesFilter = getCategoriesFilterFromReqQuery(req);
   res.json(await postsService.getAllCategories(categoriesFilter));
+});
+
+postsRouter.get('/comments', optionalAuthValidator, async (req, res) => {
+  const commentsFilter = getCommentFiltersFromReqQuery(req);
+  res.json(await postsService.findFilteredComments(commentsFilter));
+});
+
+postsRouter.get('/votes', optionalAuthValidator, async (req, res) => {
+  const votesFilter = getVoteFiltersFromReqQuery(req);
+  res.json(await postsService.findFilteredVotes(votesFilter));
 });
 
 postsRouter.get('/categories/count', authValidator, async (req, res) => {
@@ -112,7 +119,9 @@ postsRouter.get(
   async (req: Request, res: Response) => {
     const postId = req.params.id;
     const filters = getCommentFiltersFromReqQuery(req);
-    const comments = await findFilteredComments(filters, { postId });
+    const comments = await postsService.findFilteredComments(filters, {
+      postId,
+    });
     res.json(comments);
   }
 );
@@ -123,7 +132,7 @@ postsRouter.get(
   async (req: Request, res: Response) => {
     const postId = req.params.id;
     const filters = getVoteFiltersFromReqQuery(req);
-    const votes = await findFilteredVotes(filters, { postId });
+    const votes = await postsService.findFilteredVotes(filters, { postId });
     res.json(votes);
   }
 );

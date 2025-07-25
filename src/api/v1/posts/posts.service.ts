@@ -1,20 +1,23 @@
-import { AppNotFoundError } from '../../../lib/app-error';
 import {
+  PostFilters,
+  VoteFilters,
   PostFullData,
+  CommentFilters,
   CategoriesFilter,
   NewPostParsedData,
   NewCommentParsedData,
   NewPostAuthorizedData,
 } from '../../../types';
 import {
+  getPaginationArgs,
   handleDBKnownErrors,
   fieldsToIncludeWithPost,
+  fieldsToIncludeWithVote,
   fieldsToIncludeWithComment,
 } from '../../../lib/helpers';
 import { Prisma } from '../../../../prisma/generated/client';
+import { AppNotFoundError } from '../../../lib/app-error';
 import db from '../../../lib/db';
-
-const include = fieldsToIncludeWithPost;
 
 export const getAllCategories = async (categories?: CategoriesFilter) => {
   return await db.category.findMany({
@@ -46,7 +49,7 @@ export const createPost = async (data: NewPostAuthorizedData) => {
         })),
       },
     },
-    include,
+    include: fieldsToIncludeWithPost,
   });
   const handlerOptions = { uniqueFieldName: 'category' };
   const createdPost = await handleDBKnownErrors(dbQuery, handlerOptions);
@@ -61,11 +64,105 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
         ? { OR: [{ published: true }, { authorId }] }
         : { published: true },
     },
-    include,
+    include: fieldsToIncludeWithPost,
   });
   const post = await handleDBKnownErrors(dbQuery);
   if (!post) throw new AppNotFoundError('Post Not Found');
   return post;
+};
+
+export const findFilteredPosts = async (
+  filters: PostFilters = {},
+  extraWhereClause?: object
+) => {
+  const { currentUserId, categories, authorId, text } = filters;
+  const dbQuery = db.post.findMany({
+    where: {
+      ...extraWhereClause,
+      ...(currentUserId
+        ? { OR: [{ published: true }, { authorId: filters.currentUserId }] }
+        : { published: true }),
+      AND: {
+        ...(authorId ? { authorId } : {}),
+        ...{
+          OR: text
+            ? [
+                { title: { contains: text, mode: 'insensitive' } },
+                { content: { contains: text, mode: 'insensitive' } },
+              ]
+            : [],
+        },
+        ...(categories
+          ? {
+              categories: {
+                some: {
+                  categoryName: { in: categories, mode: 'insensitive' },
+                },
+              },
+            }
+          : {}),
+      },
+    },
+    include: fieldsToIncludeWithPost,
+    ...getPaginationArgs(filters),
+  });
+  return await handleDBKnownErrors(dbQuery);
+};
+
+export const findFilteredComments = async (
+  filters: CommentFilters = {},
+  extraWhereClause = {}
+) => {
+  const { currentUserId, authorId, text } = filters;
+  const dbQuery = db.comment.findMany({
+    where: {
+      ...extraWhereClause,
+      ...(currentUserId
+        ? {
+            OR: [
+              { post: { published: true } },
+              { post: { authorId: currentUserId } },
+            ],
+          }
+        : { post: { published: true } }),
+      AND: {
+        ...(authorId ? { authorId } : {}),
+        ...(text ? { content: { contains: text, mode: 'insensitive' } } : {}),
+      },
+    },
+    include: fieldsToIncludeWithComment,
+    ...getPaginationArgs(filters),
+  });
+  const comments = await handleDBKnownErrors(dbQuery);
+  return comments;
+};
+
+export const findFilteredVotes = async (
+  filters: VoteFilters = {},
+  extraWhereClause = {}
+) => {
+  const { currentUserId, authorId, isUpvote } = filters;
+  const dbQuery = db.voteOnPost.findMany({
+    where: {
+      ...extraWhereClause,
+      ...(currentUserId
+        ? {
+            OR: [
+              { post: { authorId: currentUserId } },
+              { post: { published: true } },
+            ],
+          }
+        : { post: { published: true } }),
+      AND: {
+        ...(authorId ? { userId: authorId } : {}),
+        ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
+      },
+    },
+    include: fieldsToIncludeWithVote,
+    ...getPaginationArgs(filters),
+  });
+  const comments = await handleDBKnownErrors(dbQuery);
+  return comments;
 };
 
 export const updatePost = async (id: string, data: NewPostParsedData) => {
@@ -88,7 +185,7 @@ export const updatePost = async (id: string, data: NewPostParsedData) => {
               })),
             },
           },
-          include,
+          include: fieldsToIncludeWithPost,
         }),
       ])
     )[1])();
@@ -114,7 +211,7 @@ export const upvotePost = async (postId: string, userId: string) => {
         },
       },
     },
-    include,
+    include: fieldsToIncludeWithPost,
   });
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
@@ -131,7 +228,7 @@ export const downvotePost = async (postId: string, userId: string) => {
       AND: { OR: [{ published: true }, { authorId: userId }] },
     },
     data: { votes: { delete: { userId_postId: { postId, userId } } } },
-    include,
+    include: fieldsToIncludeWithPost,
   });
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
@@ -209,7 +306,7 @@ export const findPostByIdAndCreateComment = async (
       AND: { OR: [{ published: true }, { authorId: commentAuthorId }] },
     },
     data: { comments: { create: { ...data, authorId: commentAuthorId } } },
-    include,
+    include: fieldsToIncludeWithPost,
   });
   const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
   const updatedPost = await handleDBKnownErrors(dbQuery, handlerOptions);
@@ -228,7 +325,7 @@ export const findPostCommentByCompoundIdAndUpdate = async (
       AND: { OR: [{ published: true }, { authorId: commentAuthorId }] },
     },
     data: { comments: { update: { where: { id: commentId }, data } } },
-    include,
+    include: fieldsToIncludeWithPost,
   });
   const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
   const updatedPost = await handleDBKnownErrors(dbQuery, handlerOptions);
@@ -310,10 +407,13 @@ export const postsService = {
   countPostsCommentsByPostsAuthorId,
   countPostsVotesByPostsAuthorId,
   findPostByIdAndCreateComment,
+  findFilteredComments,
   countPostsByAuthorId,
   findPostByIdOrThrow,
   countPostCategories,
   findPostCategories,
+  findFilteredVotes,
+  findFilteredPosts,
   countPostComments,
   getAllCategories,
   countPostVotes,
