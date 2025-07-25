@@ -23,6 +23,7 @@ describe('Posts endpoint', async () => {
     xUserData,
     dbUserOne,
     dbUserTwo,
+    dbAdmin,
     dbXUser,
     imgOne,
     api,
@@ -1023,7 +1024,7 @@ describe('Posts endpoint', async () => {
       const dbPost = await createPost(postFullData);
       await db.post.delete({ where: { id: dbPost.id } });
       const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
-      assertNotFoundErrorRes(res);
+      expect(res.body).toStrictEqual([]);
     });
 
     it('should respond with 404 if the JWT does not for the private post author', async () => {
@@ -1039,7 +1040,7 @@ describe('Posts endpoint', async () => {
       const res = await api
         .get(`${POSTS_URL}/${dbPost.id}/categories`)
         .set('Authorization', token);
-      assertNotFoundErrorRes(res);
+      expect(res.body).toStrictEqual([]);
     });
 
     it('should respond with 200 and all private post categories if the JWT for the post author', async () => {
@@ -1695,88 +1696,96 @@ describe('Posts endpoint', async () => {
   });
 
   describe('Counters', async () => {
+    const data: Record<string, unknown[]> = {
+      categories: [
+        'comedy',
+        'fantasy',
+        'software',
+        'science',
+        'technology',
+        'web',
+      ],
+      comments: [
+        { authorId: dbUserTwo.id, content: 'Nice blog' },
+        { authorId: dbUserOne.id, content: 'Thanks a lot' },
+        {
+          authorId: dbUserTwo.id,
+          content: 'Where did you come with this great idea',
+        },
+        { authorId: dbUserOne.id, content: 'It just comes to me' },
+        { authorId: dbUserTwo.id, content: 'Keep it up' },
+        { authorId: dbUserOne.id, content: 'I hope so' },
+      ],
+      votes: [
+        { userId: dbUserOne.id },
+        { userId: dbUserTwo.id },
+        { userId: dbXUser.id },
+        { userId: dbAdmin.id },
+      ],
+    };
     const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
       userOneData
     );
 
-    describe(`GET ${POSTS_URL}/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of posts for the current signed-in user', async () => {
+    describe(`GET ${POSTS_URL}/count?author=<user_id>`, () => {
+      it('should respond with the count of posts', async () => {
         await createPost({ ...postDataOutput, authorId: dbUserOne.id });
         await createPost({ ...postDataOutput, authorId: dbUserOne.id });
         await createPost({ ...postDataOutput, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/count`);
+        const res = await authorizedApi.get(
+          `${POSTS_URL}/count?author=${dbUserOne.id}`
+        );
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(res.body).toStrictEqual(2);
       });
 
-      it('should respond with 0 the current signed-in user don not have any posts', async () => {
-        const res = await authorizedApi.get(`${POSTS_URL}/count`);
+      it('should respond with 0 if the user don not have any posts', async () => {
+        const res = await api.get(`${POSTS_URL}/count?author=${dbXUser.id}`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(res.body).toStrictEqual(0);
       });
     });
 
-    describe(`GET ${POSTS_URL}/comments/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/comments/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
+    const createTestsForCountingUserCommentsOrVotes = (
+      type: 'votes' | 'comments'
+    ) => {
+      return () => {
+        it(`should respond with the count of ${type}`, async () => {
+          await createPost({ ...postFullData, authorId: dbUserOne.id });
+          await createPost({ ...postFullData, authorId: dbUserTwo.id });
+          await createPost({ ...postFullData, authorId: dbAdmin.id });
+          const res = await api.get(
+            `${POSTS_URL}/${type}/count?author=${dbUserOne.id}`
+          );
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(res.body).toStrictEqual(3);
+        });
 
-      it('should respond with the count of comments for the current signed-in user', async () => {
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/comments/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(4);
-      });
+        it(`should respond with 0 if the user do not have any post ${type}`, async () => {
+          await createPost({ ...postFullData, authorId: dbUserOne.id });
+          await createPost({ ...postFullData, authorId: dbUserTwo.id });
+          const res = await authorizedApi.get(
+            `${POSTS_URL}/${type}/count?author=${dbXUser.id}`
+          );
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(res.body).toStrictEqual(0);
+        });
+      };
+    };
 
-      it('should respond with 0 if the current signed-in user do not have any post comments', async () => {
-        await createPost({ ...postDataOutput, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/comments/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(0);
-      });
-    });
+    describe(
+      `GET ${POSTS_URL}/comments/count?author=<user_id>`,
+      createTestsForCountingUserCommentsOrVotes('comments')
+    );
 
-    describe(`GET ${POSTS_URL}/votes/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/votes/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of votes for the current signed-in user', async () => {
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/votes/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(4);
-      });
-
-      it('should respond with 0 if the current signed-in user do not have any post votes', async () => {
-        await createPost({ ...postDataOutput, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/votes/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(0);
-      });
-    });
+    describe(
+      `GET ${POSTS_URL}/votes/count?author=<user_id>`,
+      createTestsForCountingUserCommentsOrVotes('votes')
+    );
 
     describe(`GET ${POSTS_URL}/categories/count`, () => {
       it('should respond with 401 on a request without JWT', async () => {
@@ -1817,16 +1826,16 @@ describe('Posts endpoint', async () => {
           assertInvalidIdErrorRes(res);
         });
 
-        it('should respond with 404 if the post is private and there is no JWT', async () => {
+        it('should respond with 0 if the post is private and there is no JWT', async () => {
           const dbPost = await createPost({
             ...postFullData,
             published: false,
           });
           const res = await api.get(`${POSTS_URL}/${dbPost.id}/${type}/count`);
-          assertNotFoundErrorRes(res);
+          expect(res.body).toStrictEqual(0);
         });
 
-        it('should respond with 404 if the post is private and the JWT not for the post author', async () => {
+        it('should respond with 0 if the post is private and the JWT not for the post author', async () => {
           const { token } = await signin(
             userOneData.username,
             userOneData.password
@@ -1839,7 +1848,7 @@ describe('Posts endpoint', async () => {
           const res = await api
             .get(`${POSTS_URL}/${dbPost.id}/${type}/count`)
             .set('Authorization', token);
-          assertNotFoundErrorRes(res);
+          expect(res.body).toStrictEqual(0);
         });
 
         it(`should respond with the count of the private post ${type} if the JWT for the post author`, async () => {
@@ -1849,6 +1858,7 @@ describe('Posts endpoint', async () => {
           );
           const dbPost = await createPost({
             ...postFullData,
+            ...data,
             published: false,
             authorId: user.id,
           });
@@ -1857,7 +1867,8 @@ describe('Posts endpoint', async () => {
             .set('Authorization', token);
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
-          expect(res.body).toStrictEqual(2);
+          // eslint-disable-next-line security/detect-object-injection
+          expect(res.body).toStrictEqual(data[type].length);
         });
 
         it(`should respond with 0 for a private post without ${type} if the JWT for the post author`, async () => {
@@ -1880,11 +1891,12 @@ describe('Posts endpoint', async () => {
         });
 
         it(`should respond with the count of a public post ${type}`, async () => {
-          const dbPost = await createPost(postFullData);
+          const dbPost = await createPost({ ...postFullData, ...data });
           const res = await api.get(`${POSTS_URL}/${dbPost.id}/${type}/count`);
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
-          expect(res.body).toStrictEqual(2);
+          // eslint-disable-next-line security/detect-object-injection
+          expect(res.body).toStrictEqual(data[type].length);
         });
 
         it(`should respond with 0 for a public post without any ${type}`, async () => {
