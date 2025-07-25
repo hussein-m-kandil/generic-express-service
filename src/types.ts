@@ -105,6 +105,7 @@ export interface CommentFilters extends PaginationFilters {
 
 export interface VoteFilters extends PaginationFilters {
   isUpvote?: boolean;
+  postId?: string;
 }
 
 export interface ImageMetadata {
