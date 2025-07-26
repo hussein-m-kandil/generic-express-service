@@ -158,9 +158,10 @@ export const fieldsToIncludeWithImage: ImageDataToAggregate = {
 };
 
 export const fieldsToIncludeWithPost = {
-  image: { include: fieldsToIncludeWithImage },
-  comments: { include: { author: true }, ...getPaginationArgs() },
+  _count: { select: { comments: true, votes: true } },
   votes: { include: { user: true }, ...getPaginationArgs() },
+  comments: { include: { author: true }, ...getPaginationArgs() },
+  image: { include: fieldsToIncludeWithImage },
   categories: true,
   author: true,
 };

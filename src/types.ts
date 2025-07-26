@@ -66,6 +66,7 @@ export interface AppErrorResponse {
 
 export type PostFullData = Prisma.PostGetPayload<{
   include: {
+    _count: { select: { comments: true; votes: true } };
     image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
     comments: { include: { author: OmitUserSensitiveData } };
     votes: { include: { user: OmitUserSensitiveData } };

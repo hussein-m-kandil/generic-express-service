@@ -203,6 +203,8 @@ export const setup = async (signinUrl: string) => {
         content,
       }))
     ).toStrictEqual(expectedPost.comments);
+    expect(actualPost._count.comments).toBe(expectedPost.comments.length);
+    expect(actualPost._count.votes).toBe(expectedPost.votes.length);
   };
 
   const prepForAuthorizedTest = async (credentials: {
