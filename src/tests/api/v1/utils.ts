@@ -1,4 +1,4 @@
-export { ADMIN_SECRET } from '../../../lib/config';
+export * from '../../../lib/config';
 
 export const BASE_URL = '/api/v1';
 

@@ -1,29 +1,17 @@
-import {
-  PublicUser,
-  PostFilters,
-  AppJwtPayload,
-  CommentFilters,
-  PaginationFilters,
-  ImageDataToAggregate,
-  DBKnownErrorsHandlerOptions,
-} from '../types';
-import {
-  AppNotFoundError,
-  AppInvalidIdError,
-  AppUniqueConstraintViolationError,
-} from '../lib/app-error';
-import { Prisma } from '../../prisma/generated/client';
-import { SECRET, TOKEN_EXP_PERIOD } from './config';
-import { Request } from 'express';
+import * as Exp from 'express';
+import * as Types from '@/types';
+import * as JWT from 'jsonwebtoken';
+import * as Config from '@/lib/config';
+import * as AppError from '@/lib/app-error';
+import { Prisma } from '@/../prisma/client';
 import { z } from 'zod';
 import ms from 'ms';
-import jwt from 'jsonwebtoken';
 
-export const createJwtForUser = (user: PublicUser): string => {
+export const createJwtForUser = (user: Types.PublicUser): string => {
   const { id, isAdmin } = user;
-  const payload: AppJwtPayload = { id, isAdmin };
-  const token = jwt.sign(payload, SECRET, {
-    expiresIn: TOKEN_EXP_PERIOD as ms.StringValue,
+  const payload: Types.AppJwtPayload = { id, isAdmin };
+  const token = JWT.sign(payload, Config.SECRET, {
+    expiresIn: Config.TOKEN_EXP_PERIOD as ms.StringValue,
   });
   return `Bearer ${token}`;
 };
@@ -43,19 +31,19 @@ export const catchDBKnownError = async <P>(
 
 export const handleDBKnownErrors = async <T>(
   dbQuery: Promise<T>,
-  options?: DBKnownErrorsHandlerOptions
+  options?: Types.DBKnownErrorsHandlerOptions
 ): Promise<T> => {
   const [post, error] = await catchDBKnownError(dbQuery);
   if (error) {
     if (error.code === 'P2023' || error.code === 'P2003') {
-      throw new AppInvalidIdError();
+      throw new AppError.AppInvalidIdError();
     }
     if (error.code === 'P2025') {
-      throw new AppNotFoundError(options?.notFoundErrMsg);
+      throw new AppError.AppNotFoundError(options?.notFoundErrMsg);
     }
     if (error.code === 'P2002') {
       const targets = error.meta?.target as string[] | undefined;
-      throw new AppUniqueConstraintViolationError(
+      throw new AppError.AppUniqueConstraintViolationError(
         targets?.at(-1) ?? options?.uniqueFieldName ?? 'some fields'
       );
     }
@@ -64,26 +52,26 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
-export const getCurrentUserIdFromReq = (req: Request) => {
-  return (req.user as PublicUser | undefined)?.id;
+export const getCurrentUserIdFromReq = (req: Exp.Request) => {
+  return (req.user as Types.PublicUser | undefined)?.id;
 };
 
-export const getTextFilterFromReqQuery = (req: Request) => {
+export const getTextFilterFromReqQuery = (req: Exp.Request) => {
   return z.string().nonempty().safeParse(req.query.q).data;
 };
 
-export const getVoteTypeFilterFromReqQuery = (req: Request) => {
+export const getVoteTypeFilterFromReqQuery = (req: Exp.Request) => {
   let isUpvote;
   if (req.query.upvote && !req.query.downvote) isUpvote = true;
   if (!req.query.upvote && req.query.downvote) isUpvote = false;
   return isUpvote;
 };
 
-export const getAuthorIdFilterFromReqQuery = (req: Request) => {
+export const getAuthorIdFilterFromReqQuery = (req: Exp.Request) => {
   return z.string().uuid().optional().safeParse(req.query.author).data;
 };
 
-export const getCategoriesFilterFromReqQuery = (req: Request) => {
+export const getCategoriesFilterFromReqQuery = (req: Exp.Request) => {
   /* E.g. `...?categories=x,y,z`, or `...?categories=x&blah=0&categories=y,z` */
   const strCatsSchema = z
     .string()
@@ -95,8 +83,8 @@ export const getCategoriesFilterFromReqQuery = (req: Request) => {
 };
 
 export const getPaginationFiltersFromReqQuery = (
-  req: Request
-): PaginationFilters => {
+  req: Exp.Request
+): Types.PaginationFilters => {
   const { cursor, sort, limit } = req.query;
   return {
     sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
@@ -106,8 +94,8 @@ export const getPaginationFiltersFromReqQuery = (
 };
 
 export const getCommonFiltersFromReqQuery = (
-  req: Request
-): PaginationFilters => {
+  req: Exp.Request
+): Types.PaginationFilters => {
   return {
     currentUserId: getCurrentUserIdFromReq(req),
     authorId: getAuthorIdFilterFromReqQuery(req),
@@ -115,21 +103,25 @@ export const getCommonFiltersFromReqQuery = (
   };
 };
 
-export const getCommentFiltersFromReqQuery = (req: Request): CommentFilters => {
+export const getCommentFiltersFromReqQuery = (
+  req: Exp.Request
+): Types.CommentFilters => {
   return {
     ...getCommonFiltersFromReqQuery(req),
     text: getTextFilterFromReqQuery(req),
   };
 };
 
-export const getVoteFiltersFromReqQuery = (req: Request) => {
+export const getVoteFiltersFromReqQuery = (req: Exp.Request) => {
   return {
     ...getCommonFiltersFromReqQuery(req),
     isUpvote: getVoteTypeFilterFromReqQuery(req),
   };
 };
 
-export const getPostFiltersFromReqQuery = (req: Request): PostFilters => {
+export const getPostFiltersFromReqQuery = (
+  req: Exp.Request
+): Types.PostFilters => {
   // Same as the comments filtration + categories filter
   return {
     ...getCommentFiltersFromReqQuery(req),
@@ -138,7 +130,7 @@ export const getPostFiltersFromReqQuery = (req: Request): PostFilters => {
 };
 
 export const getPaginationArgs = (
-  filters: PaginationFilters = {},
+  filters: Types.PaginationFilters = {},
   take = 3
 ) => {
   return {
@@ -153,7 +145,7 @@ export const getPaginationArgs = (
   };
 };
 
-export const fieldsToIncludeWithImage: ImageDataToAggregate = {
+export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
   owner: { omit: { password: true } },
 };
 
@@ -169,24 +161,3 @@ export const fieldsToIncludeWithPost = {
 export const fieldsToIncludeWithComment = { post: true, author: true };
 
 export const fieldsToIncludeWithVote = { post: true, user: true };
-
-export default {
-  createJwtForUser,
-  catchDBKnownError,
-  getPaginationArgs,
-  handleDBKnownErrors,
-  fieldsToIncludeWithPost,
-  fieldsToIncludeWithVote,
-  getCurrentUserIdFromReq,
-  fieldsToIncludeWithImage,
-  getTextFilterFromReqQuery,
-  getPostFiltersFromReqQuery,
-  getVoteFiltersFromReqQuery,
-  fieldsToIncludeWithComment,
-  getCommonFiltersFromReqQuery,
-  getVoteTypeFilterFromReqQuery,
-  getCommentFiltersFromReqQuery,
-  getAuthorIdFilterFromReqQuery,
-  getCategoriesFilterFromReqQuery,
-  getPaginationFiltersFromReqQuery,
-};

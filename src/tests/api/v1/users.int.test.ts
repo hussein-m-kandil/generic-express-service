@@ -1,4 +1,3 @@
-import { AppErrorResponse, AuthResponse } from '../../../types';
 import {
   it,
   expect,
@@ -8,13 +7,14 @@ import {
   beforeEach,
   TestFunction,
 } from 'vitest';
-import { Prisma, User } from '../../../../prisma/generated/client';
 import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
-import { ZodIssue } from 'zod';
+import { AppErrorResponse, AuthResponse } from '@/types';
+import { Prisma, User } from '@/../prisma/client';
+import { z } from 'zod';
+import db from '@/lib/db';
 import setup from '../setup';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import db from '../../../lib/db';
+import * as JWT from 'jsonwebtoken';
 
 describe('Users endpoint', async () => {
   const {
@@ -105,7 +105,7 @@ describe('Users endpoint', async () => {
           where: { id: resUser.id },
           omit: { password: false },
         });
-        const resJwtPayload = jwt.decode(
+        const resJwtPayload = JWT.decode(
           resBody.token.replace(/^Bearer /, '')
         ) as User;
         expect(res.type).toMatch(/json/);
@@ -283,7 +283,7 @@ describe('Users endpoint', async () => {
         const res = await authorizedApi
           .patch(`${USERS_URL}/${dbUser.id}`)
           .send(data);
-        const issues = res.body as ZodIssue[];
+        const issues = res.body as z.ZodIssue[];
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(400);
         expect(issues[0].message).toMatch(expectedErrMsgRegex);

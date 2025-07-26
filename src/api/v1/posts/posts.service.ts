@@ -1,23 +1,8 @@
-import {
-  PostFilters,
-  VoteFilters,
-  PostFullData,
-  CommentFilters,
-  CategoriesFilter,
-  NewPostParsedData,
-  NewCommentParsedData,
-  NewPostAuthorizedData,
-} from '../../../types';
-import {
-  getPaginationArgs,
-  handleDBKnownErrors,
-  fieldsToIncludeWithPost,
-  fieldsToIncludeWithVote,
-  fieldsToIncludeWithComment,
-} from '../../../lib/helpers';
-import { Prisma } from '../../../../prisma/generated/client';
-import { AppNotFoundError } from '../../../lib/app-error';
-import db from '../../../lib/db';
+import * as Types from '@/types';
+import * as Utils from '@/lib/utils';
+import * as AppError from '@/lib/app-error';
+import { Prisma } from '@/../prisma/client';
+import db from '@/lib/db';
 
 export const getPrivatePostProtectionArgs = (authorId?: string) => {
   return authorId
@@ -31,7 +16,7 @@ export const getAggregatePrivatePostProtectionArgs = (authorId?: string) => {
     : { post: { published: true } };
 };
 
-export const getCategories = async (categories?: CategoriesFilter) => {
+export const getCategories = async (categories?: Types.CategoriesFilter) => {
   return await db.category.findMany({
     ...(categories && categories.length > 0
       ? {
@@ -45,7 +30,7 @@ export const getCategories = async (categories?: CategoriesFilter) => {
   });
 };
 
-export const createPost = async (data: NewPostAuthorizedData) => {
+export const createPost = async (data: Types.NewPostAuthorizedData) => {
   const dbQuery = db.post.create({
     data: {
       title: data.title,
@@ -61,24 +46,24 @@ export const createPost = async (data: NewPostAuthorizedData) => {
         })),
       },
     },
-    include: fieldsToIncludeWithPost,
+    include: Utils.fieldsToIncludeWithPost,
   });
   const handlerOptions = { uniqueFieldName: 'category' };
-  return await handleDBKnownErrors(dbQuery, handlerOptions);
+  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
   const dbQuery = db.post.findUnique({
     where: { id, ...getPrivatePostProtectionArgs(authorId) },
-    include: fieldsToIncludeWithPost,
+    include: Utils.fieldsToIncludeWithPost,
   });
-  const post = await handleDBKnownErrors(dbQuery);
-  if (!post) throw new AppNotFoundError('Post Not Found');
+  const post = await Utils.handleDBKnownErrors(dbQuery);
+  if (!post) throw new AppError.AppNotFoundError('Post Not Found');
   return post;
 };
 
 export const findFilteredPosts = async (
-  filters: PostFilters = {},
+  filters: Types.PostFilters = {},
   operation: 'count' | 'findMany' = 'findMany'
 ) => {
   const { currentUserId, categories, authorId, text } = filters;
@@ -106,18 +91,18 @@ export const findFilteredPosts = async (
     },
   };
   return operation === 'count'
-    ? await handleDBKnownErrors(db.post.count({ where }))
-    : await handleDBKnownErrors(
+    ? await Utils.handleDBKnownErrors(db.post.count({ where }))
+    : await Utils.handleDBKnownErrors(
         db.post.findMany({
-          include: fieldsToIncludeWithPost,
-          ...getPaginationArgs(filters),
+          include: Utils.fieldsToIncludeWithPost,
+          ...Utils.getPaginationArgs(filters),
           where,
         })
       );
 };
 
 export const findFilteredComments = async (
-  filters: CommentFilters = {},
+  filters: Types.CommentFilters = {},
   operation: 'findMany' | 'count' = 'findMany'
 ) => {
   const { currentUserId, authorId, postId, text } = filters;
@@ -128,18 +113,18 @@ export const findFilteredComments = async (
     ...(postId ? { postId } : {}),
   };
   return operation === 'count'
-    ? await handleDBKnownErrors(db.comment.count({ where }))
-    : await handleDBKnownErrors(
+    ? await Utils.handleDBKnownErrors(db.comment.count({ where }))
+    : await Utils.handleDBKnownErrors(
         db.comment.findMany({
-          include: fieldsToIncludeWithComment,
-          ...getPaginationArgs(filters),
+          include: Utils.fieldsToIncludeWithComment,
+          ...Utils.getPaginationArgs(filters),
           where,
         })
       );
 };
 
 export const findFilteredVotes = async (
-  filters: VoteFilters = {},
+  filters: Types.VoteFilters = {},
   operation: 'findMany' | 'count' = 'findMany'
 ) => {
   const { currentUserId, authorId, isUpvote, postId } = filters;
@@ -150,17 +135,17 @@ export const findFilteredVotes = async (
     ...(postId ? { postId } : {}),
   };
   return operation === 'count'
-    ? await handleDBKnownErrors(db.voteOnPost.count({ where }))
-    : await handleDBKnownErrors(
+    ? await Utils.handleDBKnownErrors(db.voteOnPost.count({ where }))
+    : await Utils.handleDBKnownErrors(
         db.voteOnPost.findMany({
-          include: fieldsToIncludeWithVote,
-          ...getPaginationArgs(filters),
+          include: Utils.fieldsToIncludeWithVote,
+          ...Utils.getPaginationArgs(filters),
           where,
         })
       );
 };
 
-export const updatePost = async (id: string, data: NewPostParsedData) => {
+export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
   const dbQuery = (async () =>
     (
       await db.$transaction([
@@ -180,7 +165,7 @@ export const updatePost = async (id: string, data: NewPostParsedData) => {
               })),
             },
           },
-          include: fieldsToIncludeWithPost,
+          include: Utils.fieldsToIncludeWithPost,
         }),
       ])
     )[1])();
@@ -188,7 +173,7 @@ export const updatePost = async (id: string, data: NewPostParsedData) => {
     notFoundErrMsg: 'Post not found',
     uniqueFieldName: 'category',
   };
-  return await handleDBKnownErrors(dbQuery, handlerOptions);
+  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const upvotePost = async (postId: string, userId: string) => {
@@ -202,27 +187,27 @@ export const upvotePost = async (postId: string, userId: string) => {
         },
       },
     },
-    include: fieldsToIncludeWithPost,
+    include: Utils.fieldsToIncludeWithPost,
   });
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
     uniqueFieldName: 'user-upvote',
   };
-  return await handleDBKnownErrors(dbQuery, handlerOptions);
+  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const downvotePost = async (postId: string, userId: string) => {
   const dbQuery = db.post.update({
     where: { id: postId, ...getPrivatePostProtectionArgs(userId) },
     data: { votes: { delete: { userId_postId: { postId, userId } } } },
-    include: fieldsToIncludeWithPost,
+    include: Utils.fieldsToIncludeWithPost,
   });
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
     uniqueFieldName: 'user-upvote',
   };
   try {
-    const post = await handleDBKnownErrors(dbQuery, handlerOptions);
+    const post = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
     return post;
   } catch (error) {
     const connectionDoesNotExist =
@@ -236,23 +221,28 @@ export const downvotePost = async (postId: string, userId: string) => {
   }
 };
 
-export const deletePost = async (post: PostFullData, authorId?: string) => {
+export const deletePost = async (
+  post: Types.PostFullData,
+  authorId?: string
+) => {
   const delPostQ = db.post.delete({
     where: { id: post.id, ...getPrivatePostProtectionArgs(authorId) },
   });
   // Delete the post with its image if both owned by the same user
   if (post.authorId === post.image?.ownerId) {
-    const sameImagePosts = await handleDBKnownErrors(
+    const sameImagePosts = await Utils.handleDBKnownErrors(
       db.post.findMany({ where: { imageId: post.image.id } })
     );
     // Delete the post with its image if there are no other posts using it
     if (sameImagePosts.length === 1 && sameImagePosts[0].id === post.id) {
       const delImgQ = db.image.delete({ where: { id: post.image.id } });
-      return await handleDBKnownErrors(db.$transaction([delPostQ, delImgQ]));
+      return await Utils.handleDBKnownErrors(
+        db.$transaction([delPostQ, delImgQ])
+      );
     }
   }
   // Otherwise, only delete the post and leave its image alone ;)
-  return await handleDBKnownErrors(delPostQ);
+  return await Utils.handleDBKnownErrors(delPostQ);
 };
 
 export const findPostCommentByCompoundIdOrThrow = async (
@@ -267,40 +257,40 @@ export const findPostCommentByCompoundIdOrThrow = async (
       postId,
       ...getAggregatePrivatePostProtectionArgs(authorId),
     },
-    include: fieldsToIncludeWithComment,
+    include: Utils.fieldsToIncludeWithComment,
   });
-  const comment = await handleDBKnownErrors(dbQuery);
-  if (!comment) throw new AppNotFoundError('Post/Comment Not Found');
+  const comment = await Utils.handleDBKnownErrors(dbQuery);
+  if (!comment) throw new AppError.AppNotFoundError('Post/Comment Not Found');
   return comment;
 };
 
 export const findPostByIdAndCreateComment = async (
   postId: string,
   commentAuthorId: string,
-  data: NewCommentParsedData
+  data: Types.NewCommentParsedData
 ) => {
   const dbQuery = db.post.update({
     where: { id: postId, ...getPrivatePostProtectionArgs(commentAuthorId) },
     data: { comments: { create: { ...data, authorId: commentAuthorId } } },
-    include: fieldsToIncludeWithPost,
+    include: Utils.fieldsToIncludeWithPost,
   });
   const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
-  return await handleDBKnownErrors(dbQuery, handlerOptions);
+  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const findPostCommentByCompoundIdAndUpdate = async (
   postId: string,
   commentId: string,
   commentAuthorId: string,
-  data: NewCommentParsedData
+  data: Types.NewCommentParsedData
 ) => {
   const dbQuery = db.post.update({
     where: { id: postId, ...getPrivatePostProtectionArgs(commentAuthorId) },
     data: { comments: { update: { where: { id: commentId }, data } } },
-    include: fieldsToIncludeWithPost,
+    include: Utils.fieldsToIncludeWithPost,
   });
   const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
-  return await handleDBKnownErrors(dbQuery, handlerOptions);
+  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const findPostCommentByCompoundIdAndDelete = async (
@@ -316,11 +306,11 @@ export const findPostCommentByCompoundIdAndDelete = async (
       ...getAggregatePrivatePostProtectionArgs(postAuthorId),
     },
   });
-  await handleDBKnownErrors(dbQuery);
+  await Utils.handleDBKnownErrors(dbQuery);
 };
 
 export const findPostCategories = async (postId: string, authorId?: string) => {
-  return handleDBKnownErrors(
+  return Utils.handleDBKnownErrors(
     db.categoriesOnPosts.findMany({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
@@ -332,7 +322,7 @@ export const countPostsCategoriesByPostsAuthorId = async (authorId: string) => {
     where: { post: { authorId } },
     distinct: ['categoryName'],
   });
-  const postDistinctCategories = await handleDBKnownErrors(dbQuery);
+  const postDistinctCategories = await Utils.handleDBKnownErrors(dbQuery);
   return postDistinctCategories.length;
 };
 
@@ -340,7 +330,7 @@ export const countPostCategories = async (
   postId: string,
   authorId?: string
 ) => {
-  return await handleDBKnownErrors(
+  return await Utils.handleDBKnownErrors(
     db.categoriesOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
@@ -348,7 +338,7 @@ export const countPostCategories = async (
 };
 
 export const countPostComments = async (postId: string, authorId?: string) => {
-  return await handleDBKnownErrors(
+  return await Utils.handleDBKnownErrors(
     db.comment.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
@@ -356,35 +346,9 @@ export const countPostComments = async (postId: string, authorId?: string) => {
 };
 
 export const countPostVotes = async (postId: string, authorId?: string) => {
-  return await handleDBKnownErrors(
+  return await Utils.handleDBKnownErrors(
     db.voteOnPost.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );
 };
-
-export const postsService = {
-  getAggregatePrivatePostProtectionArgs,
-  findPostCommentByCompoundIdAndDelete,
-  findPostCommentByCompoundIdAndUpdate,
-  countPostsCategoriesByPostsAuthorId,
-  findPostCommentByCompoundIdOrThrow,
-  findPostByIdAndCreateComment,
-  getPrivatePostProtectionArgs,
-  findFilteredComments,
-  findPostByIdOrThrow,
-  countPostCategories,
-  findPostCategories,
-  findFilteredVotes,
-  findFilteredPosts,
-  countPostComments,
-  countPostVotes,
-  getCategories,
-  downvotePost,
-  createPost,
-  updatePost,
-  upvotePost,
-  deletePost,
-};
-
-export default postsService;

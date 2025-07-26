@@ -1,11 +1,7 @@
-import {
-  SALT,
-  STORAGE_ROOT_DIR,
-  SUPABASE_BUCKET_URL,
-} from '../../src/lib/config';
+import * as Config from '@/lib/config';
 import { faker } from '@faker-js/faker';
-import db from '../../src/lib/db';
 import bcrypt from 'bcryptjs';
+import db from '@/lib/db';
 
 const AUTHOR_PASSWORD = process.env.AUTHOR_PASSWORD;
 
@@ -55,7 +51,7 @@ export async function seed() {
   console.log('Creating the author account...');
   const dbPostAuthor = await db.user.create({
     data: {
-      password: bcrypt.hashSync(AUTHOR_PASSWORD!, SALT),
+      password: bcrypt.hashSync(AUTHOR_PASSWORD!, Config.SALT),
       bio: 'From Nowhere land with love.',
       username: 'nowhere-man',
       fullname: 'Nowhere-Man',
@@ -67,14 +63,14 @@ export async function seed() {
   const dbPostViewers = await db.user.createManyAndReturn({
     data: [
       {
-        password: bcrypt.hashSync('Ss@12312', SALT),
+        password: bcrypt.hashSync('Ss@12312', Config.SALT),
         fullname: 'Clark Kent / Kal-El',
         bio: 'From Krypton with love.',
         username: 'superman',
         isAdmin: false,
       },
       {
-        password: bcrypt.hashSync('Bb@12312', SALT),
+        password: bcrypt.hashSync('Bb@12312', Config.SALT),
         bio: 'From Gotham with love.',
         fullname: 'Bruce Wayne',
         username: 'batman',
@@ -92,8 +88,8 @@ export async function seed() {
       mimetype: 'image/jpeg',
       ownerId: dbPostAuthor.id,
       storageId: crypto.randomUUID(),
-      src: `${SUPABASE_BUCKET_URL}/seed/${i}.jpg`,
-      storageFullPath: `${STORAGE_ROOT_DIR}/seed/${i}.jpg`,
+      src: `${Config.SUPABASE_BUCKET_URL}/seed/${i}.jpg`,
+      storageFullPath: `${Config.STORAGE_ROOT_DIR}/seed/${i}.jpg`,
     })),
   });
 

@@ -1,9 +1,9 @@
-import { postSchema, commentSchema } from './api/v1/posts/post.schema';
-import { PrismaClient, Prisma } from '../prisma/generated/client';
-import { userSchema } from './api/v1/users/user.schema';
+import { postSchema, commentSchema } from '@/api/v1/posts';
+import { PrismaClient, Prisma } from '@/../prisma/client';
+import { imageSchema } from '@/api/v1/images';
+import { userSchema } from '@/api/v1/users';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { imageSchema } from './api/v1/images/image.schema';
 
 export interface DBKnownErrorsHandlerOptions {
   notFoundErrMsg?: string;

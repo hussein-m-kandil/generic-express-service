@@ -1,12 +1,11 @@
-import requestLogger from './middlewares/request-logger';
-import errorHandler from './middlewares/error-handler';
-import { ALLOWED_ORIGINS } from './lib/config';
-import AppError from './lib/app-error';
-import apiV1Router from './api/v1';
+import * as API from '@/api';
+import * as Middlewares from '@/middlewares';
+import { ALLOWED_ORIGINS } from '@/lib/config';
+import { AppBaseError } from '@/lib/app-error';
+import logger from '@/lib/logger';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import logger from './lib/logger';
 
 const app = express();
 
@@ -14,7 +13,7 @@ app.disable('x-powered-by');
 
 app.use(helmet());
 app.use(express.json());
-app.use(requestLogger);
+app.use(Middlewares.requestLogger);
 
 logger.info('ALLOWED_ORIGINS: ', ALLOWED_ORIGINS);
 app.use(
@@ -24,13 +23,13 @@ app.use(
   })
 );
 
-app.use('/api/v1', apiV1Router);
+app.use('/api/v1', API.V1.apiRouter);
 
 app.use((req) => {
   const message = `Cannot ${req.method} ${req.originalUrl}`;
-  throw new AppError(message, 404, 'UnknownRouteError');
+  throw new AppBaseError(message, 404, 'UnknownRouteError');
 });
 
-app.use(errorHandler);
+app.use(Middlewares.errorHandler);
 
 export default app;

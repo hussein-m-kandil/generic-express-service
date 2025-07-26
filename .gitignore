@@ -52,5 +52,5 @@ jspm_packages/
 build
 dist
 
-# Prisma generated client (should not be needed starting from v7; refer to the docs)
-prisma/generated/client
+# Prisma generated client (needed to be placed & ignored explicitly starting from v7)
+prisma/client

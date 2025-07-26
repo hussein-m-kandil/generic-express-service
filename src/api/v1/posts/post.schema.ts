@@ -68,5 +68,3 @@ export const postSchema = z
   .transform((data) => {
     return { ...data, categories: data.categories ?? [] };
   });
-
-export default postSchema;

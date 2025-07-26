@@ -1,18 +1,22 @@
 {
   "compilerOptions": {
-    "moduleDetection": "force", // Treat files as modules even if it doesn't use import/export
-    "isolatedModules": true, // Disallow features that require cross-file awareness
     "forceConsistentCasingInFileNames": true,
+    "moduleDetection": "force",
     "resolveJsonModule": true,
     "esModuleInterop": true,
+    "isolatedModules": true,
     "noImplicitAny": true,
     "skipLibCheck": true,
     "module": "commonjs",
     "sourceMap": true,
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "target": "ES2020",
-    "strict": true
+    "target": "ES2017",
+    "strict": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["./src/**/*", "prisma/prisma.seed.ts"]
+  "include": ["./src/**/*", "./prisma/seed/**/*"],
+  "exclude": ["./prisma/client", "node_modules"]
 }

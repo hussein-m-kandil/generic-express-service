@@ -3,13 +3,13 @@ import {
   Category,
   VoteOnPost,
   CategoriesOnPosts,
-} from '../../../../prisma/generated/client';
+} from '@/../prisma/client';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { PostFullData, PublicImage } from '../../../types';
+import { PostFullData, PublicImage } from '@/types';
 import { POSTS_URL, SIGNIN_URL } from './utils';
 import { ZodIssue } from 'zod';
 import setup from '../setup';
-import db from '../../../lib/db';
+import db from '@/lib/db';
 
 describe('Posts endpoint', async () => {
   const {

@@ -1,13 +1,13 @@
-import { authValidator } from '../../../middlewares/validators';
-import { User } from '../../../../prisma/generated/client';
-import { createJwtForUser } from '../../../lib/helpers';
-import { AppSignInError } from '../../../lib/app-error';
-import { RequestHandler, Router } from 'express';
-import { AuthResponse } from '../../../types';
-import logger from '../../../lib/logger';
-import passport from '../../../lib/passport';
+import * as Exp from 'express';
+import * as Types from '@/types';
+import * as Utils from '@/lib/utils';
+import * as AppError from '@/lib/app-error';
+import * as Validators from '@/middlewares/validators';
+import { User } from '@/../prisma/client';
+import passport from '@/lib/passport';
+import logger from '@/lib/logger';
 
-export const authRouter = Router();
+export const authRouter = Exp.Router();
 
 authRouter.post('/signin', async (req, res, next) => {
   await (
@@ -17,27 +17,27 @@ authRouter.post('/signin', async (req, res, next) => {
       (error: unknown, user: User | false | null | undefined) => {
         if (error || !user) {
           if (error) logger.error(error);
-          next(new AppSignInError());
+          next(new AppError.AppSignInError());
         } else {
           req.login(user, { session: false }, (loginError) => {
             if (loginError) next(loginError);
             else {
-              const token = createJwtForUser(user);
-              const signinRes: AuthResponse = { token, user };
+              const token = Utils.createJwtForUser(user);
+              const signinRes: Types.AuthResponse = { token, user };
               res.json(signinRes);
             }
           });
         }
       }
-    ) as RequestHandler
+    ) as Exp.RequestHandler
   )(req, res, next);
 });
 
-authRouter.get('/me', authValidator, (req, res) => {
+authRouter.get('/me', Validators.authValidator, (req, res) => {
   res.json(req.user);
 });
 
-authRouter.get('/verify', authValidator, (req, res) => {
+authRouter.get('/verify', Validators.authValidator, (req, res) => {
   res.json(true);
 });
 

@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { MAX_FILE_SIZE_MB } from '../lib/config';
-import AppError from '../lib/app-error';
+import AppBaseError from '../lib/app-error';
 import multer from 'multer';
 
 export const createFileProcessor = (
@@ -17,7 +17,7 @@ export const createFileProcessor = (
         if (error.code === 'LIMIT_FILE_SIZE') {
           error.message += ` (Max = ${MAX_FILE_SIZE_MB}MB)`;
         }
-        throw new AppError(error.message, 400, error.name);
+        throw new AppBaseError(error.message, 400, error.name);
       }
       throw error;
     },

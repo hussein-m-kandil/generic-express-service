@@ -38,20 +38,3 @@ export const SUPABASE_BUCKET_URL = process.env.SUPABASE_BUCKET_URL;
 export const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB) || 2;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-export default {
-  SUPABASE_BUCKET_URL,
-  SUPABASE_ANON_KEY,
-  TOKEN_EXP_PERIOD,
-  MAX_FILE_SIZE_MB,
-  STORAGE_ROOT_DIR,
-  SUPABASE_BUCKET,
-  ALLOWED_ORIGINS,
-  ADMIN_SECRET,
-  SUPABASE_URL,
-  NODE_ENV,
-  SECRET,
-  SALT,
-  CI,
-  supabase,
-};
