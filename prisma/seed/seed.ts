@@ -41,7 +41,7 @@ export async function seed() {
   await db.$transaction([
     db.comment.deleteMany({}),
     db.voteOnPost.deleteMany({}),
-    db.categoriesOnPosts.deleteMany({}),
+    db.categoryOnPost.deleteMany({}),
     db.category.deleteMany({}),
     db.post.deleteMany({}),
     db.image.deleteMany({}),

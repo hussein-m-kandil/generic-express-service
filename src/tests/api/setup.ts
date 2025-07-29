@@ -187,9 +187,7 @@ export const setup = async (signinUrl: string) => {
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.categories.length).toBe(expectedPost.categories.length);
     expect(
-      actualPost.categories.map(({ categoryName }) =>
-        categoryName.toLowerCase()
-      )
+      actualPost.categories.map(({ name }) => name.toLowerCase())
     ).toStrictEqual(expectedPost.categories.map((c) => c.toLowerCase()));
     expect(
       actualPost.comments.reverse().map(({ authorId, content }) => ({

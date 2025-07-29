@@ -2,7 +2,7 @@ import {
   Comment,
   Category,
   VoteOnPost,
-  CategoriesOnPosts,
+  CategoryOnPost,
 } from '@/../prisma/client';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { PostFullData, PublicImage } from '@/types';
@@ -176,7 +176,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(`${POSTS_URL}?categories=tar,baz`);
       const resBody = res.body as PostFullData[];
       const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
+        p.categories.map((c) => c.name)
       );
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
@@ -191,7 +191,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(`${POSTS_URL}?categories=bar&categories=baz`);
       const resBody = res.body as PostFullData[];
       const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
+        p.categories.map((c) => c.name)
       );
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
@@ -208,7 +208,7 @@ describe('Posts endpoint', async () => {
       );
       const resBody = res.body as PostFullData[];
       const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
+        p.categories.map((c) => c.name)
       );
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(3);
@@ -224,7 +224,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(`${POSTS_URL}?q=cat&categories=tar,baz`);
       const resBody = res.body as PostFullData[];
       const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
+        p.categories.map((c) => c.name)
       );
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
@@ -1056,14 +1056,12 @@ describe('Posts endpoint', async () => {
       const res = await api
         .get(`${POSTS_URL}/${dbPost.id}/categories`)
         .set('Authorization', token);
-      const resBody = res.body as CategoriesOnPosts[];
+      const resBody = res.body as CategoryOnPost[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
-      expect(resBody.map((c) => c.categoryName)).toStrictEqual(
-        postFullData.categories
-      );
+      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.categories);
     });
 
     it('should respond with an empty array', async () => {
@@ -1082,14 +1080,12 @@ describe('Posts endpoint', async () => {
     it('should respond with an array of categories for a public post', async () => {
       const dbPost = await createPost(postFullData);
       const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
-      const resBody = res.body as CategoriesOnPosts[];
+      const resBody = res.body as CategoryOnPost[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
-      expect(resBody.map((c) => c.categoryName)).toStrictEqual(
-        postFullData.categories
-      );
+      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.categories);
     });
   });
 

@@ -83,7 +83,7 @@ export const findFilteredPosts = async (
         ? {
             categories: {
               some: {
-                categoryName: { in: categories, mode: 'insensitive' },
+                name: { in: categories, mode: 'insensitive' },
               },
             },
           }
@@ -149,7 +149,7 @@ export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
   const dbQuery = (async () =>
     (
       await db.$transaction([
-        db.categoriesOnPosts.deleteMany({ where: { postId: id } }),
+        db.categoryOnPost.deleteMany({ where: { postId: id } }),
         db.post.update({
           where: { id },
           data: {
@@ -311,16 +311,16 @@ export const findPostCommentByCompoundIdAndDelete = async (
 
 export const findPostCategories = async (postId: string, authorId?: string) => {
   return Utils.handleDBKnownErrors(
-    db.categoriesOnPosts.findMany({
+    db.categoryOnPost.findMany({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );
 };
 
 export const countPostsCategoriesByPostsAuthorId = async (authorId: string) => {
-  const dbQuery = db.categoriesOnPosts.findMany({
+  const dbQuery = db.categoryOnPost.findMany({
     where: { post: { authorId } },
-    distinct: ['categoryName'],
+    distinct: ['name'],
   });
   const postDistinctCategories = await Utils.handleDBKnownErrors(dbQuery);
   return postDistinctCategories.length;
@@ -331,7 +331,7 @@ export const countPostCategories = async (
   authorId?: string
 ) => {
   return await Utils.handleDBKnownErrors(
-    db.categoriesOnPosts.count({
+    db.categoryOnPost.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );
