@@ -176,14 +176,20 @@ export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const upvotePost = async (postId: string, userId: string) => {
+const upvoteOrDownvotePost = async (
+  action: 'upvote' | 'downvote',
+  postId: string,
+  userId: string
+) => {
+  const isUpvote = action === 'upvote';
   const dbQuery = db.post.update({
     where: { id: postId, ...getPrivatePostProtectionArgs(userId) },
     data: {
       votes: {
-        connectOrCreate: {
+        upsert: {
           where: { userId_postId: { postId, userId } },
-          create: { userId },
+          create: { isUpvote, userId },
+          update: { isUpvote, userId },
         },
       },
     },
@@ -191,12 +197,20 @@ export const upvotePost = async (postId: string, userId: string) => {
   });
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
-    uniqueFieldName: 'user-upvote',
+    uniqueFieldName: 'user_post_vote',
   };
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const downvotePost = async (postId: string, userId: string) => {
+export const upvotePost = (postId: string, userId: string) => {
+  return upvoteOrDownvotePost('upvote', postId, userId);
+};
+
+export const downvotePost = (postId: string, userId: string) => {
+  return upvoteOrDownvotePost('downvote', postId, userId);
+};
+
+export const unvotePost = async (postId: string, userId: string) => {
   const dbQuery = db.post.update({
     where: { id: postId, ...getPrivatePostProtectionArgs(userId) },
     data: { votes: { delete: { userId_postId: { postId, userId } } } },
@@ -204,20 +218,16 @@ export const downvotePost = async (postId: string, userId: string) => {
   });
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
-    uniqueFieldName: 'user-upvote',
+    uniqueFieldName: 'user_post_vote',
   };
   try {
-    const post = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
-    return post;
+    return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
   } catch (error) {
     const connectionDoesNotExist =
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2017';
-    if (connectionDoesNotExist) {
-      return findPostByIdOrThrow(postId);
-    } else {
-      throw error;
-    }
+    if (connectionDoesNotExist) return findPostByIdOrThrow(postId);
+    throw error;
   }
 };
 
@@ -269,40 +279,39 @@ export const findPostByIdAndCreateComment = async (
   commentAuthorId: string,
   data: Types.NewCommentParsedData
 ) => {
-  const dbQuery = db.post.update({
-    where: { id: postId, ...getPrivatePostProtectionArgs(commentAuthorId) },
-    data: { comments: { create: { ...data, authorId: commentAuthorId } } },
-    include: Utils.fieldsToIncludeWithPost,
-  });
-  const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
-  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+  await findPostByIdOrThrow(postId, commentAuthorId);
+  return await Utils.handleDBKnownErrors(
+    db.comment.create({
+      data: { ...data, postId, authorId: commentAuthorId },
+      include: Utils.fieldsToIncludeWithComment,
+    })
+  );
 };
 
-export const findPostCommentByCompoundIdAndUpdate = async (
-  postId: string,
+export const findCommentAndUpdate = async (
   commentId: string,
   commentAuthorId: string,
   data: Types.NewCommentParsedData
 ) => {
-  const dbQuery = db.post.update({
-    where: { id: postId, ...getPrivatePostProtectionArgs(commentAuthorId) },
-    data: { comments: { update: { where: { id: commentId }, data } } },
-    include: Utils.fieldsToIncludeWithPost,
+  const dbQuery = db.comment.update({
+    where: {
+      id: commentId,
+      ...getAggregatePrivatePostProtectionArgs(commentAuthorId),
+    },
+    include: Utils.fieldsToIncludeWithComment,
+    data,
   });
   const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const findPostCommentByCompoundIdAndDelete = async (
-  postId: string,
+export const findCommentAndDelete = async (
   commentId: string,
   postAuthorId?: string
 ) => {
-  const id = commentId;
   const dbQuery = db.comment.delete({
     where: {
-      id,
-      postId,
+      id: commentId,
       ...getAggregatePrivatePostProtectionArgs(postAuthorId),
     },
   });

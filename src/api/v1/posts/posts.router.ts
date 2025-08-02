@@ -192,6 +192,12 @@ postsRouter.post(
   }
 );
 
+postsRouter.post('/:id/unvote', Validators.authValidator, async (req, res) => {
+  const user = req.user as Types.PublicUser;
+  const unvotedPost = await Service.unvotePost(req.params.id, user.id);
+  res.json(unvotedPost);
+});
+
 postsRouter.post(
   '/:id/comments',
   Validators.authValidator,
@@ -201,12 +207,12 @@ postsRouter.post(
   ) => {
     const user = req.user as Types.PublicUser;
     const commentData = Schema.commentSchema.parse(req.body);
-    const updatedPost = await Service.findPostByIdAndCreateComment(
+    const newComment = await Service.findPostByIdAndCreateComment(
       req.params.id,
       user.id,
       commentData
     );
-    res.status(200).json(updatedPost);
+    res.status(200).json(newComment);
   }
 );
 
@@ -230,13 +236,12 @@ postsRouter.put(
   async (req, res) => {
     const user = req.user as Types.PublicUser;
     const commentData = Schema.commentSchema.parse(req.body);
-    const updatedPost = await Service.findPostCommentByCompoundIdAndUpdate(
-      req.params.pId,
+    const updatedComment = await Service.findCommentAndUpdate(
       req.params.cId,
       user.id,
       commentData
     );
-    res.json(updatedPost);
+    res.json(updatedComment);
   }
 );
 
@@ -269,11 +274,7 @@ postsRouter.delete(
   }),
   async (req, res) => {
     const userId = Utils.getCurrentUserIdFromReq(req);
-    await Service.findPostCommentByCompoundIdAndDelete(
-      req.params.pId,
-      req.params.cId,
-      userId
-    );
+    await Service.findCommentAndDelete(req.params.cId, userId);
     res.status(204).end();
   }
 );

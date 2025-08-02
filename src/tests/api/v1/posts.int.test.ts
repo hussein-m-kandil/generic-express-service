@@ -1268,16 +1268,15 @@ describe('Posts endpoint', async () => {
         const res = await authorizedApi
           .post(`${POSTS_URL}/${dbPost.id}/comments`)
           .send(commentData);
-        const resBody = res.body as PostFullData;
-        const createdComment = resBody.comments.at(-1) as Comment;
+        const resBody = res.body as Comment;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(createdComment).toBeTypeOf('object');
-        expect(createdComment.postId).toStrictEqual(dbPost.id);
-        expect(createdComment.authorId).toStrictEqual(signedInUserData.user.id);
-        expect(createdComment.content).toStrictEqual(commentData.content);
-        expect(new Date(createdComment.createdAt)).lessThan(new Date());
-        expect(new Date(createdComment.updatedAt)).lessThan(new Date());
+        expect(resBody).toBeTypeOf('object');
+        expect(resBody.postId).toStrictEqual(dbPost.id);
+        expect(resBody.authorId).toStrictEqual(signedInUserData.user.id);
+        expect(resBody.content).toStrictEqual(commentData.content);
+        expect(new Date(resBody.createdAt)).lessThan(new Date());
+        expect(new Date(resBody.updatedAt)).lessThan(new Date());
       }
     });
   });
@@ -1418,19 +1417,19 @@ describe('Posts endpoint', async () => {
         await createPost(privatePostData),
       ]) {
         const cId = getCommentId(dbPost, signedInUserData.user.id);
+        const content = 'test comment content';
         const res = await authorizedApi
           .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)
-          .send(commentData);
-        const resBody = res.body as PostFullData;
-        const createdComment = resBody.comments.reverse().at(-1) as Comment;
+          .send({ ...commentData, content });
+        const resBody = res.body as Comment;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(createdComment).toBeTypeOf('object');
-        expect(createdComment.postId).toStrictEqual(dbPost.id);
-        expect(createdComment.authorId).toStrictEqual(signedInUserData.user.id);
-        expect(createdComment.content).toStrictEqual(commentData.content);
-        expect(new Date(createdComment.createdAt)).lessThan(new Date());
-        expect(new Date(createdComment.updatedAt)).lessThan(new Date());
+        expect(resBody).toBeTypeOf('object');
+        expect(resBody.content).toStrictEqual(content);
+        expect(resBody.postId).toStrictEqual(dbPost.id);
+        expect(resBody.authorId).toStrictEqual(signedInUserData.user.id);
+        expect(new Date(resBody.createdAt)).lessThan(new Date());
+        expect(new Date(resBody.updatedAt)).lessThan(new Date());
       }
     });
   });
@@ -1440,36 +1439,36 @@ describe('Posts endpoint', async () => {
     createTestsForDeletingPostOrComment(true)
   );
 
-  const createTestsForUpAndDownVoting = (forDownVoting = false) => {
+  const createTestsForVoting = (action: 'upvote' | 'downvote' | 'unvote') => {
     return async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
         userOneData
       );
 
-      const postDataToVote = forDownVoting
+      const downOrUnvoting = action === 'downvote' || action === 'unvote';
+
+      const postDataToVote = downOrUnvoting
         ? {
             ...postDataOutput,
             authorId: dbUserTwo.id,
-            votes: [{ userId: signedInUserData.user.id }],
+            votes: [{ userId: signedInUserData.user.id, isUpvote: true }],
           }
         : { ...postDataOutput, authorId: dbUserTwo.id };
 
-      const VERB = forDownVoting ? 'downvote' : 'upvote';
-
-      it(`should not ${VERB} the post and respond with 401 on a request without JWT`, async () => {
+      it(`should not ${action} the post and respond with 401 on a request without JWT`, async () => {
         const dbPost = await createPost(postDataToVote);
-        const res = await api.post(`${POSTS_URL}/${dbPost.id}/${VERB}`);
+        const res = await api.post(`${POSTS_URL}/${dbPost.id}/${action}`);
         const votedDBPost = await db.post.findUnique({
           where: { id: dbPost.id },
           include: { votes: true },
         });
         expect(res.statusCode).toBe(401);
         expect(res.body).toStrictEqual({});
-        expect(votedDBPost?.votes.length).toBe(forDownVoting ? 1 : 0);
+        expect(votedDBPost?.votes.length).toBe(downOrUnvoting ? 1 : 0);
       });
 
       it('should respond with 400 on invalid post id', async () => {
-        const res = await authorizedApi.post(`${POSTS_URL}/123/${VERB}`);
+        const res = await authorizedApi.post(`${POSTS_URL}/123/${action}`);
         assertInvalidIdErrorRes(res);
       });
 
@@ -1477,7 +1476,7 @@ describe('Posts endpoint', async () => {
         const dbPost = await createPost(postDataToVote);
         await db.post.delete({ where: { id: dbPost.id } });
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         assertNotFoundErrorRes(res);
       });
@@ -1488,15 +1487,15 @@ describe('Posts endpoint', async () => {
           published: false,
         });
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         assertNotFoundErrorRes(res);
       });
 
-      it(`should ${VERB} the post and respond with 200`, async () => {
+      it(`should ${action} the post and respond with 200`, async () => {
         const dbPost = await createPost(postDataToVote);
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         const resBody = res.body as PostFullData;
         const votedDBPost = await db.post.findUnique({
@@ -1504,24 +1503,41 @@ describe('Posts endpoint', async () => {
           include: { votes: true },
         });
         expect(res.statusCode).toBe(200);
-        if (forDownVoting) {
+        if (action === 'unvote') {
           expect(resBody.votes.length).toBe(0);
           expect(votedDBPost?.votes.length).toBe(0);
+        } else if (action === 'downvote') {
+          expect(resBody.votes.length).toBe(1);
+          expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(false);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(false);
+          expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
+          expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         } else {
           expect(resBody.votes.length).toBe(1);
           expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(true);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(true);
           expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
           expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         }
       });
 
-      it(`should do nothing and respond with 200 if the posted already ${VERB}d by the same user`, async () => {
+      it(`should do nothing and respond with 200 if the posted already ${action}d by the same user`, async () => {
         const dbPost = await createPost({
           ...postDataToVote,
-          votes: forDownVoting ? [] : [{ userId: signedInUserData.user.id }],
+          votes:
+            action === 'unvote'
+              ? []
+              : [
+                  {
+                    userId: signedInUserData.user.id,
+                    isUpvote: action === 'upvote',
+                  },
+                ],
         });
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         const resBody = res.body as PostFullData;
         const votedDBPost = await db.post.findUnique({
@@ -1529,12 +1545,21 @@ describe('Posts endpoint', async () => {
           include: { votes: true },
         });
         expect(res.statusCode).toBe(200);
-        if (forDownVoting) {
+        if (action === 'unvote') {
           expect(resBody.votes.length).toBe(0);
           expect(votedDBPost?.votes.length).toBe(0);
+        } else if (action === 'downvote') {
+          expect(resBody.votes.length).toBe(1);
+          expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(false);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(false);
+          expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
+          expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         } else {
           expect(resBody.votes.length).toBe(1);
           expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(true);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(true);
           expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
           expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         }
@@ -1542,12 +1567,11 @@ describe('Posts endpoint', async () => {
     };
   };
 
-  describe(`POST ${POSTS_URL}/:id/upvote`, createTestsForUpAndDownVoting());
+  describe(`POST ${POSTS_URL}/:id/upvote`, createTestsForVoting('upvote'));
 
-  describe(
-    `POST ${POSTS_URL}/:id/downvote`,
-    createTestsForUpAndDownVoting(true)
-  );
+  describe(`POST ${POSTS_URL}/:id/unvote`, createTestsForVoting('unvote'));
+
+  describe(`POST ${POSTS_URL}/:id/downvote`, createTestsForVoting('downvote'));
 
   describe(`GET ${POSTS_URL}/:id/votes`, () => {
     it('should respond with 400 on invalid post id', async () => {
