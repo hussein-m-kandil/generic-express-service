@@ -155,7 +155,6 @@ describe('Users endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toHaveLength(2);
-      users.reverse();
       expect(users[1].username).toBe(userData.username);
       expect(users[1].fullname).toBe(userData.fullname);
       await db.user.delete({ where: { id: dbUser.id } });

@@ -90,6 +90,7 @@ export const findFilteredPosts = async (
         : {}),
     },
   };
+  filters.sort = filters.sort ?? 'desc';
   return operation === 'count'
     ? await Utils.handleDBKnownErrors(db.post.count({ where }))
     : await Utils.handleDBKnownErrors(

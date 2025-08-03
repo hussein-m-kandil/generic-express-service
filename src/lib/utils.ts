@@ -134,7 +134,7 @@ export const getPaginationArgs = (
   take = 3
 ) => {
   return {
-    orderBy: { order: filters.sort ?? 'desc' },
+    orderBy: { order: filters.sort ?? 'asc' },
     take: filters.limit ?? take,
     ...(filters.cursor
       ? {

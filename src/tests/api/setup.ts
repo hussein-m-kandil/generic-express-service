@@ -190,7 +190,7 @@ export const setup = async (signinUrl: string) => {
       actualPost.categories.map(({ name }) => name.toLowerCase())
     ).toStrictEqual(expectedPost.categories.map((c) => c.toLowerCase()));
     expect(
-      actualPost.comments.reverse().map(({ authorId, content }) => ({
+      actualPost.comments.map(({ authorId, content }) => ({
         authorId,
         content,
       }))

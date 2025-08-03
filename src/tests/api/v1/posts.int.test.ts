@@ -904,7 +904,6 @@ describe('Posts endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
-      resBody.reverse();
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
       expect(
         resBody.map(({ authorId, content }) => ({ authorId, content }))
@@ -935,7 +934,6 @@ describe('Posts endpoint', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
-      resBody.reverse();
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
       expect(
         resBody.map(({ authorId, content }) => ({ authorId, content }))
