@@ -3,6 +3,7 @@ import * as Utils from '@/lib/utils';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
 import db from '@/lib/db';
+import logger from '@/lib/logger';
 
 export const getPrivatePostProtectionArgs = (authorId?: string) => {
   return authorId
@@ -239,14 +240,20 @@ export const deletePost = async (
   const delPostQ = db.post.delete({
     where: { id: post.id, ...getPrivatePostProtectionArgs(authorId) },
   });
-  // Delete the post with its image if both owned by the same user
-  if (post.authorId === post.image?.ownerId) {
-    const sameImagePosts = await Utils.handleDBKnownErrors(
-      db.post.findMany({ where: { imageId: post.image.id } })
-    );
-    // Delete the post with its image if there are no other posts using it
-    if (sameImagePosts.length === 1 && sameImagePosts[0].id === post.id) {
-      const delImgQ = db.image.delete({ where: { id: post.image.id } });
+  if (post.imageId) {
+    // Get the post image with the count of posts connected to it, if its owner is the post author
+    let postImage;
+    try {
+      postImage = await db.image.findUnique({
+        where: { id: post.imageId, ownerId: post.authorId },
+        include: { _count: { select: { Post: true } } },
+      });
+    } catch (error) {
+      logger.log('Expect to found post image', error);
+    }
+    // If the image is connected to this post only, delete it with the post in a single transaction
+    if (postImage && postImage._count.Post === 1) {
+      const delImgQ = db.image.delete({ where: { id: postImage.id } });
       return await Utils.handleDBKnownErrors(
         db.$transaction([delPostQ, delImgQ])
       );

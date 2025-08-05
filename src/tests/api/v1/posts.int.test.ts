@@ -793,11 +793,9 @@ describe('Posts endpoint', async () => {
         });
 
         it(`should delete the post without its image if it is in use on another post`, async () => {
-          const { signedInUserData } = await prepForAuthorizedTest(xUserData);
           await createPost({
             ...postDataToDelete,
             image: dbImgOne.id,
-            authorId: signedInUserData.user.id, // Another user post with same image
           });
           const dbPost = await createPost({
             ...postDataToDelete,
