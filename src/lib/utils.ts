@@ -1,16 +1,16 @@
 import * as Exp from 'express';
 import * as Types from '@/types';
-import * as JWT from 'jsonwebtoken';
 import * as Config from '@/lib/config';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
 import { z } from 'zod';
 import ms from 'ms';
+import jwt from 'jsonwebtoken';
 
 export const createJwtForUser = (user: Types.PublicUser): string => {
   const { id, isAdmin } = user;
   const payload: Types.AppJwtPayload = { id, isAdmin };
-  const token = JWT.sign(payload, Config.SECRET, {
+  const token = jwt.sign(payload, Config.SECRET, {
     expiresIn: Config.TOKEN_EXP_PERIOD as ms.StringValue,
   });
   return `Bearer ${token}`;

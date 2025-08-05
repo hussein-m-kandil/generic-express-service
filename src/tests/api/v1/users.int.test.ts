@@ -14,7 +14,7 @@ import { z } from 'zod';
 import db from '@/lib/db';
 import setup from '../setup';
 import bcrypt from 'bcryptjs';
-import * as JWT from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 
 describe('Users endpoint', async () => {
   const {
@@ -105,7 +105,7 @@ describe('Users endpoint', async () => {
           where: { id: resUser.id },
           omit: { password: false },
         });
-        const resJwtPayload = JWT.decode(
+        const resJwtPayload = jwt.decode(
           resBody.token.replace(/^Bearer /, '')
         ) as User;
         expect(res.type).toMatch(/json/);
