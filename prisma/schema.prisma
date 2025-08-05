@@ -41,41 +41,41 @@ model Comment {
 }
 
 model Post {
-  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order      Int              @unique @default(autoincrement())
-  author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  authorId   String           @map("author_id") @db.Uuid
-  published  Boolean          @default(false)
-  createdAt  DateTime         @default(now()) @map("created_at")
-  updatedAt  DateTime         @updatedAt @map("updated_at")
-  categories CategoryOnPost[]
-  votes      VoteOnPost[]
-  comments   Comment[]
-  content    String
-  title      String
-  image      Image?           @relation(fields: [imageId], references: [id])
-  imageId    String?          @map("image_id") @db.Uuid
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order     Int           @unique @default(autoincrement())
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String        @map("author_id") @db.Uuid
+  published Boolean       @default(false)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  tags      TagsOnPosts[]
+  votes     VoteOnPost[]
+  comments  Comment[]
+  content   String
+  title     String
+  image     Image?        @relation(fields: [imageId], references: [id])
+  imageId   String?       @map("image_id") @db.Uuid
 
   @@map("posts")
 }
 
-model Category {
-  order Int              @unique @default(autoincrement())
-  name  String           @unique
-  posts CategoryOnPost[]
+model Tag {
+  order Int           @unique @default(autoincrement())
+  name  String        @unique
+  posts TagsOnPosts[]
 
-  @@map("categories")
+  @@map("tags")
 }
 
-model CategoryOnPost {
-  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  postId   String   @map("post_id") @db.Uuid
-  category Category @relation(fields: [name], references: [name], onDelete: Cascade)
-  name     String
+model TagsOnPosts {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String @map("post_id") @db.Uuid
+  tag    Tag    @relation(fields: [name], references: [name], onDelete: Cascade)
+  name   String
 
   @@unique([postId, name])
-  @@map("categories_on_posts")
+  @@map("posts_tags")
 }
 
 model VoteOnPost {
@@ -88,7 +88,7 @@ model VoteOnPost {
   isUpvote Boolean @default(true) @map("is_upvote")
 
   @@unique([userId, postId])
-  @@map("votes_on_posts")
+  @@map("posts_votes")
 }
 
 model Image {

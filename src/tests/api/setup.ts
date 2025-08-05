@@ -16,7 +16,7 @@ export const setup = async (signinUrl: string) => {
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
   const deleteAllImages = async () => await db.image.deleteMany({});
-  const deleteAllCategories = async () => await db.category.deleteMany({});
+  const deleteAllTags = async () => await db.tag.deleteMany({});
 
   const createUser = async (data: Prisma.UserCreateInput) => {
     const password = bcrypt.hashSync(data.password, Config.SALT);
@@ -114,7 +114,7 @@ export const setup = async (signinUrl: string) => {
     published: true,
     title: 'Test Post',
     content: 'Test post content...',
-    categories: ['comedy', 'fantasy'],
+    tags: ['comedy', 'fantasy'],
   };
 
   const postFullData = {
@@ -145,9 +145,9 @@ export const setup = async (signinUrl: string) => {
         published: data.published,
         votes: { create: data.votes },
         comments: { create: data.comments },
-        categories: {
-          create: data.categories.map((name) => ({
-            category: {
+        tags: {
+          create: data.tags.map((name) => ({
+            tag: {
               connectOrCreate: { where: { name }, create: { name } },
             },
           })),
@@ -185,10 +185,10 @@ export const setup = async (signinUrl: string) => {
     expect(actualPost.published).toBe(expectedPost.published);
     expect(actualPost.imageId).toStrictEqual(expectedPost.image ?? null);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
-    expect(actualPost.categories.length).toBe(expectedPost.categories.length);
-    expect(
-      actualPost.categories.map(({ name }) => name.toLowerCase())
-    ).toStrictEqual(expectedPost.categories.map((c) => c.toLowerCase()));
+    expect(actualPost.tags.length).toBe(expectedPost.tags.length);
+    expect(actualPost.tags.map(({ name }) => name.toLowerCase())).toStrictEqual(
+      expectedPost.tags.map((c) => c.toLowerCase())
+    );
     expect(
       actualPost.comments.map(({ authorId, content }) => ({
         authorId,
@@ -277,6 +277,7 @@ export const setup = async (signinUrl: string) => {
     createUser,
     createPost,
     createImage,
+    deleteAllTags,
     deleteAllPosts,
     deleteAllUsers,
     assertPostData,
@@ -284,7 +285,6 @@ export const setup = async (signinUrl: string) => {
     assertImageData,
     deleteAllImages,
     createManyImages,
-    deleteAllCategories,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,

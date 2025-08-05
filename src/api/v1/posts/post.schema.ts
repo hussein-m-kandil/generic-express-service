@@ -33,20 +33,17 @@ export const publishedSchema = z.boolean(
   getRequiredAndTypeErrors('Published flag', 'boolean', true)
 );
 
-export const categorySchema = z
-  .string(getRequiredAndTypeErrors('Category'))
-  .trim();
+export const tagSchema = z
+  .string(getRequiredAndTypeErrors('Tag'))
+  .trim()
+  .regex(/^[^\s]*$/, { message: 'A tag cannot have spaces' });
 
-export const categoriesSchema = z
-  .array(categorySchema)
-  .max(7)
-  .transform((categories) => {
+export const tagsSchema = z
+  .array(tagSchema)
+  .max(7, { message: 'Expect maximum of 7 tags' })
+  .transform((tags) => {
     return Array.from(
-      new Set(
-        categories
-          .filter((c) => !!c)
-          .map((c) => `${c[0].toUpperCase()}${c.slice(1).toLowerCase()}`)
-      )
+      new Set(tags.filter((c) => !!c).map((c) => c.toLowerCase()))
     );
   });
 
@@ -57,14 +54,10 @@ export const commentSchema = z.object({
     .nonempty('A comment must have content'),
 });
 
-export const postSchema = z
-  .object({
-    title: titleSchema,
-    image: imageSchema,
-    content: contentSchema,
-    published: publishedSchema.optional(),
-    categories: categoriesSchema.optional(),
-  })
-  .transform((data) => {
-    return { ...data, categories: data.categories ?? [] };
-  });
+export const postSchema = z.object({
+  title: titleSchema,
+  image: imageSchema,
+  content: contentSchema,
+  tags: tagsSchema.default([]),
+  published: publishedSchema.optional(),
+});

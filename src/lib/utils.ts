@@ -71,15 +71,15 @@ export const getAuthorIdFilterFromReqQuery = (req: Exp.Request) => {
   return z.string().uuid().optional().safeParse(req.query.author).data;
 };
 
-export const getCategoriesFilterFromReqQuery = (req: Exp.Request) => {
-  /* E.g. `...?categories=x,y,z`, or `...?categories=x&blah=0&categories=y,z` */
-  const strCatsSchema = z
+export const getTagsFilterFromReqQuery = (req: Exp.Request) => {
+  /* E.g. `...?tags=x,y,z`, or `...?tags=x&blah=0&tags=y,z` */
+  const strTagsSchema = z
     .string()
     .nonempty()
-    .transform((cats) => cats.split(','));
-  return strCatsSchema
-    .or(z.array(strCatsSchema).transform((cats) => cats.flat()))
-    .safeParse(req.query.categories).data;
+    .transform((tags) => tags.split(','));
+  return strTagsSchema
+    .or(z.array(strTagsSchema).transform((tags) => tags.flat()))
+    .safeParse(req.query.tags).data;
 };
 
 export const getPaginationFiltersFromReqQuery = (
@@ -122,10 +122,10 @@ export const getVoteFiltersFromReqQuery = (req: Exp.Request) => {
 export const getPostFiltersFromReqQuery = (
   req: Exp.Request
 ): Types.PostFilters => {
-  // Same as the comments filtration + categories filter
+  // Same as the comments filtration + tags filter
   return {
     ...getCommentFiltersFromReqQuery(req),
-    categories: getCategoriesFilterFromReqQuery(req),
+    tags: getTagsFilterFromReqQuery(req),
   };
 };
 
@@ -154,7 +154,7 @@ export const fieldsToIncludeWithPost = {
   votes: { include: { user: true }, ...getPaginationArgs() },
   comments: { include: { author: true }, ...getPaginationArgs() },
   image: { include: fieldsToIncludeWithImage },
-  categories: true,
+  tags: true,
   author: true,
 };
 

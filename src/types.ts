@@ -71,7 +71,7 @@ export type PostFullData = Prisma.PostGetPayload<{
     comments: { include: { author: OmitUserSensitiveData } };
     votes: { include: { user: OmitUserSensitiveData } };
     author: OmitUserSensitiveData;
-    categories: true;
+    tags: true;
   };
 }>;
 
@@ -92,10 +92,10 @@ export interface PaginationFilters extends BaseFilters {
   limit?: number;
 }
 
-export type CategoriesFilter = string[];
+export type TagsFilter = string[];
 
 export interface PostFilters extends PaginationFilters {
-  categories?: CategoriesFilter;
+  tags?: TagsFilter;
   text?: string;
 }
 

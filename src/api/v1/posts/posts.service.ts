@@ -17,12 +17,12 @@ export const getAggregatePrivatePostProtectionArgs = (authorId?: string) => {
     : { post: { published: true } };
 };
 
-export const getCategories = async (categories?: Types.CategoriesFilter) => {
-  return await db.category.findMany({
-    ...(categories && categories.length > 0
+export const getTags = async (tags?: Types.TagsFilter) => {
+  return await db.tag.findMany({
+    ...(tags && tags.length > 0
       ? {
           where: {
-            OR: categories.map((c) => ({
+            OR: tags.map((c) => ({
               name: { contains: c, mode: 'insensitive' },
             })),
           },
@@ -39,9 +39,9 @@ export const createPost = async (data: Types.NewPostAuthorizedData) => {
       content: data.content,
       authorId: data.authorId,
       published: data.published,
-      categories: {
-        create: data.categories.map((name) => ({
-          category: {
+      tags: {
+        create: data.tags.map((name) => ({
+          tag: {
             connectOrCreate: { where: { name }, create: { name } },
           },
         })),
@@ -49,7 +49,7 @@ export const createPost = async (data: Types.NewPostAuthorizedData) => {
     },
     include: Utils.fieldsToIncludeWithPost,
   });
-  const handlerOptions = { uniqueFieldName: 'category' };
+  const handlerOptions = { uniqueFieldName: 'tag' };
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
@@ -67,7 +67,7 @@ export const findFilteredPosts = async (
   filters: Types.PostFilters = {},
   operation: 'count' | 'findMany' = 'findMany'
 ) => {
-  const { currentUserId, categories, authorId, text } = filters;
+  const { currentUserId, authorId, tags, text } = filters;
   const where: Prisma.PostWhereInput = {
     ...getPrivatePostProtectionArgs(currentUserId),
     AND: {
@@ -80,13 +80,9 @@ export const findFilteredPosts = async (
             ]
           : [],
       },
-      ...(categories
+      ...(tags
         ? {
-            categories: {
-              some: {
-                name: { in: categories, mode: 'insensitive' },
-              },
-            },
+            tags: { some: { name: { in: tags, mode: 'insensitive' } } },
           }
         : {}),
     },
@@ -151,7 +147,7 @@ export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
   const dbQuery = (async () =>
     (
       await db.$transaction([
-        db.categoryOnPost.deleteMany({ where: { postId: id } }),
+        db.tagsOnPosts.deleteMany({ where: { postId: id } }),
         db.post.update({
           where: { id },
           data: {
@@ -159,11 +155,9 @@ export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
             imageId: data.image,
             content: data.content,
             published: data.published,
-            categories: {
-              create: data.categories.map((name) => ({
-                category: {
-                  connectOrCreate: { where: { name }, create: { name } },
-                },
+            tags: {
+              create: data.tags.map((name) => ({
+                tag: { connectOrCreate: { where: { name }, create: { name } } },
               })),
             },
           },
@@ -173,7 +167,7 @@ export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
     )[1])();
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
-    uniqueFieldName: 'category',
+    uniqueFieldName: 'tag',
   };
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
@@ -326,29 +320,26 @@ export const findCommentAndDelete = async (
   await Utils.handleDBKnownErrors(dbQuery);
 };
 
-export const findPostCategories = async (postId: string, authorId?: string) => {
+export const findPostTags = async (postId: string, authorId?: string) => {
   return Utils.handleDBKnownErrors(
-    db.categoryOnPost.findMany({
+    db.tagsOnPosts.findMany({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );
 };
 
-export const countPostsCategoriesByPostsAuthorId = async (authorId: string) => {
-  const dbQuery = db.categoryOnPost.findMany({
+export const countPostsTagsByPostsAuthorId = async (authorId: string) => {
+  const dbQuery = db.tagsOnPosts.findMany({
     where: { post: { authorId } },
     distinct: ['name'],
   });
-  const postDistinctCategories = await Utils.handleDBKnownErrors(dbQuery);
-  return postDistinctCategories.length;
+  const postDistinctTags = await Utils.handleDBKnownErrors(dbQuery);
+  return postDistinctTags.length;
 };
 
-export const countPostCategories = async (
-  postId: string,
-  authorId?: string
-) => {
+export const countPostTags = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
-    db.categoryOnPost.count({
+    db.tagsOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );

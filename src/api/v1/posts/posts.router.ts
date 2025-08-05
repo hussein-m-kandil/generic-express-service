@@ -54,9 +54,9 @@ postsRouter.get(
   }
 );
 
-postsRouter.get('/categories', async (req, res) => {
-  const categoriesFilter = Utils.getCategoriesFilterFromReqQuery(req);
-  res.json(await Service.getCategories(categoriesFilter));
+postsRouter.get('/tags', async (req, res) => {
+  const tagsFilter = Utils.getTagsFilterFromReqQuery(req);
+  res.json(await Service.getTags(tagsFilter));
 });
 
 postsRouter.get(
@@ -77,17 +77,11 @@ postsRouter.get(
   }
 );
 
-postsRouter.get(
-  '/categories/count',
-  Validators.authValidator,
-  async (req, res) => {
-    const user = req.user as Types.PublicUser;
-    const categoriesCount = await Service.countPostsCategoriesByPostsAuthorId(
-      user.id
-    );
-    res.json(categoriesCount);
-  }
-);
+postsRouter.get('/tags/count', Validators.authValidator, async (req, res) => {
+  const user = req.user as Types.PublicUser;
+  const tagsCount = await Service.countPostsTagsByPostsAuthorId(user.id);
+  res.json(tagsCount);
+});
 
 postsRouter.get(
   '/comments/count',
@@ -118,8 +112,8 @@ postsRouter.get(
 );
 
 postsRouter.get(
-  '/:id/categories',
-  createHandlersForGettingPrivatePostData(Service.findPostCategories)
+  '/:id/tags',
+  createHandlersForGettingPrivatePostData(Service.findPostTags)
 );
 
 postsRouter.get(
@@ -145,8 +139,8 @@ postsRouter.get(
 );
 
 postsRouter.get(
-  '/:id/categories/count',
-  createHandlersForGettingPrivatePostData(Service.countPostCategories)
+  '/:id/tags/count',
+  createHandlersForGettingPrivatePostData(Service.countPostTags)
 );
 
 postsRouter.get(

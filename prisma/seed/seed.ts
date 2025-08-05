@@ -25,15 +25,15 @@ const titles = [
 const postCount = titles.length;
 
 const categories = [
-  'Open Source',
-  'Full Stack',
-  'JavaScript',
-  'TypeScript',
-  'Security',
-  'Frontend',
-  'Software',
-  'Testing',
-  'Backend',
+  'open_source',
+  'full_stack',
+  'javaScript',
+  'typeScript',
+  'security',
+  'frontend',
+  'software',
+  'testing',
+  'backend',
 ];
 
 export async function seed() {
@@ -41,11 +41,11 @@ export async function seed() {
   await db.$transaction([
     db.comment.deleteMany({}),
     db.voteOnPost.deleteMany({}),
-    db.categoryOnPost.deleteMany({}),
-    db.category.deleteMany({}),
+    db.tagsOnPosts.deleteMany({}),
     db.post.deleteMany({}),
     db.image.deleteMany({}),
     db.user.deleteMany({}),
+    db.tag.deleteMany({}),
   ]);
 
   console.log('Creating the author account...');
@@ -115,11 +115,9 @@ export async function seed() {
         imageId: dbImages[i].id,
         authorId: dbPostAuthor.id,
         content: faker.lorem.paragraphs(faker.number.int({ min: 10, max: 15 })),
-        categories: {
+        tags: {
           create: randomCategories.map((name) => ({
-            category: {
-              connectOrCreate: { where: { name }, create: { name } },
-            },
+            tag: { connectOrCreate: { where: { name }, create: { name } } },
           })),
         },
       },

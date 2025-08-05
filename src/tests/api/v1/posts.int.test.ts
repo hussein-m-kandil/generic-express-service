@@ -1,9 +1,4 @@
-import {
-  Comment,
-  Category,
-  VoteOnPost,
-  CategoryOnPost,
-} from '@/../prisma/client';
+import { Tag, Comment, VoteOnPost, TagsOnPosts } from '@/../prisma/client';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { PostFullData, PublicImage } from '@/types';
 import { POSTS_URL, SIGNIN_URL } from './utils';
@@ -30,10 +25,10 @@ describe('Posts endpoint', async () => {
     signin,
     createPost,
     createImage,
+    deleteAllTags,
     assertPostData,
     deleteAllPosts,
     deleteAllUsers,
-    deleteAllCategories,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
@@ -44,7 +39,7 @@ describe('Posts endpoint', async () => {
 
   beforeEach(async () => {
     await deleteAllPosts();
-    await deleteAllCategories();
+    await deleteAllTags();
     dbImgOne = await createImage(imgOne);
   });
 
@@ -124,19 +119,19 @@ describe('Posts endpoint', async () => {
         ...postFullData,
         title: 'Cool dog',
         content: 'Woof, woof, ...',
-        categories: ['foo', 'bar'],
+        tags: ['foo', 'bar'],
       };
       const mockPostTwo = {
         ...postFullData,
         title: 'Lazy cat',
         content: 'Meow, meow, ...',
-        categories: ['foo', 'tar'],
+        tags: ['foo', 'tar'],
       };
       const mockPostThree = {
         ...postFullData,
         title: 'Good bird',
         content: 'Sew, sew, ...',
-        categories: ['baz'],
+        tags: ['baz'],
       };
       await createPost(mockPostOne);
       await createPost(mockPostTwo);
@@ -171,66 +166,56 @@ describe('Posts endpoint', async () => {
       assertPostData(resBody[0], mockPostOne);
     });
 
-    it('should respond with an array of posts based on search by comma-separated categories', async () => {
+    it('should respond with an array of posts based on search by comma-separated tags', async () => {
       await populateDBForSearch();
-      const res = await api.get(`${POSTS_URL}?categories=tar,baz`);
+      const res = await api.get(`${POSTS_URL}?tags=tar,baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.name)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resCategories.length).toBe(3);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('tar');
-      expect(resCategories).toContain('baz');
+      expect(resTags.length).toBe(3);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('tar');
+      expect(resTags).toContain('baz');
     });
 
-    it('should respond with an array of posts based on search by separated categories', async () => {
+    it('should respond with an array of posts based on search by separated tags', async () => {
       await populateDBForSearch();
-      const res = await api.get(`${POSTS_URL}?categories=bar&categories=baz`);
+      const res = await api.get(`${POSTS_URL}?tags=bar&tags=baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.name)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resCategories.length).toBe(3);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('bar');
-      expect(resCategories).toContain('baz');
+      expect(resTags.length).toBe(3);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('bar');
+      expect(resTags).toContain('baz');
     });
 
-    it('should respond with an array of posts based on search by mixed categories', async () => {
+    it('should respond with an array of posts based on search by mixed tags', async () => {
       await populateDBForSearch();
-      const res = await api.get(
-        `${POSTS_URL}?categories=bar,tar&categories=baz`
-      );
+      const res = await api.get(`${POSTS_URL}?tags=bar,tar&tags=baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.name)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(3);
-      expect(resCategories.length).toBe(5);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('bar');
-      expect(resCategories).toContain('tar');
-      expect(resCategories).toContain('baz');
+      expect(resTags.length).toBe(5);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('bar');
+      expect(resTags).toContain('tar');
+      expect(resTags).toContain('baz');
     });
 
-    it('should respond with an array of posts based on search by categories and title', async () => {
+    it('should respond with an array of posts based on search by tags and title', async () => {
       await populateDBForSearch();
-      const res = await api.get(`${POSTS_URL}?q=cat&categories=tar,baz`);
+      const res = await api.get(`${POSTS_URL}?q=cat&tags=tar,baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.name)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
-      expect(resCategories.length).toBe(2);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('tar');
+      expect(resTags.length).toBe(2);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('tar');
     });
   });
 
@@ -377,16 +362,16 @@ describe('Posts endpoint', async () => {
           expect(res.body).toStrictEqual({});
         });
 
-        it('should update the categories', async () => {
-          const categories = ['misty'];
-          const res = await sendRequest({ ...postDataToUpdate, categories });
+        it('should update the tags', async () => {
+          const tags = ['misty'];
+          const res = await sendRequest({ ...postDataToUpdate, tags });
           const resBody = res.body as PostFullData;
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(
             await db.post.findUnique({ where: { id: resBody.id } })
           ).not.toBeNull();
-          assertPostData(resBody, { ...postDataToUpdate, categories });
+          assertPostData(resBody, { ...postDataToUpdate, tags });
         });
       }
 
@@ -406,29 +391,29 @@ describe('Posts endpoint', async () => {
         expect(resBody[0].message).toMatch(/content|body/i);
       });
 
-      it(`should ${VERB} a post even with duplicated categories but not save duplication`, async () => {
-        const categories = [
-          ...postDataInput.categories.map((c) => c.toLowerCase()),
-          ...postDataInput.categories.map((c) => c.toUpperCase()),
+      it(`should ${VERB} a post even with duplicated tags but not save duplication`, async () => {
+        const tags = [
+          ...postDataInput.tags.map((c) => c.toLowerCase()),
+          ...postDataInput.tags.map((c) => c.toUpperCase()),
         ];
-        const res = await sendRequest({ ...postDataInput, categories });
+        const res = await sendRequest({ ...postDataInput, tags });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
         expect(res.type).toMatch(/json/);
         expect(
           await db.post.findUnique({ where: { id: resBody.id } })
         ).not.toBeNull();
-        expect(resBody.categories).toHaveLength(categories.length / 2);
+        expect(resBody.tags).toHaveLength(tags.length / 2);
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
         });
       });
 
-      it(`should ${VERB} a post even without categories`, async () => {
+      it(`should ${VERB} a post even without tags`, async () => {
         const res = await sendRequest({
           ...postDataInput,
-          categories: undefined,
+          tags: undefined,
         });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
@@ -439,7 +424,7 @@ describe('Posts endpoint', async () => {
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
-          categories: [],
+          tags: [],
         });
       });
 
@@ -458,10 +443,10 @@ describe('Posts endpoint', async () => {
         });
       });
 
-      it(`should ${VERB} a post with all categories converted to lowercase`, async () => {
+      it(`should ${VERB} a post with all tags converted to lowercase`, async () => {
         const res = await sendRequest({
           ...postDataInput,
-          categories: postDataInput.categories.map((c) => c.toUpperCase()),
+          tags: postDataInput.tags.map((c) => c.toUpperCase()),
         });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
@@ -472,16 +457,16 @@ describe('Posts endpoint', async () => {
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
-          categories: postDataOutput.categories.map((c) => c.toLowerCase()),
+          tags: postDataOutput.tags.map((c) => c.toLowerCase()),
         });
       });
 
-      it(`should not ${VERB} a post with more than 7 categories`, async () => {
+      it(`should not ${VERB} a post with more than 7 tags`, async () => {
         const res = await sendRequest({
           ...postDataInput,
-          categories: Array.from({ length: 8 }).map((_, i) => `Cat ${i}`),
+          tags: Array.from({ length: 8 }).map((_, i) => `Cat_${i}`),
         });
-        assertResponseWithValidationError(res, 'categories');
+        assertResponseWithValidationError(res, 'tags');
       });
 
       it(`should ${VERB} a post with an image`, async () => {
@@ -817,38 +802,36 @@ describe('Posts endpoint', async () => {
 
   describe(`DELETE ${POSTS_URL}/:id`, createTestsForDeletingPostOrComment());
 
-  describe(`GET ${POSTS_URL}/categories`, () => {
-    it('should respond with 200 and an array of categories', async () => {
+  describe(`GET ${POSTS_URL}/tags`, () => {
+    it('should respond with 200 and an array of tags', async () => {
       await createPost(postFullData);
-      const res = await api.get(`${POSTS_URL}/categories`);
-      const resBody = res.body as Category[];
+      const res = await api.get(`${POSTS_URL}/tags`);
+      const resBody = res.body as Tag[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(res.body)).toBe(true);
-      postFullData.categories.forEach((category, i) => {
+      postFullData.tags.forEach((tag, i) => {
         // eslint-disable-next-line security/detect-object-injection
-        expect(resBody[i].name.toLowerCase()).toStrictEqual(
-          category.toLowerCase()
-        );
+        expect(resBody[i].name.toLowerCase()).toStrictEqual(tag.toLowerCase());
       });
     });
 
-    it('should respond an array of filtered categories', async () => {
-      const categories = ['123', '765', '45'];
-      await createPost({ ...postFullData, categories });
+    it('should respond an array of filtered tags', async () => {
+      const tags = ['123', '765', '45'];
+      await createPost({ ...postFullData, tags });
       const urls = [
-        `${POSTS_URL}/categories?categories=2,7`,
-        `${POSTS_URL}/categories?categories=2&blah=foo&categories=7`,
+        `${POSTS_URL}/tags?tags=2,7`,
+        `${POSTS_URL}/tags?tags=2&blah=foo&tags=7`,
       ];
       for (const url of urls) {
         const res = await api.get(url);
-        const resBody = res.body as Category[];
+        const resBody = res.body as Tag[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(Array.isArray(res.body)).toBe(true);
-        categories.slice(0, 2).forEach((category, i) => {
+        tags.slice(0, 2).forEach((tag, i) => {
           // eslint-disable-next-line security/detect-object-injection
-          expect(resBody[i].name).toStrictEqual(category);
+          expect(resBody[i].name).toStrictEqual(tag);
         });
       }
     });
@@ -1010,16 +993,16 @@ describe('Posts endpoint', async () => {
     });
   });
 
-  describe(`GET ${POSTS_URL}/:id/categories`, () => {
+  describe(`GET ${POSTS_URL}/:id/tags`, () => {
     it('should respond with 400 on invalid postId', async () => {
-      const res = await api.get(`${POSTS_URL}/123/categories`);
+      const res = await api.get(`${POSTS_URL}/123/tags`);
       assertInvalidIdErrorRes(res);
     });
 
     it('should respond with 404 on id of non-existent post', async () => {
       const dbPost = await createPost(postFullData);
       await db.post.delete({ where: { id: dbPost.id } });
-      const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
+      const res = await api.get(`${POSTS_URL}/${dbPost.id}/tags`);
       expect(res.body).toStrictEqual([]);
     });
 
@@ -1034,12 +1017,12 @@ describe('Posts endpoint', async () => {
         authorId: dbUserTwo.id,
       });
       const res = await api
-        .get(`${POSTS_URL}/${dbPost.id}/categories`)
+        .get(`${POSTS_URL}/${dbPost.id}/tags`)
         .set('Authorization', token);
       expect(res.body).toStrictEqual([]);
     });
 
-    it('should respond with 200 and all private post categories if the JWT for the post author', async () => {
+    it('should respond with 200 and all private post tags if the JWT for the post author', async () => {
       const { token, user } = await signin(
         userOneData.username,
         userOneData.password
@@ -1050,38 +1033,38 @@ describe('Posts endpoint', async () => {
         authorId: user.id,
       });
       const res = await api
-        .get(`${POSTS_URL}/${dbPost.id}/categories`)
+        .get(`${POSTS_URL}/${dbPost.id}/tags`)
         .set('Authorization', token);
-      const resBody = res.body as CategoryOnPost[];
+      const resBody = res.body as TagsOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
-      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.categories);
+      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.tags);
     });
 
     it('should respond with an empty array', async () => {
       const dbPost = await createPost({
         ...postDataOutput,
-        categories: [],
+        tags: [],
         authorId: dbUserOne.id,
       });
-      const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
+      const res = await api.get(`${POSTS_URL}/${dbPost.id}/tags`);
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body).toStrictEqual([]);
     });
 
-    it('should respond with an array of categories for a public post', async () => {
+    it('should respond with an array of tags for a public post', async () => {
       const dbPost = await createPost(postFullData);
-      const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
-      const resBody = res.body as CategoryOnPost[];
+      const res = await api.get(`${POSTS_URL}/${dbPost.id}/tags`);
+      const resBody = res.body as TagsOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
-      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.categories);
+      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.tags);
     });
   });
 
@@ -1713,14 +1696,7 @@ describe('Posts endpoint', async () => {
 
   describe('Counters', async () => {
     const data: Record<string, unknown[]> = {
-      categories: [
-        'comedy',
-        'fantasy',
-        'software',
-        'science',
-        'technology',
-        'web',
-      ],
+      tags: ['comedy', 'fantasy', 'software', 'science', 'technology', 'web'],
       comments: [
         { authorId: dbUserTwo.id, content: 'Nice blog' },
         { authorId: dbUserOne.id, content: 'Thanks a lot' },
@@ -1803,39 +1779,39 @@ describe('Posts endpoint', async () => {
       createTestsForCountingUserCommentsOrVotes('votes')
     );
 
-    describe(`GET ${POSTS_URL}/categories/count`, () => {
+    describe(`GET ${POSTS_URL}/tags/count`, () => {
       it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/categories/count`);
+        const res = await api.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(401);
         expect(res.body).toStrictEqual({});
       });
 
-      it('should respond with the count of categories for the current signed-in user', async () => {
+      it('should respond with the count of tags for the current signed-in user', async () => {
         await createPost({ ...postFullData, authorId: dbUserOne.id });
         await createPost({ ...postFullData, authorId: dbUserOne.id });
         await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const distinctCategories = new Set(postFullData.categories);
-        const res = await authorizedApi.get(`${POSTS_URL}/categories/count`);
+        const distinctTags = new Set(postFullData.tags);
+        const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(distinctCategories.size);
+        expect(res.body).toStrictEqual(distinctTags.size);
       });
 
-      it('should respond with 0 if the current signed-in user do not have any post categories', async () => {
+      it('should respond with 0 if the current signed-in user do not have any post tags', async () => {
         await createPost({
           ...postDataOutput,
-          categories: [],
+          tags: [],
           authorId: dbUserOne.id,
         });
         await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/categories/count`);
+        const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(res.body).toStrictEqual(0);
       });
     });
 
-    const createTestsForCountingPostCommentsOrCatsOrVotes = (type: string) => {
+    const createTestsForCountingPostCommentsOrTagsOrVotes = (type: string) => {
       return () => {
         it('should respond with 400 on invalid post id', async () => {
           const res = await api.get(`${POSTS_URL}/blahblah/${type}/count`);
@@ -1930,18 +1906,18 @@ describe('Posts endpoint', async () => {
     };
 
     describe(
-      `GET ${POSTS_URL}/:id/categories/count`,
-      createTestsForCountingPostCommentsOrCatsOrVotes('categories')
+      `GET ${POSTS_URL}/:id/tags/count`,
+      createTestsForCountingPostCommentsOrTagsOrVotes('tags')
     );
 
     describe(
       `GET ${POSTS_URL}/:id/comments/count`,
-      createTestsForCountingPostCommentsOrCatsOrVotes('comments')
+      createTestsForCountingPostCommentsOrTagsOrVotes('comments')
     );
 
     describe(
       `GET ${POSTS_URL}/:id/votes/count`,
-      createTestsForCountingPostCommentsOrCatsOrVotes('votes')
+      createTestsForCountingPostCommentsOrTagsOrVotes('votes')
     );
   });
 
