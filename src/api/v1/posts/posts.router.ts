@@ -1,36 +1,25 @@
-import {
-  authValidator,
-  createOwnerValidator,
-  optionalAuthValidator,
-  createAdminOrOwnerValidator,
-} from '../../../middlewares/validators';
-import {
-  findFilteredPosts,
-  findFilteredVotes,
-  findFilteredComments,
-  getSignedInUserIdFromReqQuery,
-  getPostFilterOptionsFromReqQuery,
-  getVoteFilterOptionsFromReqQuery,
-  getCommentFilterOptionsFromReqQuery,
-} from '../../../lib/helpers';
-import { PostFullData, PublicUser } from '../../../types';
-import { postSchema, commentSchema } from './post.schema';
-import { Request, Response, Router } from 'express';
-import postsService from './posts.service';
+import * as Exp from 'express';
+import * as Types from '@/types';
+import * as Utils from '@/lib/utils';
+import * as Schema from './post.schema';
+import * as Service from './posts.service';
+import * as Validators from '@/middlewares/validators';
+
+export const postsRouter = Exp.Router();
 
 const getPostAuthorIdAndInjectPostInResLocals = async (
-  req: Request,
-  res: Response
+  req: Exp.Request,
+  res: Exp.Response
 ) => {
-  const userId = getSignedInUserIdFromReqQuery(req);
-  const post = await postsService.findPostByIdOrThrow(req.params.id, userId);
+  const userId = Utils.getCurrentUserIdFromReq(req);
+  const post = await Service.findPostByIdOrThrow(req.params.id, userId);
   res.locals.post = post;
   return post.authorId;
 };
 
-const getCommentAuthorId = async (req: Request) => {
-  const userId = getSignedInUserIdFromReqQuery(req);
-  const comment = await postsService.findPostCommentByCompoundIdOrThrow(
+const getCommentAuthorId = async (req: Exp.Request) => {
+  const userId = Utils.getCurrentUserIdFromReq(req);
+  const comment = await Service.findPostCommentByCompoundIdOrThrow(
     req.params.pId,
     req.params.cId,
     userId
@@ -42,107 +31,130 @@ const createHandlersForGettingPrivatePostData = (
   postService: (postId: string, authorId?: string) => unknown
 ) => {
   return [
-    optionalAuthValidator,
-    async (req: Request, res: Response) => {
-      const userId = getSignedInUserIdFromReqQuery(req);
+    Validators.optionalAuthValidator,
+    async (req: Exp.Request, res: Exp.Response) => {
+      const userId = Utils.getCurrentUserIdFromReq(req);
       res.json(await postService(req.params.id, userId));
     },
   ];
 };
 
-export const postsRouter = Router();
-
-postsRouter.get('/', optionalAuthValidator, async (req, res) => {
-  const filters = getPostFilterOptionsFromReqQuery(req);
-  const posts = await findFilteredPosts(filters);
+postsRouter.get('/', Validators.optionalAuthValidator, async (req, res) => {
+  const filters = Utils.getPostFiltersFromReqQuery(req);
+  const posts = await Service.findFilteredPosts(filters);
   res.json(posts);
 });
 
-postsRouter.get('/count', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const postsCount = await postsService.countPostsByAuthorId(user.id);
-  res.json(postsCount);
-});
+postsRouter.get(
+  '/count',
+  Validators.optionalAuthValidator,
+  async (req, res) => {
+    const filters = Utils.getPostFiltersFromReqQuery(req);
+    res.json(await Service.findFilteredPosts(filters, 'count'));
+  }
+);
 
-postsRouter.get('/categories', async (req, res) => {
-  res.json(await postsService.getAllCategories());
-});
-
-postsRouter.get('/categories/count', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const categoriesCount =
-    await postsService.countPostsCategoriesByPostsAuthorId(user.id);
-  res.json(categoriesCount);
-});
-
-postsRouter.get('/comments/count', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const commentsCount = await postsService.countPostsCommentsByPostsAuthorId(
-    user.id
-  );
-  res.json(commentsCount);
-});
-
-postsRouter.get('/votes/count', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const votesCount = await postsService.countPostsVotesByPostsAuthorId(user.id);
-  res.json(votesCount);
+postsRouter.get('/tags', async (req, res) => {
+  const tagsFilter = Utils.getTagsFilterFromReqQuery(req);
+  res.json(await Service.getTags(tagsFilter));
 });
 
 postsRouter.get(
+  '/comments',
+  Validators.optionalAuthValidator,
+  async (req, res) => {
+    const commentsFilter = Utils.getCommentFiltersFromReqQuery(req);
+    res.json(await Service.findFilteredComments(commentsFilter));
+  }
+);
+
+postsRouter.get(
+  '/votes',
+  Validators.optionalAuthValidator,
+  async (req, res) => {
+    const votesFilter = Utils.getVoteFiltersFromReqQuery(req);
+    res.json(await Service.findFilteredVotes(votesFilter));
+  }
+);
+
+postsRouter.get('/tags/count', Validators.authValidator, async (req, res) => {
+  const user = req.user as Types.PublicUser;
+  const tagsCount = await Service.countPostsTagsByPostsAuthorId(user.id);
+  res.json(tagsCount);
+});
+
+postsRouter.get(
+  '/comments/count',
+  Validators.optionalAuthValidator,
+  async (req, res) => {
+    const commentsFilter = Utils.getCommentFiltersFromReqQuery(req);
+    res.json(await Service.findFilteredComments(commentsFilter, 'count'));
+  }
+);
+
+postsRouter.get(
+  '/votes/count',
+  Validators.optionalAuthValidator,
+  async (req, res) => {
+    const votesFilter = Utils.getVoteFiltersFromReqQuery(req);
+    res.json(await Service.findFilteredVotes(votesFilter, 'count'));
+  }
+);
+
+postsRouter.get(
   '/:id',
-  createHandlersForGettingPrivatePostData(postsService.findPostByIdOrThrow)
+  createHandlersForGettingPrivatePostData(Service.findPostByIdOrThrow)
 );
 
 postsRouter.get(
   '/:id/votes/count',
-  createHandlersForGettingPrivatePostData(postsService.countPostVotes)
+  createHandlersForGettingPrivatePostData(Service.countPostVotes)
 );
 
 postsRouter.get(
-  '/:id/categories',
-  createHandlersForGettingPrivatePostData(postsService.findPostCategories)
+  '/:id/tags',
+  createHandlersForGettingPrivatePostData(Service.findPostTags)
 );
 
 postsRouter.get(
   '/:id/comments',
-  optionalAuthValidator,
-  async (req: Request, res: Response) => {
+  Validators.optionalAuthValidator,
+  async (req: Exp.Request, res: Exp.Response) => {
     const postId = req.params.id;
-    const filters = getCommentFilterOptionsFromReqQuery(req);
-    const comments = await findFilteredComments(filters, { postId });
-    res.json(comments);
+    const filters = { ...Utils.getCommentFiltersFromReqQuery(req), postId };
+    res.json(await Service.findFilteredComments(filters));
   }
 );
 
 postsRouter.get(
   '/:id/votes',
-  optionalAuthValidator,
-  async (req: Request, res: Response) => {
-    const postId = req.params.id;
-    const filters = getVoteFilterOptionsFromReqQuery(req);
-    const votes = await findFilteredVotes(filters, { postId });
-    res.json(votes);
+  Validators.optionalAuthValidator,
+  async (req: Exp.Request, res: Exp.Response) => {
+    const filters = {
+      ...Utils.getVoteFiltersFromReqQuery(req),
+      postId: req.params.id,
+    };
+    res.json(await Service.findFilteredVotes(filters));
   }
 );
 
 postsRouter.get(
-  '/:id/categories/count',
-  createHandlersForGettingPrivatePostData(postsService.countPostCategories)
+  '/:id/tags/count',
+  createHandlersForGettingPrivatePostData(Service.countPostTags)
 );
 
 postsRouter.get(
   '/:id/comments/count',
-  createHandlersForGettingPrivatePostData(postsService.countPostComments)
+  createHandlersForGettingPrivatePostData(Service.countPostComments)
 );
 
 postsRouter.get(
   '/:pId/comments/:cId',
-  optionalAuthValidator,
+  Validators.optionalAuthValidator,
   async (req, res) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
+    const userId = Utils.getCurrentUserIdFromReq(req);
     res.json(
-      await postsService.findPostCommentByCompoundIdOrThrow(
+      await Service.findPostCommentByCompoundIdOrThrow(
         req.params.pId,
         req.params.cId,
         userId
@@ -151,86 +163,100 @@ postsRouter.get(
   }
 );
 
-postsRouter.post('/', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const postData = { ...postSchema.parse(req.body), authorId: user.id };
-  const createdPost = await postsService.createPost(postData);
+postsRouter.post('/', Validators.authValidator, async (req, res) => {
+  const user = req.user as Types.PublicUser;
+  const postData = { ...Schema.postSchema.parse(req.body), authorId: user.id };
+  const createdPost = await Service.createPost(postData);
   res.status(201).json(createdPost);
 });
 
-postsRouter.post('/:id/upvote', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const upvotedPost = await postsService.upvotePost(req.params.id, user.id);
+postsRouter.post('/:id/upvote', Validators.authValidator, async (req, res) => {
+  const user = req.user as Types.PublicUser;
+  const upvotedPost = await Service.upvotePost(req.params.id, user.id);
   res.json(upvotedPost);
 });
 
-postsRouter.post('/:id/downvote', authValidator, async (req, res) => {
-  const user = req.user as PublicUser;
-  const downvotedPost = await postsService.downvotePost(req.params.id, user.id);
-  res.json(downvotedPost);
+postsRouter.post(
+  '/:id/downvote',
+  Validators.authValidator,
+  async (req, res) => {
+    const user = req.user as Types.PublicUser;
+    const downvotedPost = await Service.downvotePost(req.params.id, user.id);
+    res.json(downvotedPost);
+  }
+);
+
+postsRouter.post('/:id/unvote', Validators.authValidator, async (req, res) => {
+  const user = req.user as Types.PublicUser;
+  const unvotedPost = await Service.unvotePost(req.params.id, user.id);
+  res.json(unvotedPost);
 });
 
 postsRouter.post(
   '/:id/comments',
-  authValidator,
-  async (req: Request<{ id: string }, unknown, { content: string }>, res) => {
-    const user = req.user as PublicUser;
-    const commentData = commentSchema.parse(req.body);
-    const updatedPost = await postsService.findPostByIdAndCreateComment(
+  Validators.authValidator,
+  async (
+    req: Exp.Request<{ id: string }, unknown, { content: string }>,
+    res
+  ) => {
+    const user = req.user as Types.PublicUser;
+    const commentData = Schema.commentSchema.parse(req.body);
+    const newComment = await Service.findPostByIdAndCreateComment(
       req.params.id,
       user.id,
       commentData
     );
-    res.status(200).json(updatedPost);
+    res.status(200).json(newComment);
   }
 );
 
 postsRouter.put(
   '/:id',
-  authValidator,
-  createAdminOrOwnerValidator(getPostAuthorIdAndInjectPostInResLocals),
+  Validators.authValidator,
+  Validators.createAdminOrOwnerValidator(
+    getPostAuthorIdAndInjectPostInResLocals
+  ),
   async (req, res) => {
-    const postData = postSchema.parse(req.body);
-    const createdPost = await postsService.updatePost(req.params.id, postData);
+    const postData = Schema.postSchema.parse(req.body);
+    const createdPost = await Service.updatePost(req.params.id, postData);
     res.json(createdPost);
   }
 );
 
 postsRouter.put(
   '/:pId/comments/:cId',
-  authValidator,
-  createOwnerValidator(getCommentAuthorId),
+  Validators.authValidator,
+  Validators.createOwnerValidator(getCommentAuthorId),
   async (req, res) => {
-    const user = req.user as PublicUser;
-    const commentData = commentSchema.parse(req.body);
-    const updatedPost = await postsService.findPostCommentByCompoundIdAndUpdate(
-      req.params.pId,
+    const user = req.user as Types.PublicUser;
+    const commentData = Schema.commentSchema.parse(req.body);
+    const updatedComment = await Service.findCommentAndUpdate(
       req.params.cId,
       user.id,
       commentData
     );
-    res.json(updatedPost);
+    res.json(updatedComment);
   }
 );
 
 postsRouter.delete(
   '/:id',
-  authValidator,
-  createAdminOrOwnerValidator(
+  Validators.authValidator,
+  Validators.createAdminOrOwnerValidator(
     async (req, res) => await getPostAuthorIdAndInjectPostInResLocals(req, res)
   ),
-  async (req, res: Response<unknown, { post: PostFullData }>) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
-    await postsService.deletePost(res.locals.post, userId);
+  async (req, res: Exp.Response<unknown, { post: Types.PostFullData }>) => {
+    const userId = Utils.getCurrentUserIdFromReq(req);
+    await Service.deletePost(res.locals.post, userId);
     res.status(204).end();
   }
 );
 
 postsRouter.delete(
   '/:pId/comments/:cId',
-  authValidator,
-  createAdminOrOwnerValidator(async (req, res) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
+  Validators.authValidator,
+  Validators.createAdminOrOwnerValidator(async (req, res) => {
+    const userId = Utils.getCurrentUserIdFromReq(req);
     req.params.id = req.params.pId; // For `getPostAuthorId(req)`
     const postAuthorId = await getPostAuthorIdAndInjectPostInResLocals(
       req,
@@ -241,14 +267,8 @@ postsRouter.delete(
       : await getCommentAuthorId(req);
   }),
   async (req, res) => {
-    const userId = getSignedInUserIdFromReqQuery(req);
-    await postsService.findPostCommentByCompoundIdAndDelete(
-      req.params.pId,
-      req.params.cId,
-      userId
-    );
+    const userId = Utils.getCurrentUserIdFromReq(req);
+    await Service.findCommentAndDelete(req.params.cId, userId);
     res.status(204).end();
   }
 );
-
-export default postsRouter;

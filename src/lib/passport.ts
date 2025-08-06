@@ -1,13 +1,13 @@
-import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
-import { Strategy as LocalStrategy } from 'passport-local';
-import { AppJwtPayload } from '../types';
-import { SECRET } from './config';
-import db from './db';
-import bcrypt from 'bcryptjs';
+import * as Types from '@/types';
+import * as JWT from 'passport-jwt';
+import * as Config from '@/lib/config';
+import * as PassportLocal from 'passport-local';
 import passport from 'passport';
+import bcrypt from 'bcryptjs';
+import db from '@/lib/db';
 
 passport.use(
-  new LocalStrategy(
+  new PassportLocal.Strategy(
     {
       usernameField: 'username',
       passwordField: 'password',
@@ -34,12 +34,12 @@ passport.use(
 );
 
 passport.use(
-  new JwtStrategy(
+  new JWT.Strategy(
     {
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: SECRET,
+      jwtFromRequest: JWT.ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKey: Config.SECRET,
     },
-    (jwtPayload: AppJwtPayload, done) => {
+    (jwtPayload: Types.AppJwtPayload, done) => {
       const { id } = jwtPayload;
       db.user
         .findUnique({ where: { id } })
@@ -52,4 +52,5 @@ passport.use(
   )
 );
 
+export { passport };
 export default passport;

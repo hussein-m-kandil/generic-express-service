@@ -1,12 +1,12 @@
-import { PrismaClient } from '../../prisma/generated/client';
-import { CustomPrismaClient } from '../types';
-import logger from './logger';
+import { PrismaClient } from '@/../prisma/client';
+import logger from '@/lib/logger';
+import * as Types from '@/types';
 
 const globalForPrisma = global as typeof globalThis & {
-  prisma: CustomPrismaClient | undefined;
+  prisma: Types.CustomPrismaClient | undefined;
 };
 
-export let prismaClient: CustomPrismaClient;
+export let prismaClient: Types.CustomPrismaClient;
 
 logger.info(`using prisma client in ${process.env.NODE_ENV} mode`);
 

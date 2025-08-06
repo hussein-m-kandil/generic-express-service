@@ -1,51 +1,45 @@
-import {
-  supabase,
-  SUPABASE_BUCKET,
-  STORAGE_ROOT_DIR,
-  SUPABASE_BUCKET_URL,
-} from '../../../lib/config';
-import {
-  handleDBKnownErrors,
-  fieldsToIncludeWithImage,
-} from '../../../lib/helpers';
-import {
-  ImageFile,
-  PublicUser,
-  PublicImage,
-  ImageMetadata,
-  FullImageData,
-  ImageDataInput,
-} from '../../../types';
-import { AppError, AppNotFoundError } from '../../../lib/app-error';
-import { Image } from '../../../../prisma/generated/client';
-import { Request, Response } from 'express';
-import db from '../../../lib/db';
+import * as Exp from 'express';
+import * as Types from '@/types';
+import * as Utils from '@/lib/utils';
+import * as Config from '@/lib/config';
+import * as AppError from '@/lib/app-error';
+import { Image } from '@/../prisma/client';
+import db from '@/lib/db';
 import sharp from 'sharp';
 
-const include = fieldsToIncludeWithImage;
+const include = Utils.fieldsToIncludeWithImage;
 const notFoundErrMsg = 'image not found';
 
-export const getAllImages = async (): Promise<PublicImage[]> => {
-  const dbQuery = db.image.findMany({ include });
-  return await handleDBKnownErrors(dbQuery);
+export const getAllImages = async (
+  filters?: Types.PaginationFilters
+): Promise<Types.PublicImage[]> => {
+  const dbQuery = db.image.findMany({
+    include,
+    ...(filters ? Utils.getPaginationArgs(filters) : {}),
+  });
+  return await Utils.handleDBKnownErrors(dbQuery);
 };
 
-export const findImageById = async (id: string): Promise<PublicImage> => {
+export const findImageById = async (id: string): Promise<Types.PublicImage> => {
   const dbQuery = db.image.findUnique({ where: { id }, include });
-  const image = await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
-  if (!image) throw new AppNotFoundError(notFoundErrMsg);
+  const image = await Utils.handleDBKnownErrors(dbQuery, { notFoundErrMsg });
+  if (!image) throw new AppError.AppNotFoundError(notFoundErrMsg);
   return image;
 };
 
 export const getValidImageFileFormReq = async (
-  req: Request & { file?: Express.Multer.File }
-): Promise<ImageFile> => {
+  req: Exp.Request & { file?: Express.Multer.File }
+): Promise<Types.ImageFile> => {
   if (req.file) {
     let metadata: sharp.Metadata;
     try {
       metadata = await sharp(req.file.buffer).metadata();
     } catch {
-      throw new AppError('Invalid image file', 400, 'InvalidImageError');
+      throw new AppError.AppBaseError(
+        'Invalid image file',
+        400,
+        'InvalidImageError'
+      );
     }
     const { format, width, height } = metadata;
     const mimetype = `image/${format}`;
@@ -59,21 +53,29 @@ export const getValidImageFileFormReq = async (
           return '.webp';
         default: {
           const message = 'Unsupported image type (expect png, jpg, or webp)';
-          throw new AppError(message, 400, 'UnsupportedImageTypeError');
+          throw new AppError.AppBaseError(
+            message,
+            400,
+            'UnsupportedImageTypeError'
+          );
         }
       }
     })();
     return { ...req.file, mimetype, format, width, height, ext };
   }
-  throw new AppError('image is required', 400, 'FileNotExistError');
+  throw new AppError.AppBaseError(
+    'image is required',
+    400,
+    'FileNotExistError'
+  );
 };
 
 export const uploadImage = async (
-  imageFile: ImageFile,
-  user: PublicUser,
+  imageFile: Types.ImageFile,
+  user: Types.PublicUser,
   imageData?: Image
 ) => {
-  let bucket = SUPABASE_BUCKET,
+  let bucket = Config.SUPABASE_BUCKET,
     upsert = false,
     filePath: string;
   if (imageData) {
@@ -84,15 +86,15 @@ export const uploadImage = async (
   } else {
     const randomSuffix = Math.round(Math.random() * Date.now()) % 10 ** 8;
     const uniqueFileName = `${user.id}-${randomSuffix}${imageFile.ext}`;
-    filePath = `${STORAGE_ROOT_DIR}/${user.username}/${uniqueFileName}`;
+    filePath = `${Config.STORAGE_ROOT_DIR}/${user.username}/${uniqueFileName}`;
   }
-  const { data, error } = await supabase.storage
+  const { data, error } = await Config.supabase.storage
     .from(bucket)
     .upload(filePath, imageFile.buffer, {
       contentType: imageFile.mimetype,
       upsert,
     });
-  if (error) throw new AppError(error.message, 500, error.name);
+  if (error) throw new AppError.AppBaseError(error.message, 500, error.name);
   return data;
 };
 
@@ -101,16 +103,16 @@ export const getImageMetadata = ({
   width,
   height,
   size,
-}: ImageFile): ImageMetadata => {
+}: Types.ImageFile): Types.ImageMetadata => {
   return { mimetype, width, height, size };
 };
 
 export const saveImage = async (
   uploadImageRes: Awaited<ReturnType<typeof uploadImage>>,
-  data: FullImageData,
-  user: PublicUser
-): Promise<PublicImage> => {
-  const src = `${SUPABASE_BUCKET_URL}/${uploadImageRes.path}`;
+  data: Types.FullImageData,
+  user: Types.PublicUser
+): Promise<Types.PublicImage> => {
+  const src = `${Config.SUPABASE_BUCKET_URL}/${uploadImageRes.path}`;
   const imageData = {
     ...data,
     src,
@@ -124,18 +126,18 @@ export const saveImage = async (
     where: { src },
     include,
   });
-  const savedImage = await handleDBKnownErrors(dbQuery, {
+  const savedImage = await Utils.handleDBKnownErrors(dbQuery, {
     uniqueFieldName: 'src',
   });
   return savedImage;
 };
 
 export const updateImageData = async (
-  data: ImageDataInput,
+  data: Types.ImageDataInput,
   id: string
-): Promise<PublicImage> => {
+): Promise<Types.PublicImage> => {
   const dbQuery = db.image.update({ where: { id }, data, include });
-  const savedImage = await handleDBKnownErrors(dbQuery, {
+  const savedImage = await Utils.handleDBKnownErrors(dbQuery, {
     uniqueFieldName: 'src',
   });
   return savedImage;
@@ -145,41 +147,28 @@ export const removeUploadedImage = async (imageData: Image) => {
   const [bucketName, ...splittedPath] = imageData.storageFullPath.split('/');
   const filePath = splittedPath.join('/');
   const bucket = bucketName;
-  const { data, error } = await supabase.storage
+  const { data, error } = await Config.supabase.storage
     .from(bucket)
     .remove([filePath]);
-  if (error) throw new AppError(error.message, 500, error.name);
+  if (error) throw new AppError.AppBaseError(error.message, 500, error.name);
   return data;
 };
 
 export const deleteImageById = async (id: string) => {
   const dbQuery = db.image.delete({ where: { id } });
-  return await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
+  return await Utils.handleDBKnownErrors(dbQuery, { notFoundErrMsg });
 };
 
 export const getImageOwnerAndInjectImageInResLocals = async (
-  req: Request,
-  res: Response
+  req: Exp.Request,
+  res: Exp.Response
 ) => {
   const dbQuery = db.image.findUnique({
     where: { id: req.params.id },
     omit: { storageFullPath: false, storageId: false },
   });
-  const image = await handleDBKnownErrors(dbQuery, { notFoundErrMsg });
-  if (!image) throw new AppNotFoundError(notFoundErrMsg);
+  const image = await Utils.handleDBKnownErrors(dbQuery, { notFoundErrMsg });
+  if (!image) throw new AppError.AppNotFoundError(notFoundErrMsg);
   res.locals.image = image;
   return image.ownerId;
-};
-
-export default {
-  getImageOwnerAndInjectImageInResLocals,
-  getValidImageFileFormReq,
-  removeUploadedImage,
-  getImageMetadata,
-  deleteImageById,
-  updateImageData,
-  findImageById,
-  getAllImages,
-  uploadImage,
-  saveImage,
 };

@@ -1,5 +1,5 @@
+import { ADMIN_SECRET } from '@/lib/config';
 import { z } from 'zod';
-import { ADMIN_SECRET } from '../../../lib/config';
 
 export const bioSchema = z
   .string({ invalid_type_error: 'Use bio must be a string' })
@@ -76,5 +76,3 @@ export const userSchema = passwordSchema
     const isAdmin = Boolean(secret);
     return { isAdmin, username, fullname, password, bio };
   });
-
-export default userSchema;

@@ -1,7 +1,7 @@
-import { AppErrorResponse, AuthResponse } from '../../../types';
 import { it, expect, describe, afterAll, beforeAll, vi } from 'vitest';
-import { User } from '../../../../prisma/generated/client';
 import { SIGNIN_URL, VERIFY_URL, SIGNED_IN_USER_URL } from './utils';
+import { AppErrorResponse, AuthResponse } from '@/types';
+import { User } from '@/../prisma/client';
 import jwt from 'jsonwebtoken';
 import setup from '../setup';
 

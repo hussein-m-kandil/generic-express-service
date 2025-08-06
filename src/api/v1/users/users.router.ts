@@ -1,80 +1,51 @@
-import { NextFunction, Request, Router } from 'express';
-import {
-  createJwtForUser,
-  findFilteredPosts,
-  findFilteredVotes,
-  findFilteredComments,
-  getPostFilterOptionsFromReqQuery,
-  getVoteFilterOptionsFromReqQuery,
-  getCommentFilterOptionsFromReqQuery,
-} from '../../../lib/helpers';
-import { AuthResponse, NewUserInput } from '../../../types';
-import { Prisma } from '../../../../prisma/generated/client';
-import {
-  authValidator,
-  adminValidator,
-  optionalAuthValidator,
-  createAdminOrOwnerValidator,
-} from '../../../middlewares/validators';
-import userSchema, {
-  secretSchema,
-  usernameSchema,
-  fullnameSchema,
-  passwordSchema,
-} from './user.schema';
-import usersService from './users.service';
+import * as Exp from 'express';
+import * as Types from '@/types';
+import * as Utils from '@/lib/utils';
+import * as Schema from './user.schema';
+import * as Service from './users.service';
+import * as Validators from '@/middlewares/validators';
+import { Prisma } from '@/../prisma/client';
 
-export const usersRouter = Router();
+export const usersRouter = Exp.Router();
 
-usersRouter.get('/', authValidator, adminValidator, async (req, res) => {
-  const users = await usersService.getAllUsers();
-  res.json(users);
-});
+usersRouter.get(
+  '/',
+  Validators.authValidator,
+  Validators.adminValidator,
+  async (req, res) => {
+    const filters = Utils.getPaginationFiltersFromReqQuery(req);
+    const users = await Service.getAllUsers(filters);
+    res.json(users);
+  }
+);
 
 usersRouter.get(
   '/:idOrUsername',
-  optionalAuthValidator,
+  Validators.optionalAuthValidator,
   async (req, res, next) => {
     const param = req.params.idOrUsername;
-    const user = await usersService.findUserByIdOrByUsernameOrThrow(param);
+    const user = await Service.findUserByIdOrByUsernameOrThrow(param);
     if (param === user.id) {
       res.json(user);
     } else {
-      const nextWrapper: NextFunction = (x: unknown) => {
+      const nextWrapper: Exp.NextFunction = (x: unknown) => {
         if (x) next(x);
         else res.json(user);
       };
-      await createAdminOrOwnerValidator(() => user.id)(req, res, nextWrapper);
+      await Validators.createAdminOrOwnerValidator(() => user.id)(
+        req,
+        res,
+        nextWrapper
+      );
     }
   }
 );
 
-usersRouter.get('/:id/posts', optionalAuthValidator, async (req, res) => {
-  const authorId = req.params.id;
-  const filters = getPostFilterOptionsFromReqQuery(req);
-  const userPosts = await findFilteredPosts(filters, { authorId });
-  res.json(userPosts);
-});
-
-usersRouter.get('/:id/comments', optionalAuthValidator, async (req, res) => {
-  const authorId = req.params.id;
-  const filters = getCommentFilterOptionsFromReqQuery(req);
-  const comments = await findFilteredComments(filters, { authorId });
-  res.json(comments);
-});
-
-usersRouter.get('/:id/votes', optionalAuthValidator, async (req, res) => {
-  const userId = req.params.id;
-  const filters = getVoteFilterOptionsFromReqQuery(req);
-  const votes = await findFilteredVotes(filters, { userId });
-  res.json(votes);
-});
-
 usersRouter.post('/', async (req, res) => {
-  const parsedNewUser = userSchema.parse(req.body);
-  const createdUser = await usersService.createUser(parsedNewUser);
-  const signupRes: AuthResponse = {
-    token: createJwtForUser(createdUser),
+  const parsedNewUser = Schema.userSchema.parse(req.body);
+  const createdUser = await Service.createUser(parsedNewUser);
+  const signupRes: Types.AuthResponse = {
+    token: Utils.createJwtForUser(createdUser),
     user: createdUser,
   };
   res.status(201).json(signupRes);
@@ -82,33 +53,34 @@ usersRouter.post('/', async (req, res) => {
 
 usersRouter.patch(
   '/:id',
-  authValidator,
-  createAdminOrOwnerValidator((req) => req.params.id),
-  async (req: Request<{ id: string }, unknown, NewUserInput>, res) => {
+  Validators.authValidator,
+  Validators.createAdminOrOwnerValidator((req) => req.params.id),
+  async (
+    req: Exp.Request<{ id: string }, unknown, Types.NewUserInput>,
+    res
+  ) => {
     const { username, fullname, password, confirm, secret } = req.body;
     const data: Prisma.UserUpdateInput = {};
-    if (username) data.username = usernameSchema.parse(username);
-    if (fullname) data.fullname = fullnameSchema.parse(fullname);
+    if (username) data.username = Schema.usernameSchema.parse(username);
+    if (fullname) data.fullname = Schema.fullnameSchema.parse(fullname);
     if (password) {
-      data.password = passwordSchema.parse({
+      data.password = Schema.passwordSchema.parse({
         password: password,
         confirm,
       }).password;
     }
-    if (secret && secretSchema.parse(secret)) data.isAdmin = true;
-    await usersService.updateUser(req.params.id, data);
+    if (secret && Schema.secretSchema.parse(secret)) data.isAdmin = true;
+    await Service.updateUser(req.params.id, data);
     res.status(204).end();
   }
 );
 
 usersRouter.delete(
   '/:id',
-  authValidator,
-  createAdminOrOwnerValidator((req) => req.params.id),
+  Validators.authValidator,
+  Validators.createAdminOrOwnerValidator((req) => req.params.id),
   async (req, res) => {
-    await usersService.deleteUser(req.params.id);
+    await Service.deleteUser(req.params.id);
     res.status(204).end();
   }
 );
-
-export default usersRouter;

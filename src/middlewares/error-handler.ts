@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { AppError } from '../lib/app-error';
+import { AppBaseError } from '../lib/app-error';
 import { AppErrorResponse } from '../types';
 import { ZodError } from 'zod';
 import logger from '../lib/logger';
@@ -20,9 +20,9 @@ export const errorHandler = (
     res.status(400).json(error.issues);
   } else {
     const { name, message, statusCode } =
-      error instanceof AppError
+      error instanceof AppBaseError
         ? error
-        : new AppError('something went wrong', 500, 'ServerError');
+        : new AppBaseError('something went wrong', 500, 'ServerError');
     errorRes = { error: { name, message } };
     res.status(statusCode).json(errorRes);
   }

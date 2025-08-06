@@ -1,2 +1,3 @@
+export * from './users.service';
 export * from './users.router';
-export { default } from './users.router';
+export * from './user.schema';

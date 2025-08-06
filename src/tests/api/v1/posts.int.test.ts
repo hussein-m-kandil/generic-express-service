@@ -1,15 +1,10 @@
-import {
-  Comment,
-  Category,
-  VoteOnPost,
-  CategoriesOnPosts,
-} from '../../../../prisma/generated/client';
+import { Tag, Comment, VoteOnPost, TagsOnPosts } from '@/../prisma/client';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { PostFullData, PublicImage } from '../../../types';
+import { PostFullData, PublicImage } from '@/types';
 import { POSTS_URL, SIGNIN_URL } from './utils';
 import { ZodIssue } from 'zod';
 import setup from '../setup';
-import db from '../../../lib/db';
+import db from '@/lib/db';
 
 describe('Posts endpoint', async () => {
   const {
@@ -23,12 +18,14 @@ describe('Posts endpoint', async () => {
     xUserData,
     dbUserOne,
     dbUserTwo,
+    dbAdmin,
     dbXUser,
     imgOne,
     api,
     signin,
     createPost,
     createImage,
+    deleteAllTags,
     assertPostData,
     deleteAllPosts,
     deleteAllUsers,
@@ -42,6 +39,7 @@ describe('Posts endpoint', async () => {
 
   beforeEach(async () => {
     await deleteAllPosts();
+    await deleteAllTags();
     dbImgOne = await createImage(imgOne);
   });
 
@@ -105,12 +103,13 @@ describe('Posts endpoint', async () => {
       await createPost(postFullData);
       await createPost(privatePostData);
       const res = await api.get(POSTS_URL).set('Authorization', token);
-      const resBody = res.body as PostFullData[];
+      const resBody = res.body as PostFullData[]; // reversed
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody).toBeTypeOf('object');
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.length).toBe(2);
+      resBody.reverse();
       assertPostData(resBody[0], postFullData);
       assertPostData(resBody[1], privatePostData);
     });
@@ -120,19 +119,19 @@ describe('Posts endpoint', async () => {
         ...postFullData,
         title: 'Cool dog',
         content: 'Woof, woof, ...',
-        categories: ['foo', 'bar'],
+        tags: ['foo', 'bar'],
       };
       const mockPostTwo = {
         ...postFullData,
         title: 'Lazy cat',
         content: 'Meow, meow, ...',
-        categories: ['foo', 'tar'],
+        tags: ['foo', 'tar'],
       };
       const mockPostThree = {
         ...postFullData,
         title: 'Good bird',
         content: 'Sew, sew, ...',
-        categories: ['baz'],
+        tags: ['baz'],
       };
       await createPost(mockPostOne);
       await createPost(mockPostTwo);
@@ -167,67 +166,56 @@ describe('Posts endpoint', async () => {
       assertPostData(resBody[0], mockPostOne);
     });
 
-    it('should respond with an array of posts based on search by comma-separated categories', async () => {
+    it('should respond with an array of posts based on search by comma-separated tags', async () => {
       await populateDBForSearch();
-      const res = await api.get(`${POSTS_URL}?categories=tar,baz`);
+      const res = await api.get(`${POSTS_URL}?tags=tar,baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resCategories.length).toBe(3);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('tar');
-      expect(resCategories).toContain('baz');
+      expect(resTags.length).toBe(3);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('tar');
+      expect(resTags).toContain('baz');
     });
 
-    it('should respond with an array of posts based on search by separated categories', async () => {
+    it('should respond with an array of posts based on search by separated tags', async () => {
       await populateDBForSearch();
-      const res = await api.get(`${POSTS_URL}?categories=bar&categories=baz`);
+      const res = await api.get(`${POSTS_URL}?tags=bar&tags=baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resCategories.length).toBe(3);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('bar');
-      expect(resCategories).toContain('baz');
+      expect(resTags.length).toBe(3);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('bar');
+      expect(resTags).toContain('baz');
     });
 
-    it('should respond with an array of posts based on search by mixed categories', async () => {
+    it('should respond with an array of posts based on search by mixed tags', async () => {
       await populateDBForSearch();
-      const res = await api.get(
-        `${POSTS_URL}?categories=bar,tar&categories=baz`
-      );
+      const res = await api.get(`${POSTS_URL}?tags=bar,tar&tags=baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(3);
-      expect(resCategories.length).toBe(5);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('bar');
-      expect(resCategories).toContain('tar');
-      expect(resCategories).toContain('baz');
+      expect(resTags.length).toBe(5);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('bar');
+      expect(resTags).toContain('tar');
+      expect(resTags).toContain('baz');
     });
 
-    it('should respond with an array of posts based on search by categories and title', async () => {
+    it('should respond with an array of posts based on search by tags and title', async () => {
       await populateDBForSearch();
-      const res = await api.get(`${POSTS_URL}?q=cat&categories=tar,baz`);
+      const res = await api.get(`${POSTS_URL}?q=cat&tags=tar,baz`);
       const resBody = res.body as PostFullData[];
-      const resCategories = resBody.flatMap((p) =>
-        p.categories.map((c) => c.categoryName)
-      );
+      const resTags = resBody.flatMap((p) => p.tags.map((c) => c.name));
       expect(res.statusCode).toBe(200);
-      expect(resBody.length).toBe(2);
-      expect(resCategories.length).toBe(3);
-      expect(resCategories).toContain('foo');
-      expect(resCategories).toContain('tar');
-      expect(resCategories).toContain('baz');
+      expect(resBody.length).toBe(1);
+      expect(resTags.length).toBe(2);
+      expect(resTags).toContain('foo');
+      expect(resTags).toContain('tar');
     });
   });
 
@@ -374,16 +362,16 @@ describe('Posts endpoint', async () => {
           expect(res.body).toStrictEqual({});
         });
 
-        it('should update the categories', async () => {
-          const categories = ['misty'];
-          const res = await sendRequest({ ...postDataToUpdate, categories });
+        it('should update the tags', async () => {
+          const tags = ['misty'];
+          const res = await sendRequest({ ...postDataToUpdate, tags });
           const resBody = res.body as PostFullData;
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(
             await db.post.findUnique({ where: { id: resBody.id } })
           ).not.toBeNull();
-          assertPostData(resBody, { ...postDataToUpdate, categories });
+          assertPostData(resBody, { ...postDataToUpdate, tags });
         });
       }
 
@@ -403,30 +391,29 @@ describe('Posts endpoint', async () => {
         expect(resBody[0].message).toMatch(/content|body/i);
       });
 
-      it(`should ${VERB} a post even with duplicated categories`, async () => {
-        const res = await sendRequest({
-          ...postDataInput,
-          categories: [
-            ...postDataInput.categories,
-            ...postDataInput.categories,
-          ],
-        });
+      it(`should ${VERB} a post even with duplicated tags but not save duplication`, async () => {
+        const tags = [
+          ...postDataInput.tags.map((c) => c.toLowerCase()),
+          ...postDataInput.tags.map((c) => c.toUpperCase()),
+        ];
+        const res = await sendRequest({ ...postDataInput, tags });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
         expect(res.type).toMatch(/json/);
         expect(
           await db.post.findUnique({ where: { id: resBody.id } })
         ).not.toBeNull();
+        expect(resBody.tags).toHaveLength(tags.length / 2);
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
         });
       });
 
-      it(`should ${VERB} a post even without categories`, async () => {
+      it(`should ${VERB} a post even without tags`, async () => {
         const res = await sendRequest({
           ...postDataInput,
-          categories: undefined,
+          tags: undefined,
         });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
@@ -437,7 +424,7 @@ describe('Posts endpoint', async () => {
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
-          categories: [],
+          tags: [],
         });
       });
 
@@ -456,10 +443,10 @@ describe('Posts endpoint', async () => {
         });
       });
 
-      it(`should ${VERB} a post with all categories converted to lowercase`, async () => {
+      it(`should ${VERB} a post with all tags converted to lowercase`, async () => {
         const res = await sendRequest({
           ...postDataInput,
-          categories: postDataInput.categories.map((c) => c.toUpperCase()),
+          tags: postDataInput.tags.map((c) => c.toUpperCase()),
         });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
@@ -470,8 +457,16 @@ describe('Posts endpoint', async () => {
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
-          categories: postDataOutput.categories.map((c) => c.toLowerCase()),
+          tags: postDataOutput.tags.map((c) => c.toLowerCase()),
         });
+      });
+
+      it(`should not ${VERB} a post with more than 7 tags`, async () => {
+        const res = await sendRequest({
+          ...postDataInput,
+          tags: Array.from({ length: 8 }).map((_, i) => `Cat_${i}`),
+        });
+        assertResponseWithValidationError(res, 'tags');
       });
 
       it(`should ${VERB} a post with an image`, async () => {
@@ -783,11 +778,9 @@ describe('Posts endpoint', async () => {
         });
 
         it(`should delete the post without its image if it is in use on another post`, async () => {
-          const { signedInUserData } = await prepForAuthorizedTest(xUserData);
           await createPost({
             ...postDataToDelete,
             image: dbImgOne.id,
-            authorId: signedInUserData.user.id, // Another user post with same image
           });
           const dbPost = await createPost({
             ...postDataToDelete,
@@ -809,15 +802,37 @@ describe('Posts endpoint', async () => {
 
   describe(`DELETE ${POSTS_URL}/:id`, createTestsForDeletingPostOrComment());
 
-  describe(`GET ${POSTS_URL}/categories`, () => {
-    it('should respond with 200 and an array of categories', async () => {
-      const res = await api.get(`${POSTS_URL}/categories`);
-      const resBody = res.body as Category[];
+  describe(`GET ${POSTS_URL}/tags`, () => {
+    it('should respond with 200 and an array of tags', async () => {
+      await createPost(postFullData);
+      const res = await api.get(`${POSTS_URL}/tags`);
+      const resBody = res.body as Tag[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(res.body)).toBe(true);
-      for (const name of postFullData.categories) {
-        expect(resBody).toContainEqual({ name });
+      postFullData.tags.forEach((tag, i) => {
+        // eslint-disable-next-line security/detect-object-injection
+        expect(resBody[i].name.toLowerCase()).toStrictEqual(tag.toLowerCase());
+      });
+    });
+
+    it('should respond an array of filtered tags', async () => {
+      const tags = ['123', '765', '45'];
+      await createPost({ ...postFullData, tags });
+      const urls = [
+        `${POSTS_URL}/tags?tags=2,7`,
+        `${POSTS_URL}/tags?tags=2&blah=foo&tags=7`,
+      ];
+      for (const url of urls) {
+        const res = await api.get(url);
+        const resBody = res.body as Tag[];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(Array.isArray(res.body)).toBe(true);
+        tags.slice(0, 2).forEach((tag, i) => {
+          // eslint-disable-next-line security/detect-object-injection
+          expect(resBody[i].name).toStrictEqual(tag);
+        });
       }
     });
   });
@@ -978,17 +993,17 @@ describe('Posts endpoint', async () => {
     });
   });
 
-  describe(`GET ${POSTS_URL}/:id/categories`, () => {
+  describe(`GET ${POSTS_URL}/:id/tags`, () => {
     it('should respond with 400 on invalid postId', async () => {
-      const res = await api.get(`${POSTS_URL}/123/categories`);
+      const res = await api.get(`${POSTS_URL}/123/tags`);
       assertInvalidIdErrorRes(res);
     });
 
     it('should respond with 404 on id of non-existent post', async () => {
       const dbPost = await createPost(postFullData);
       await db.post.delete({ where: { id: dbPost.id } });
-      const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
-      assertNotFoundErrorRes(res);
+      const res = await api.get(`${POSTS_URL}/${dbPost.id}/tags`);
+      expect(res.body).toStrictEqual([]);
     });
 
     it('should respond with 404 if the JWT does not for the private post author', async () => {
@@ -1002,12 +1017,12 @@ describe('Posts endpoint', async () => {
         authorId: dbUserTwo.id,
       });
       const res = await api
-        .get(`${POSTS_URL}/${dbPost.id}/categories`)
+        .get(`${POSTS_URL}/${dbPost.id}/tags`)
         .set('Authorization', token);
-      assertNotFoundErrorRes(res);
+      expect(res.body).toStrictEqual([]);
     });
 
-    it('should respond with 200 and all private post categories if the JWT for the post author', async () => {
+    it('should respond with 200 and all private post tags if the JWT for the post author', async () => {
       const { token, user } = await signin(
         userOneData.username,
         userOneData.password
@@ -1018,42 +1033,38 @@ describe('Posts endpoint', async () => {
         authorId: user.id,
       });
       const res = await api
-        .get(`${POSTS_URL}/${dbPost.id}/categories`)
+        .get(`${POSTS_URL}/${dbPost.id}/tags`)
         .set('Authorization', token);
-      const resBody = res.body as CategoriesOnPosts[];
+      const resBody = res.body as TagsOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
-      expect(resBody.map((c) => c.categoryName)).toStrictEqual(
-        postFullData.categories
-      );
+      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.tags);
     });
 
     it('should respond with an empty array', async () => {
       const dbPost = await createPost({
         ...postDataOutput,
-        categories: [],
+        tags: [],
         authorId: dbUserOne.id,
       });
-      const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
+      const res = await api.get(`${POSTS_URL}/${dbPost.id}/tags`);
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body).toStrictEqual([]);
     });
 
-    it('should respond with an array of categories for a public post', async () => {
+    it('should respond with an array of tags for a public post', async () => {
       const dbPost = await createPost(postFullData);
-      const res = await api.get(`${POSTS_URL}/${dbPost.id}/categories`);
-      const resBody = res.body as CategoriesOnPosts[];
+      const res = await api.get(`${POSTS_URL}/${dbPost.id}/tags`);
+      const resBody = res.body as TagsOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(Array.isArray(resBody)).toBe(true);
       expect(resBody.every((c) => c.postId === dbPost.id)).toBe(true);
-      expect(resBody.map((c) => c.categoryName)).toStrictEqual(
-        postFullData.categories
-      );
+      expect(resBody.map((c) => c.name)).toStrictEqual(postFullData.tags);
     });
   });
 
@@ -1220,7 +1231,7 @@ describe('Posts endpoint', async () => {
       expect(resBody[0].message).toMatch(/content|body/i);
     });
 
-    it('should create comment and respond with 20', async () => {
+    it('should create comment and respond with 200', async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
         userOneData
       );
@@ -1229,24 +1240,22 @@ describe('Posts endpoint', async () => {
         published: false,
         authorId: signedInUserData.user.id,
       };
-      for (const dbPromise of [
-        createPost(postDataToComment),
-        createPost(privatePostData),
+      for (const dbPost of [
+        await createPost(postDataToComment),
+        await createPost(privatePostData),
       ]) {
-        const dbPost = await dbPromise;
         const res = await authorizedApi
           .post(`${POSTS_URL}/${dbPost.id}/comments`)
           .send(commentData);
-        const resBody = res.body as PostFullData;
-        const createdComment = resBody.comments.at(-1) as Comment;
+        const resBody = res.body as Comment;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(createdComment).toBeTypeOf('object');
-        expect(createdComment.postId).toStrictEqual(dbPost.id);
-        expect(createdComment.authorId).toStrictEqual(signedInUserData.user.id);
-        expect(createdComment.content).toStrictEqual(commentData.content);
-        expect(new Date(createdComment.createdAt)).lessThan(new Date());
-        expect(new Date(createdComment.updatedAt)).lessThan(new Date());
+        expect(resBody).toBeTypeOf('object');
+        expect(resBody.postId).toStrictEqual(dbPost.id);
+        expect(resBody.authorId).toStrictEqual(signedInUserData.user.id);
+        expect(resBody.content).toStrictEqual(commentData.content);
+        expect(new Date(resBody.createdAt)).lessThan(new Date());
+        expect(new Date(resBody.updatedAt)).lessThan(new Date());
       }
     });
   });
@@ -1324,7 +1333,7 @@ describe('Posts endpoint', async () => {
 
     it('should respond with 401 on a non-comment-owner JWT', async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
-        userOneData
+        xUserData
       );
       const dbPost = await createPost(postDataToComment);
       const res = await authorizedApi
@@ -1382,25 +1391,24 @@ describe('Posts endpoint', async () => {
         published: false,
         authorId: signedInUserData.user.id,
       };
-      for (const dbPromise of [
-        createPost(postDataToComment),
-        createPost(privatePostData),
+      for (const dbPost of [
+        await createPost(postDataToComment),
+        await createPost(privatePostData),
       ]) {
-        const dbPost = await dbPromise;
         const cId = getCommentId(dbPost, signedInUserData.user.id);
+        const content = 'test comment content';
         const res = await authorizedApi
           .put(`${POSTS_URL}/${dbPost.id}/comments/${cId}`)
-          .send(commentData);
-        const resBody = res.body as PostFullData;
-        const createdComment = resBody.comments.at(-1) as Comment;
+          .send({ ...commentData, content });
+        const resBody = res.body as Comment;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(createdComment).toBeTypeOf('object');
-        expect(createdComment.postId).toStrictEqual(dbPost.id);
-        expect(createdComment.authorId).toStrictEqual(signedInUserData.user.id);
-        expect(createdComment.content).toStrictEqual(commentData.content);
-        expect(new Date(createdComment.createdAt)).lessThan(new Date());
-        expect(new Date(createdComment.updatedAt)).lessThan(new Date());
+        expect(resBody).toBeTypeOf('object');
+        expect(resBody.content).toStrictEqual(content);
+        expect(resBody.postId).toStrictEqual(dbPost.id);
+        expect(resBody.authorId).toStrictEqual(signedInUserData.user.id);
+        expect(new Date(resBody.createdAt)).lessThan(new Date());
+        expect(new Date(resBody.updatedAt)).lessThan(new Date());
       }
     });
   });
@@ -1410,36 +1418,36 @@ describe('Posts endpoint', async () => {
     createTestsForDeletingPostOrComment(true)
   );
 
-  const createTestsForUpAndDownVoting = (forDownVoting = false) => {
+  const createTestsForVoting = (action: 'upvote' | 'downvote' | 'unvote') => {
     return async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
         userOneData
       );
 
-      const postDataToVote = forDownVoting
+      const downOrUnvoting = action === 'downvote' || action === 'unvote';
+
+      const postDataToVote = downOrUnvoting
         ? {
             ...postDataOutput,
             authorId: dbUserTwo.id,
-            votes: [{ userId: signedInUserData.user.id }],
+            votes: [{ userId: signedInUserData.user.id, isUpvote: true }],
           }
         : { ...postDataOutput, authorId: dbUserTwo.id };
 
-      const VERB = forDownVoting ? 'downvote' : 'upvote';
-
-      it(`should not ${VERB} the post and respond with 401 on a request without JWT`, async () => {
+      it(`should not ${action} the post and respond with 401 on a request without JWT`, async () => {
         const dbPost = await createPost(postDataToVote);
-        const res = await api.post(`${POSTS_URL}/${dbPost.id}/${VERB}`);
+        const res = await api.post(`${POSTS_URL}/${dbPost.id}/${action}`);
         const votedDBPost = await db.post.findUnique({
           where: { id: dbPost.id },
           include: { votes: true },
         });
         expect(res.statusCode).toBe(401);
         expect(res.body).toStrictEqual({});
-        expect(votedDBPost?.votes.length).toBe(forDownVoting ? 1 : 0);
+        expect(votedDBPost?.votes.length).toBe(downOrUnvoting ? 1 : 0);
       });
 
       it('should respond with 400 on invalid post id', async () => {
-        const res = await authorizedApi.post(`${POSTS_URL}/123/${VERB}`);
+        const res = await authorizedApi.post(`${POSTS_URL}/123/${action}`);
         assertInvalidIdErrorRes(res);
       });
 
@@ -1447,7 +1455,7 @@ describe('Posts endpoint', async () => {
         const dbPost = await createPost(postDataToVote);
         await db.post.delete({ where: { id: dbPost.id } });
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         assertNotFoundErrorRes(res);
       });
@@ -1458,15 +1466,15 @@ describe('Posts endpoint', async () => {
           published: false,
         });
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         assertNotFoundErrorRes(res);
       });
 
-      it(`should ${VERB} the post and respond with 200`, async () => {
+      it(`should ${action} the post and respond with 200`, async () => {
         const dbPost = await createPost(postDataToVote);
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         const resBody = res.body as PostFullData;
         const votedDBPost = await db.post.findUnique({
@@ -1474,24 +1482,41 @@ describe('Posts endpoint', async () => {
           include: { votes: true },
         });
         expect(res.statusCode).toBe(200);
-        if (forDownVoting) {
+        if (action === 'unvote') {
           expect(resBody.votes.length).toBe(0);
           expect(votedDBPost?.votes.length).toBe(0);
+        } else if (action === 'downvote') {
+          expect(resBody.votes.length).toBe(1);
+          expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(false);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(false);
+          expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
+          expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         } else {
           expect(resBody.votes.length).toBe(1);
           expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(true);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(true);
           expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
           expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         }
       });
 
-      it(`should do nothing and respond with 200 if the posted already ${VERB}d by the same user`, async () => {
+      it(`should do nothing and respond with 200 if the posted already ${action}d by the same user`, async () => {
         const dbPost = await createPost({
           ...postDataToVote,
-          votes: forDownVoting ? [] : [{ userId: signedInUserData.user.id }],
+          votes:
+            action === 'unvote'
+              ? []
+              : [
+                  {
+                    userId: signedInUserData.user.id,
+                    isUpvote: action === 'upvote',
+                  },
+                ],
         });
         const res = await authorizedApi.post(
-          `${POSTS_URL}/${dbPost.id}/${VERB}`
+          `${POSTS_URL}/${dbPost.id}/${action}`
         );
         const resBody = res.body as PostFullData;
         const votedDBPost = await db.post.findUnique({
@@ -1499,12 +1524,21 @@ describe('Posts endpoint', async () => {
           include: { votes: true },
         });
         expect(res.statusCode).toBe(200);
-        if (forDownVoting) {
+        if (action === 'unvote') {
           expect(resBody.votes.length).toBe(0);
           expect(votedDBPost?.votes.length).toBe(0);
+        } else if (action === 'downvote') {
+          expect(resBody.votes.length).toBe(1);
+          expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(false);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(false);
+          expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
+          expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         } else {
           expect(resBody.votes.length).toBe(1);
           expect(votedDBPost?.votes.length).toBe(1);
+          expect(resBody.votes[0].isUpvote).toBe(true);
+          expect(votedDBPost?.votes[0].isUpvote).toBe(true);
           expect(resBody.votes[0].userId).toBe(signedInUserData.user.id);
           expect(votedDBPost?.votes[0].userId).toBe(signedInUserData.user.id);
         }
@@ -1512,12 +1546,11 @@ describe('Posts endpoint', async () => {
     };
   };
 
-  describe(`POST ${POSTS_URL}/:id/upvote`, createTestsForUpAndDownVoting());
+  describe(`POST ${POSTS_URL}/:id/upvote`, createTestsForVoting('upvote'));
 
-  describe(
-    `POST ${POSTS_URL}/:id/downvote`,
-    createTestsForUpAndDownVoting(true)
-  );
+  describe(`POST ${POSTS_URL}/:id/unvote`, createTestsForVoting('unvote'));
+
+  describe(`POST ${POSTS_URL}/:id/downvote`, createTestsForVoting('downvote'));
 
   describe(`GET ${POSTS_URL}/:id/votes`, () => {
     it('should respond with 400 on invalid post id', async () => {
@@ -1603,7 +1636,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resBody.every(({ isUpvote }) => isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => isUpvote)).toBe(true);
     });
 
     it('should respond with an upvote array based on search by vote type', async () => {
@@ -1614,7 +1647,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
-      expect(resBody.every(({ isUpvote }) => !isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => !isUpvote)).toBe(true);
     });
 
     it('should respond with an empty vote array if the post is private and there is no JWT', async () => {
@@ -1645,7 +1678,7 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
-      expect(resBody.every(({ isUpvote }) => isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => isUpvote)).toBe(true);
     });
 
     it('should respond with a downvote array if the post is private and there is post-author JWT', async () => {
@@ -1657,143 +1690,144 @@ describe('Posts endpoint', async () => {
       const resBody = res.body as VoteOnPost[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
-      expect(resBody.every(({ isUpvote }) => !isUpvote)).toBe(true);
+      expect(resBody.reverse().every(({ isUpvote }) => !isUpvote)).toBe(true);
     });
   });
 
   describe('Counters', async () => {
+    const data: Record<string, unknown[]> = {
+      tags: ['comedy', 'fantasy', 'software', 'science', 'technology', 'web'],
+      comments: [
+        { authorId: dbUserTwo.id, content: 'Nice blog' },
+        { authorId: dbUserOne.id, content: 'Thanks a lot' },
+        {
+          authorId: dbUserTwo.id,
+          content: 'Where did you come with this great idea',
+        },
+        { authorId: dbUserOne.id, content: 'It just comes to me' },
+        { authorId: dbUserTwo.id, content: 'Keep it up' },
+        { authorId: dbUserOne.id, content: 'I hope so' },
+      ],
+      votes: [
+        { userId: dbUserOne.id },
+        { userId: dbUserTwo.id },
+        { userId: dbXUser.id },
+        { userId: dbAdmin.id },
+      ],
+    };
     const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(
       userOneData
     );
 
-    describe(`GET ${POSTS_URL}/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of posts for the current signed-in user', async () => {
+    describe(`GET ${POSTS_URL}/count?author=<user_id>`, () => {
+      it('should respond with the count of posts', async () => {
         await createPost({ ...postDataOutput, authorId: dbUserOne.id });
         await createPost({ ...postDataOutput, authorId: dbUserOne.id });
         await createPost({ ...postDataOutput, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/count`);
+        const res = await authorizedApi.get(
+          `${POSTS_URL}/count?author=${dbUserOne.id}`
+        );
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(res.body).toStrictEqual(2);
       });
 
-      it('should respond with 0 the current signed-in user don not have any posts', async () => {
-        const res = await authorizedApi.get(`${POSTS_URL}/count`);
+      it('should respond with 0 if the user don not have any posts', async () => {
+        const res = await api.get(`${POSTS_URL}/count?author=${dbXUser.id}`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(res.body).toStrictEqual(0);
       });
     });
 
-    describe(`GET ${POSTS_URL}/comments/count`, () => {
+    const createTestsForCountingUserCommentsOrVotes = (
+      type: 'votes' | 'comments'
+    ) => {
+      return () => {
+        it(`should respond with the count of ${type}`, async () => {
+          await createPost({ ...postFullData, authorId: dbUserOne.id });
+          await createPost({ ...postFullData, authorId: dbUserTwo.id });
+          await createPost({ ...postFullData, authorId: dbAdmin.id });
+          const res = await api.get(
+            `${POSTS_URL}/${type}/count?author=${dbUserOne.id}`
+          );
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(res.body).toStrictEqual(3);
+        });
+
+        it(`should respond with 0 if the user do not have any post ${type}`, async () => {
+          await createPost({ ...postFullData, authorId: dbUserOne.id });
+          await createPost({ ...postFullData, authorId: dbUserTwo.id });
+          const res = await authorizedApi.get(
+            `${POSTS_URL}/${type}/count?author=${dbXUser.id}`
+          );
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(res.body).toStrictEqual(0);
+        });
+      };
+    };
+
+    describe(
+      `GET ${POSTS_URL}/comments/count?author=<user_id>`,
+      createTestsForCountingUserCommentsOrVotes('comments')
+    );
+
+    describe(
+      `GET ${POSTS_URL}/votes/count?author=<user_id>`,
+      createTestsForCountingUserCommentsOrVotes('votes')
+    );
+
+    describe(`GET ${POSTS_URL}/tags/count`, () => {
       it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/comments/count`);
+        const res = await api.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(401);
         expect(res.body).toStrictEqual({});
       });
 
-      it('should respond with the count of comments for the current signed-in user', async () => {
+      it('should respond with the count of tags for the current signed-in user', async () => {
         await createPost({ ...postFullData, authorId: dbUserOne.id });
         await createPost({ ...postFullData, authorId: dbUserOne.id });
         await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/comments/count`);
+        const distinctTags = new Set(postFullData.tags);
+        const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(4);
+        expect(res.body).toStrictEqual(distinctTags.size);
       });
 
-      it('should respond with 0 if the current signed-in user do not have any post comments', async () => {
-        await createPost({ ...postDataOutput, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/comments/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(0);
-      });
-    });
-
-    describe(`GET ${POSTS_URL}/votes/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/votes/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of votes for the current signed-in user', async () => {
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/votes/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(4);
-      });
-
-      it('should respond with 0 if the current signed-in user do not have any post votes', async () => {
-        await createPost({ ...postDataOutput, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/votes/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(0);
-      });
-    });
-
-    describe(`GET ${POSTS_URL}/categories/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/categories/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of categories for the current signed-in user', async () => {
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const distinctCategories = new Set(postFullData.categories);
-        const res = await authorizedApi.get(`${POSTS_URL}/categories/count`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(distinctCategories.size);
-      });
-
-      it('should respond with 0 if the current signed-in user do not have any post categories', async () => {
+      it('should respond with 0 if the current signed-in user do not have any post tags', async () => {
         await createPost({
           ...postDataOutput,
-          categories: [],
+          tags: [],
           authorId: dbUserOne.id,
         });
         await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/categories/count`);
+        const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(res.body).toStrictEqual(0);
       });
     });
 
-    const createTestsForCountingPostCommentsOrCatsOrVotes = (type: string) => {
+    const createTestsForCountingPostCommentsOrTagsOrVotes = (type: string) => {
       return () => {
         it('should respond with 400 on invalid post id', async () => {
           const res = await api.get(`${POSTS_URL}/blahblah/${type}/count`);
           assertInvalidIdErrorRes(res);
         });
 
-        it('should respond with 404 if the post is private and there is no JWT', async () => {
+        it('should respond with 0 if the post is private and there is no JWT', async () => {
           const dbPost = await createPost({
             ...postFullData,
             published: false,
           });
           const res = await api.get(`${POSTS_URL}/${dbPost.id}/${type}/count`);
-          assertNotFoundErrorRes(res);
+          expect(res.body).toStrictEqual(0);
         });
 
-        it('should respond with 404 if the post is private and the JWT not for the post author', async () => {
+        it('should respond with 0 if the post is private and the JWT not for the post author', async () => {
           const { token } = await signin(
             userOneData.username,
             userOneData.password
@@ -1806,7 +1840,7 @@ describe('Posts endpoint', async () => {
           const res = await api
             .get(`${POSTS_URL}/${dbPost.id}/${type}/count`)
             .set('Authorization', token);
-          assertNotFoundErrorRes(res);
+          expect(res.body).toStrictEqual(0);
         });
 
         it(`should respond with the count of the private post ${type} if the JWT for the post author`, async () => {
@@ -1816,6 +1850,7 @@ describe('Posts endpoint', async () => {
           );
           const dbPost = await createPost({
             ...postFullData,
+            ...data,
             published: false,
             authorId: user.id,
           });
@@ -1824,7 +1859,8 @@ describe('Posts endpoint', async () => {
             .set('Authorization', token);
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
-          expect(res.body).toStrictEqual(2);
+          // eslint-disable-next-line security/detect-object-injection
+          expect(res.body).toStrictEqual(data[type].length);
         });
 
         it(`should respond with 0 for a private post without ${type} if the JWT for the post author`, async () => {
@@ -1847,11 +1883,12 @@ describe('Posts endpoint', async () => {
         });
 
         it(`should respond with the count of a public post ${type}`, async () => {
-          const dbPost = await createPost(postFullData);
+          const dbPost = await createPost({ ...postFullData, ...data });
           const res = await api.get(`${POSTS_URL}/${dbPost.id}/${type}/count`);
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
-          expect(res.body).toStrictEqual(2);
+          // eslint-disable-next-line security/detect-object-injection
+          expect(res.body).toStrictEqual(data[type].length);
         });
 
         it(`should respond with 0 for a public post without any ${type}`, async () => {
@@ -1869,18 +1906,294 @@ describe('Posts endpoint', async () => {
     };
 
     describe(
-      `GET ${POSTS_URL}/:id/categories/count`,
-      createTestsForCountingPostCommentsOrCatsOrVotes('categories')
+      `GET ${POSTS_URL}/:id/tags/count`,
+      createTestsForCountingPostCommentsOrTagsOrVotes('tags')
     );
 
     describe(
       `GET ${POSTS_URL}/:id/comments/count`,
-      createTestsForCountingPostCommentsOrCatsOrVotes('comments')
+      createTestsForCountingPostCommentsOrTagsOrVotes('comments')
     );
 
     describe(
       `GET ${POSTS_URL}/:id/votes/count`,
-      createTestsForCountingPostCommentsOrCatsOrVotes('votes')
+      createTestsForCountingPostCommentsOrTagsOrVotes('votes')
     );
+  });
+
+  describe(`GET ${POSTS_URL}?author=<user_id>`, () => {
+    const populateUsersAndPosts = async () => {
+      const userPosts = [
+        { ...postDataOutput, authorId: dbUserOne.id, published: false },
+        { ...postDataOutput, authorId: dbUserOne.id },
+      ];
+      const allUsersPosts = [
+        { ...postDataOutput, authorId: dbUserTwo.id },
+        ...userPosts,
+      ];
+      for (const postData of allUsersPosts) {
+        await createPost(postData);
+      }
+      return { userPosts, allUsersPosts };
+    };
+
+    it('should respond with and empty array if the user is not found', async () => {
+      const res = await api.get(`${POSTS_URL}?author=${crypto.randomUUID()}`);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty array of posts', async () => {
+      const res = await api.get(`${POSTS_URL}?author=${dbUserOne.id}`);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an array of user public posts on request without JWT', async () => {
+      const { userPosts } = await populateUsersAndPosts();
+      const res = await api.get(`${POSTS_URL}?author=${dbUserOne.id}`);
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(1);
+      assertPostData(resBody[0], userPosts[1]);
+    });
+
+    it('should respond with an array of user public posts on request with non-post-author JWT', async () => {
+      const { userPosts } = await populateUsersAndPosts();
+      const { authorizedApi } = await prepForAuthorizedTest(userTwoData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}?author=${dbUserOne.id}`
+      );
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(1);
+      assertPostData(resBody[0], userPosts[1]);
+    });
+
+    it('should respond with an array of user all posts on request with post-author JWT', async () => {
+      const { userPosts } = await populateUsersAndPosts();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}?author=${dbUserOne.id}`
+      );
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.length).toBe(2);
+      resBody.reverse();
+      assertPostData(resBody[0], userPosts[0]);
+      assertPostData(resBody[1], userPosts[1]);
+    });
+  });
+
+  describe(`GET ${POSTS_URL}/comments?author=<user_id>`, () => {
+    const populateDBForCommentSearch = async (published = true) => {
+      const authorId = dbUserOne.id;
+      const commentOne = { authorId: dbUserTwo.id, content: 'Nice blog' };
+      const commentTwo = { authorId, content: 'Thanks a lot' };
+      const commentThree = {
+        authorId: dbUserTwo.id,
+        content: 'You are welcome',
+      };
+      const comments = [commentOne, commentTwo, commentThree];
+      const postData = { ...postDataOutput, published, authorId, comments };
+      const dbPost = await createPost(postData);
+      return { dbPost, commentOne, commentTwo, commentThree };
+    };
+
+    it('should respond with an array of comments', async () => {
+      const { commentOne, commentThree } = await populateDBForCommentSearch();
+      const res = await api.get(`${POSTS_URL}/comments?author=${dbUserTwo.id}`);
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(2);
+      expect(commentContents).toContain(commentOne.content);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an empty array if the request without JWT and the post is private', async () => {
+      await populateDBForCommentSearch(false);
+      const res = await api.get(`${POSTS_URL}/comments?author=${dbUserTwo.id}`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty array if the request without JWT and the post is private', async () => {
+      await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userTwoData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/comments?author=${dbUserTwo.id}`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with the comment array if the request has a post author JWT and the post is private', async () => {
+      const { commentOne, commentThree } = await populateDBForCommentSearch(
+        false
+      );
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/comments?author=${dbUserTwo.id}`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(2);
+      expect(commentContents).toContain(commentOne.content);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an array of comments based on search by full text', async () => {
+      const { commentTwo } = await populateDBForCommentSearch();
+      const res = await api.get(
+        `${POSTS_URL}/comments?author=${dbUserOne.id}&q=${encodeURI(
+          'thanks a lot'
+        )}`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentTwo.content);
+    });
+
+    it('should respond with an array of comments based on search by part of the text', async () => {
+      const { commentThree } = await populateDBForCommentSearch();
+      const res = await api.get(
+        `${POSTS_URL}/comments?author=${dbUserTwo.id}&q=welcome`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentThree.content);
+    });
+
+    it('should respond with an empty comment array if post comment is private and there is no JWT', async () => {
+      await populateDBForCommentSearch(false);
+      const res = await api.get(
+        `${POSTS_URL}/comments?author=${dbUserTwo.id}&q=thanks`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty comment array if post comment is private and there is non-post-author JWT', async () => {
+      await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/comments?author=${dbXUser.id}&q=thanks`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with a comment array if post comment is private and there is post-author JWT', async () => {
+      const { commentTwo } = await populateDBForCommentSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/comments?author=${dbUserOne.id}&q=thanks`
+      );
+      const resBody = res.body as Comment[];
+      const commentContents = resBody.map((c) => c.content);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(commentContents).toContain(commentTwo.content);
+    });
+  });
+
+  describe(`GET ${POSTS_URL}/votes?author=<user_id>`, () => {
+    const populateDBForVoteSearch = async (published = true) => {
+      const voteOne = { userId: dbXUser.id, isUpvote: false };
+      const voteTwo = { userId: dbUserOne.id, isUpvote: true };
+      const voteThree = { userId: dbUserTwo.id, isUpvote: true };
+      const votes = [voteOne, voteTwo, voteThree];
+      const postData = {
+        ...postDataOutput,
+        authorId: dbUserOne.id,
+        published,
+        votes,
+      };
+      const dbPost = await createPost(postData);
+      return { dbPost, voteOne, voteTwo, voteThree };
+    };
+
+    it('should respond with an upvote array', async () => {
+      await populateDBForVoteSearch();
+      const res = await api.get(`${POSTS_URL}/votes?author=${dbXUser.id}`);
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
+
+    it('should respond with an upvote array based on search by vote type', async () => {
+      await populateDBForVoteSearch();
+      const res = await api.get(
+        `${POSTS_URL}/votes?author=${dbUserTwo.id}&upvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(true);
+    });
+
+    it('should respond with an upvote array based on search by vote type', async () => {
+      await populateDBForVoteSearch();
+      const res = await api.get(
+        `${POSTS_URL}/votes?author=${dbXUser.id}&downvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
+
+    it('should respond with an empty vote array if the post is private and there is no JWT', async () => {
+      await populateDBForVoteSearch(false);
+      const res = await api.get(`${POSTS_URL}/votes?author=${dbXUser.id}`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with an empty vote array if the post is private and there is non-post-author JWT', async () => {
+      await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/votes?author=${dbXUser.id}`
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toStrictEqual([]);
+    });
+
+    it('should respond with a upvote array if the post is private and there is post-author JWT', async () => {
+      await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/votes?author=${dbUserTwo.id}&upvote=truthy`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(true);
+    });
+
+    it('should respond with a downvote array if the post is private and there is post-author JWT', async () => {
+      await populateDBForVoteSearch(false);
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(
+        `${POSTS_URL}/votes?author=${dbXUser.id}&downvote=true`
+      );
+      const resBody = res.body as VoteOnPost[];
+      expect(res.statusCode).toBe(200);
+      expect(resBody.length).toBe(1);
+      expect(resBody[0].isUpvote).toBe(false);
+    });
   });
 });

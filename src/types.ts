@@ -1,9 +1,9 @@
-import { postSchema, commentSchema } from './api/v1/posts/post.schema';
-import { PrismaClient, Prisma } from '../prisma/generated/client';
-import { userSchema } from './api/v1/users/user.schema';
+import { postSchema, commentSchema } from '@/api/v1/posts';
+import { PrismaClient, Prisma } from '@/../prisma/client';
+import { imageSchema } from '@/api/v1/images';
+import { userSchema } from '@/api/v1/users';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { imageSchema } from './api/v1/images/image.schema';
 
 export interface DBKnownErrorsHandlerOptions {
   notFoundErrMsg?: string;
@@ -66,11 +66,12 @@ export interface AppErrorResponse {
 
 export type PostFullData = Prisma.PostGetPayload<{
   include: {
+    _count: { select: { comments: true; votes: true } };
     image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
     comments: { include: { author: OmitUserSensitiveData } };
     votes: { include: { user: OmitUserSensitiveData } };
     author: OmitUserSensitiveData;
-    categories: true;
+    tags: true;
   };
 }>;
 
@@ -80,21 +81,32 @@ export type NewPostAuthorizedData = NewPostParsedData & { authorId: string };
 
 export type NewCommentParsedData = z.output<typeof commentSchema>;
 
-export interface PostFiltrationOptions {
+export interface BaseFilters {
+  currentUserId?: string;
   authorId?: string;
-  text?: string;
-  categories?: string[];
 }
 
-export interface CommentFiltrationOptions {
-  authorId?: string;
+export interface PaginationFilters extends BaseFilters {
+  sort?: Prisma.SortOrder;
+  cursor?: number;
+  limit?: number;
+}
+
+export type TagsFilter = string[];
+
+export interface PostFilters extends PaginationFilters {
+  tags?: TagsFilter;
+  text?: string;
+}
+
+export interface CommentFilters extends PaginationFilters {
   postId?: string;
   text?: string;
 }
 
-export interface VoteFiltrationOptions {
-  authorId?: string;
+export interface VoteFilters extends PaginationFilters {
   isUpvote?: boolean;
+  postId?: string;
 }
 
 export interface ImageMetadata {

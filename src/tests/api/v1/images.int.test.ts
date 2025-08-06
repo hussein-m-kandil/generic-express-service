@@ -7,7 +7,7 @@ import {
   afterEach,
   beforeEach,
 } from 'vitest';
-import { AppErrorResponse } from '../../../types';
+import { AppErrorResponse } from '@/types';
 import { IMAGES_URL, SIGNIN_URL } from './utils';
 import setup from '../setup';
 import fs from 'node:fs';

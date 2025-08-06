@@ -1,18 +1,12 @@
-import {
-  PublicImage,
-  AuthResponse,
-  PostFullData,
-  AppErrorResponse,
-  NewPostParsedData,
-} from '../../types';
-import { fieldsToIncludeWithPost } from '../../lib/helpers';
-import { Prisma } from '../../../prisma/generated/client';
-import { SALT } from '../../lib/config';
+import * as Types from '@/types';
+import * as Utils from '@/lib/utils';
+import * as Config from '@/lib/config';
+import { Prisma } from '@/../prisma/client';
 import { expect } from 'vitest';
-import { ZodIssue } from 'zod';
-import app from '../../app';
+import { z } from 'zod';
+import app from '@/app';
+import db from '@/lib/db';
 import path from 'node:path';
-import db from '../../lib/db';
 import bcrypt from 'bcryptjs';
 import supertest from 'supertest';
 
@@ -22,9 +16,10 @@ export const setup = async (signinUrl: string) => {
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
   const deleteAllImages = async () => await db.image.deleteMany({});
+  const deleteAllTags = async () => await db.tag.deleteMany({});
 
   const createUser = async (data: Prisma.UserCreateInput) => {
-    const password = bcrypt.hashSync(data.password, SALT);
+    const password = bcrypt.hashSync(data.password, Config.SALT);
     return await db.user.create({
       data: { ...data, password },
       omit: { password: false, isAdmin: false },
@@ -33,7 +28,7 @@ export const setup = async (signinUrl: string) => {
 
   const signin = async (username: string, password: string) => {
     const signinRes = await api.post(signinUrl).send({ username, password });
-    return signinRes.body as AuthResponse;
+    return signinRes.body as Types.AuthResponse;
   };
 
   const userData = {
@@ -115,11 +110,11 @@ export const setup = async (signinUrl: string) => {
     return await db.image.createMany({ data: imageData });
   };
 
-  const postDataInput: NewPostParsedData = {
+  const postDataInput: Types.NewPostParsedData = {
     published: true,
     title: 'Test Post',
     content: 'Test post content...',
-    categories: ['comedy', 'fantasy'],
+    tags: ['comedy', 'fantasy'],
   };
 
   const postFullData = {
@@ -150,15 +145,15 @@ export const setup = async (signinUrl: string) => {
         published: data.published,
         votes: { create: data.votes },
         comments: { create: data.comments },
-        categories: {
-          create: data.categories.map((name) => ({
-            category: {
+        tags: {
+          create: data.tags.map((name) => ({
+            tag: {
               connectOrCreate: { where: { name }, create: { name } },
             },
           })),
         },
       },
-      include: fieldsToIncludeWithPost,
+      include: Utils.fieldsToIncludeWithPost,
     });
   };
 
@@ -166,7 +161,7 @@ export const setup = async (signinUrl: string) => {
     res: supertest.Response,
     expected: typeof imgOne
   ) => {
-    const resBody = res.body as PublicImage;
+    const resBody = res.body as Types.PublicImage;
     expect(res.type).toMatch(/json/);
     // eslint-disable-next-line security/detect-non-literal-regexp
     expect(resBody.src).toMatch(new RegExp(`${path.extname(expected.src)}$`));
@@ -181,7 +176,7 @@ export const setup = async (signinUrl: string) => {
   };
 
   const assertPostData = (
-    actualPost: PostFullData,
+    actualPost: Types.PostFullData,
     expectedPost: typeof postFullData & { image?: string }
   ) => {
     expect(actualPost.title).toBe(expectedPost.title);
@@ -190,16 +185,18 @@ export const setup = async (signinUrl: string) => {
     expect(actualPost.published).toBe(expectedPost.published);
     expect(actualPost.imageId).toStrictEqual(expectedPost.image ?? null);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
-    expect(actualPost.categories.length).toBe(expectedPost.categories.length);
-    expect(
-      actualPost.categories.map(({ categoryName }) => categoryName)
-    ).toStrictEqual(expectedPost.categories);
+    expect(actualPost.tags.length).toBe(expectedPost.tags.length);
+    expect(actualPost.tags.map(({ name }) => name.toLowerCase())).toStrictEqual(
+      expectedPost.tags.map((c) => c.toLowerCase())
+    );
     expect(
       actualPost.comments.map(({ authorId, content }) => ({
         authorId,
         content,
       }))
     ).toStrictEqual(expectedPost.comments);
+    expect(actualPost._count.comments).toBe(expectedPost.comments.length);
+    expect(actualPost._count.votes).toBe(expectedPost.votes.length);
   };
 
   const prepForAuthorizedTest = async (credentials: {
@@ -220,21 +217,21 @@ export const setup = async (signinUrl: string) => {
     res: supertest.Response,
     expected: RegExp | string
   ) => {
-    const resBody = res.body as AppErrorResponse;
+    const resBody = res.body as Types.AppErrorResponse;
     expect(res.statusCode).toBe(400);
     expect(res.type).toMatch(/json/);
     expect(resBody.error.message).toMatch(expected);
   };
 
   const assertNotFoundErrorRes = (res: supertest.Response) => {
-    const resBody = res.body as AppErrorResponse;
+    const resBody = res.body as Types.AppErrorResponse;
     expect(res.statusCode).toBe(404);
     expect(res.type).toMatch(/json/);
     expect(resBody.error.message).toMatch(/not found/i);
   };
 
   const assertInvalidIdErrorRes = (res: supertest.Response) => {
-    const resBody = res.body as AppErrorResponse;
+    const resBody = res.body as Types.AppErrorResponse;
     expect(res.statusCode).toBe(400);
     expect(res.type).toMatch(/json/);
     expect(resBody.error.message).toMatch(/^.* ?id ?.*$/i);
@@ -250,7 +247,7 @@ export const setup = async (signinUrl: string) => {
     res: supertest.Response,
     issueField: string
   ) => {
-    const issues = res.body as ZodIssue[];
+    const issues = res.body as z.ZodIssue[];
     expect(res.type).toMatch(/json/);
     expect(res.statusCode).toBe(400);
     expect(issues).toHaveLength(1);
@@ -280,6 +277,7 @@ export const setup = async (signinUrl: string) => {
     createUser,
     createPost,
     createImage,
+    deleteAllTags,
     deleteAllPosts,
     deleteAllUsers,
     assertPostData,
