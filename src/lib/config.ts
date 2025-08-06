@@ -3,9 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 const ERR = 'EnvVarMissed';
 
 if (!process.env.SECRET) console.error(`${ERR}: SECRET`);
-if (!process.env.NODE_ENV) console.warn(`${ERR}: NODE_ENV`);
 if (!process.env.ADMIN_SECRET) console.error(`${ERR}: ADMIN_SECRET`);
-if (!process.env.ALLOWED_ORIGINS) console.log(`${ERR}: ALLOWED_ORIGINS`);
 
 if (
   !process.env.SUPABASE_URL ||
