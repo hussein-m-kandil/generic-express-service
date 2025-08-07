@@ -39,7 +39,7 @@
     "test": "dotenv -e .env.test -o -- vitest",
     "db:reset": "prisma migrate reset --skip-seed",
     "dev": "tsx watch --env-file=.env ./src/server.ts",
-    "db:seed": "tsx --env-file=.env ./prisma/seed/seed.ts",
+    "db:seed": "tsx --env-file=.env ./prisma/seed/run.ts",
     "build": "tsc --pretty -p tsconfig.prod.json && tsc-alias -p tsconfig.prod.json",
     "test:db:push": "dotenv -e .env.test -o -- prisma db push --skip-generate --force-reset",
     "pg:down": "docker compose -f docker-compose.postgres.yml down --remove-orphans",
