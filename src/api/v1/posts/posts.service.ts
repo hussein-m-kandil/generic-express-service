@@ -240,13 +240,13 @@ export const deletePost = async (
     try {
       postImage = await db.image.findUnique({
         where: { id: post.imageId, ownerId: post.authorId },
-        include: { _count: { select: { Post: true } } },
+        include: { _count: { select: { posts: true } } },
       });
     } catch (error) {
       logger.log('Expect to found post image', error);
     }
     // If the image is connected to this post only, delete it with the post in a single transaction
-    if (postImage && postImage._count.Post === 1) {
+    if (postImage && postImage._count.posts === 1) {
       const delImgQ = db.image.delete({ where: { id: postImage.id } });
       return await Utils.handleDBKnownErrors(
         db.$transaction([delPostQ, delImgQ])

@@ -110,7 +110,7 @@ model Image {
   xPos            Int      @default(0) @map("x_pos")
   yPos            Int      @default(0) @map("y_pos")
   scale           Float    @default(1.0)
-  Post            Post[]
+  posts           Post[]
 
   @@map("images")
 }
