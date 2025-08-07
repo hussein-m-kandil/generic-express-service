@@ -41,7 +41,7 @@ async function main() {
   console.log('Resetting the database...');
   await db.$transaction([
     db.comment.deleteMany({}),
-    db.voteOnPost.deleteMany({}),
+    db.votesOnPosts.deleteMany({}),
     db.tagsOnPosts.deleteMany({}),
     db.post.deleteMany({}),
     db.image.deleteMany({}),
@@ -81,23 +81,20 @@ async function main() {
     'Seeding the database with images, posts, categories, comment, and votes...'
   );
   for (let i = 0; i < postCount; i++) {
-    const randomCategories = faker.helpers.arrayElements(
-      tags,
-      faker.number.int({ min: 2, max: 3 })
-    );
-
-    const gapDays = 30; // Post / Month
-    const postOrder = postCount - i;
-    const dayMS = 24 * 60 * 60 * 1000;
-    const postDate = faker.date.between({
-      from: new Date(Date.now() - postOrder * dayMS * gapDays),
-      to: new Date(Date.now() - (postOrder - 1) * dayMS * gapDays),
-    });
-
     const postAuthor = faker.helpers.arrayElement(dbPostAuthors);
     const dbPostViewers = dbPostAuthors.filter(
       ({ id }) => id !== postAuthor.id
     );
+
+    const tagsCount = faker.number.int({ min: 2, max: 3 });
+    const postTags = faker.helpers.arrayElements(tags, tagsCount);
+
+    const gapDays = 42;
+    const dateFactor = postCount - i;
+    const dayMS = 24 * 60 * 60 * 1000;
+    const startDate = new Date(Date.now() - dateFactor * dayMS * gapDays);
+    const endDate = new Date(Date.now() - (dateFactor - 1) * dayMS * gapDays);
+    const postDate = faker.date.between({ from: startDate, to: endDate });
 
     const dbImage = await db.image.create({
       data: {
@@ -121,7 +118,7 @@ async function main() {
                 faker.number.int({ min: 10, max: 15 })
               ),
               tags: {
-                create: randomCategories.map((name) => ({
+                create: postTags.map((name) => ({
                   tag: {
                     connectOrCreate: { where: { name }, create: { name } },
                   },
@@ -137,9 +134,9 @@ async function main() {
 
     const commentsCount = faker.number.int({ min: 3, max: 7 });
     const commentDates = faker.date.betweens({
-      from: postDate,
       count: commentsCount,
-      to: new Date(postDate.getTime() + gapDays * dayMS),
+      from: postDate,
+      to: endDate,
     });
     await db.comment.createMany({
       data: Array.from({ length: commentsCount }).map((_, commentIndex) => ({
@@ -151,9 +148,16 @@ async function main() {
       })),
     });
 
-    await db.voteOnPost.createMany({
-      data: dbPostViewers.map(({ id }) => ({
+    const votesDates = faker.date.betweens({
+      count: dbPostViewers.length,
+      from: postDate,
+      to: endDate,
+    });
+    await db.votesOnPosts.createMany({
+      data: dbPostViewers.map(({ id }, voteIndex) => ({
         isUpvote: faker.helpers.arrayElement([true, false]),
+        createdAt: votesDates[voteIndex],
+        updatedAt: votesDates[voteIndex],
         postId: dbPost.id,
         userId: id,
       })),

@@ -1,4 +1,4 @@
-import { Tag, Comment, VoteOnPost, TagsOnPosts } from '@/../prisma/client';
+import { Tag, Comment, VotesOnPosts, TagsOnPosts } from '@/../prisma/client';
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { PostFullData, PublicImage } from '@/types';
 import { POSTS_URL, SIGNIN_URL } from './utils';
@@ -1594,7 +1594,7 @@ describe('Posts endpoint', async () => {
       const res = await api
         .get(`${POSTS_URL}/${dbPost.id}/votes`)
         .set('Authorization', token);
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody.map((v) => v.id)).toStrictEqual(
@@ -1605,7 +1605,7 @@ describe('Posts endpoint', async () => {
     it('should respond with 200 and all public post votes', async () => {
       const dbPost = await createPost(postFullData);
       const res = await api.get(`${POSTS_URL}/${dbPost.id}/votes`);
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody.map((v) => v.id)).toStrictEqual(
@@ -1633,7 +1633,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(
         `${POSTS_URL}/${dbPost.id}/votes?upvote=truthy`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
       expect(resBody.reverse().every(({ isUpvote }) => isUpvote)).toBe(true);
@@ -1644,7 +1644,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(
         `${POSTS_URL}/${dbPost.id}/votes?downvote=truthy`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody.reverse().every(({ isUpvote }) => !isUpvote)).toBe(true);
@@ -1675,7 +1675,7 @@ describe('Posts endpoint', async () => {
       const res = await authorizedApi.get(
         `${POSTS_URL}/${dbPost.id}/votes?upvote=truthy`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(2);
       expect(resBody.reverse().every(({ isUpvote }) => isUpvote)).toBe(true);
@@ -1687,7 +1687,7 @@ describe('Posts endpoint', async () => {
       const res = await authorizedApi.get(
         `${POSTS_URL}/${dbPost.id}/votes?downvote=true`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody.reverse().every(({ isUpvote }) => !isUpvote)).toBe(true);
@@ -2127,7 +2127,7 @@ describe('Posts endpoint', async () => {
     it('should respond with an upvote array', async () => {
       await populateDBForVoteSearch();
       const res = await api.get(`${POSTS_URL}/votes?author=${dbXUser.id}`);
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody[0].isUpvote).toBe(false);
@@ -2138,7 +2138,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(
         `${POSTS_URL}/votes?author=${dbUserTwo.id}&upvote=truthy`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody[0].isUpvote).toBe(true);
@@ -2149,7 +2149,7 @@ describe('Posts endpoint', async () => {
       const res = await api.get(
         `${POSTS_URL}/votes?author=${dbXUser.id}&downvote=truthy`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody[0].isUpvote).toBe(false);
@@ -2178,7 +2178,7 @@ describe('Posts endpoint', async () => {
       const res = await authorizedApi.get(
         `${POSTS_URL}/votes?author=${dbUserTwo.id}&upvote=truthy`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody[0].isUpvote).toBe(true);
@@ -2190,7 +2190,7 @@ describe('Posts endpoint', async () => {
       const res = await authorizedApi.get(
         `${POSTS_URL}/votes?author=${dbXUser.id}&downvote=true`
       );
-      const resBody = res.body as VoteOnPost[];
+      const resBody = res.body as VotesOnPosts[];
       expect(res.statusCode).toBe(200);
       expect(resBody.length).toBe(1);
       expect(resBody[0].isUpvote).toBe(false);

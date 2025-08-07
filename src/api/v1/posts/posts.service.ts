@@ -126,16 +126,16 @@ export const findFilteredVotes = async (
   operation: 'findMany' | 'count' = 'findMany'
 ) => {
   const { currentUserId, authorId, isUpvote, postId } = filters;
-  const where: Prisma.VoteOnPostWhereInput = {
+  const where: Prisma.VotesOnPostsWhereInput = {
     ...getAggregatePrivatePostProtectionArgs(currentUserId),
     ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
     ...(authorId ? { userId: authorId } : {}),
     ...(postId ? { postId } : {}),
   };
   return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.voteOnPost.count({ where }))
+    ? await Utils.handleDBKnownErrors(db.votesOnPosts.count({ where }))
     : await Utils.handleDBKnownErrors(
-        db.voteOnPost.findMany({
+        db.votesOnPosts.findMany({
           include: Utils.fieldsToIncludeWithVote,
           ...Utils.getPaginationArgs(filters),
           where,
@@ -355,7 +355,7 @@ export const countPostComments = async (postId: string, authorId?: string) => {
 
 export const countPostVotes = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
-    db.voteOnPost.count({
+    db.votesOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );
