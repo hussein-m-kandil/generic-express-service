@@ -6,8 +6,17 @@ export const requestLogger = (
   res: Response,
   next: NextFunction
 ) => {
-  const body = req.body as unknown;
-  logger.info(`${req.method}: ${req.originalUrl}`, body && { body });
+  const start = process.hrtime();
+
+  res.on('finish', () => {
+    const [seconds, nanoseconds] = process.hrtime(start);
+    const duration = (seconds * 1e3 + nanoseconds / 1e6).toFixed(3);
+    const len = res.getHeader('Content-Length') ?? 0;
+    const { originalUrl: url, method } = req;
+    const status = res.statusCode;
+    logger.http(`${status} ${method} ${url} ${len} - ${duration} ms`);
+  });
+
   next();
 };
 
