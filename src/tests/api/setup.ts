@@ -1,6 +1,5 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
-import * as Config from '@/lib/config';
 import { Prisma } from '@/../prisma/client';
 import { expect } from 'vitest';
 import { z } from 'zod';
@@ -19,7 +18,7 @@ export const setup = async (signinUrl: string) => {
   const deleteAllTags = async () => await db.tag.deleteMany({});
 
   const createUser = async (data: Prisma.UserCreateInput) => {
-    const password = bcrypt.hashSync(data.password, Config.SALT);
+    const password = bcrypt.hashSync(data.password, 10);
     return await db.user.create({
       data: { ...data, password },
       omit: { password: false, isAdmin: false },

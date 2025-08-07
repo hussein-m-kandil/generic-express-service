@@ -9,15 +9,15 @@ datasource db {
 }
 
 model User {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order        Int          @unique @default(autoincrement())
-  password     String       @db.Char(60)
-  fullname     String       @db.VarChar(100)
-  username     String       @unique @db.VarChar(50)
-  isAdmin      Boolean      @default(false) @map("is_admin")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  votesOnPosts VoteOnPost[]
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order        Int            @unique @default(autoincrement())
+  password     String         @db.Char(60)
+  fullname     String         @db.VarChar(100)
+  username     String         @unique @db.VarChar(50)
+  isAdmin      Boolean        @default(false) @map("is_admin")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  votesOnPosts VotesOnPosts[]
   comments     Comment[]
   images       Image[]
   posts        Post[]
@@ -41,20 +41,20 @@ model Comment {
 }
 
 model Post {
-  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order     Int           @unique @default(autoincrement())
-  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  authorId  String        @map("author_id") @db.Uuid
-  published Boolean       @default(false)
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order     Int            @unique @default(autoincrement())
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String         @map("author_id") @db.Uuid
+  published Boolean        @default(false)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  votes     VotesOnPosts[]
   tags      TagsOnPosts[]
-  votes     VoteOnPost[]
   comments  Comment[]
   content   String
   title     String
-  image     Image?        @relation(fields: [imageId], references: [id])
-  imageId   String?       @map("image_id") @db.Uuid
+  image     Image?         @relation(fields: [imageId], references: [id])
+  imageId   String?        @map("image_id") @db.Uuid
 
   @@map("posts")
 }
@@ -78,14 +78,16 @@ model TagsOnPosts {
   @@map("posts_tags")
 }
 
-model VoteOnPost {
-  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order    Int     @unique @default(autoincrement())
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId   String  @map("user_id") @db.Uuid
-  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  postId   String  @map("post_id") @db.Uuid
-  isUpvote Boolean @default(true) @map("is_upvote")
+model VotesOnPosts {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order     Int      @unique @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id") @db.Uuid
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String   @map("post_id") @db.Uuid
+  isUpvote  Boolean  @default(true) @map("is_upvote")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([userId, postId])
   @@map("posts_votes")
@@ -110,7 +112,7 @@ model Image {
   xPos            Int      @default(0) @map("x_pos")
   yPos            Int      @default(0) @map("y_pos")
   scale           Float    @default(1.0)
-  Post            Post[]
+  posts           Post[]
 
   @@map("images")
 }

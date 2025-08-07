@@ -1,12 +1,11 @@
 import * as Types from '@/types';
 import * as Bcrypt from 'bcryptjs';
 import * as Utils from '@/lib/utils';
-import * as Config from '@/lib/config';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
 import db from '@/lib/db';
 
-const hashPassword = (password: string) => Bcrypt.hash(password, Config.SALT);
+const hashPassword = (password: string) => Bcrypt.hash(password, 10);
 
 export const getAllUsers = async (filters?: Types.PaginationFilters) => {
   return await db.user.findMany({

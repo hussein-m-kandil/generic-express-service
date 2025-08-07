@@ -126,16 +126,16 @@ export const findFilteredVotes = async (
   operation: 'findMany' | 'count' = 'findMany'
 ) => {
   const { currentUserId, authorId, isUpvote, postId } = filters;
-  const where: Prisma.VoteOnPostWhereInput = {
+  const where: Prisma.VotesOnPostsWhereInput = {
     ...getAggregatePrivatePostProtectionArgs(currentUserId),
     ...(typeof isUpvote === 'boolean' ? { isUpvote } : {}),
     ...(authorId ? { userId: authorId } : {}),
     ...(postId ? { postId } : {}),
   };
   return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.voteOnPost.count({ where }))
+    ? await Utils.handleDBKnownErrors(db.votesOnPosts.count({ where }))
     : await Utils.handleDBKnownErrors(
-        db.voteOnPost.findMany({
+        db.votesOnPosts.findMany({
           include: Utils.fieldsToIncludeWithVote,
           ...Utils.getPaginationArgs(filters),
           where,
@@ -240,13 +240,13 @@ export const deletePost = async (
     try {
       postImage = await db.image.findUnique({
         where: { id: post.imageId, ownerId: post.authorId },
-        include: { _count: { select: { Post: true } } },
+        include: { _count: { select: { posts: true } } },
       });
     } catch (error) {
       logger.log('Expect to found post image', error);
     }
     // If the image is connected to this post only, delete it with the post in a single transaction
-    if (postImage && postImage._count.Post === 1) {
+    if (postImage && postImage._count.posts === 1) {
       const delImgQ = db.image.delete({ where: { id: postImage.id } });
       return await Utils.handleDBKnownErrors(
         db.$transaction([delPostQ, delImgQ])
@@ -355,7 +355,7 @@ export const countPostComments = async (postId: string, authorId?: string) => {
 
 export const countPostVotes = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
-    db.voteOnPost.count({
+    db.votesOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
     })
   );
