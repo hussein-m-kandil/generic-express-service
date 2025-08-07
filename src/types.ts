@@ -30,6 +30,7 @@ export interface OmitImageSensitiveData {
 }
 
 export interface ImageDataToAggregate {
+  _count: { select: { posts: true } };
   owner: OmitUserSensitiveData;
 }
 

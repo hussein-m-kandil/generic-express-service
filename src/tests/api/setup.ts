@@ -99,6 +99,7 @@ export const setup = async (signinUrl: string) => {
 
   const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
     return await db.image.upsert({
+      include: Utils.fieldsToIncludeWithImage,
       where: { src: imageData.src },
       create: imageData,
       update: imageData,

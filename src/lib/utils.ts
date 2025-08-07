@@ -146,6 +146,7 @@ export const getPaginationArgs = (
 };
 
 export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
+  _count: { select: { posts: true } },
   owner: { omit: { password: true } },
 };
 
