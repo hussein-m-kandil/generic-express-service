@@ -10,11 +10,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
-  if (error instanceof Error) {
-    logger.error(error.message, error);
-  } else {
-    logger.error(error);
-  }
+  logger.error(error);
   let errorRes: AppErrorResponse;
   if (error instanceof ZodError) {
     res.status(400).json(error.issues);

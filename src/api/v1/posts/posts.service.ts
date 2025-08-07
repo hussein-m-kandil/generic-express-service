@@ -243,7 +243,7 @@ export const deletePost = async (
         include: { _count: { select: { posts: true } } },
       });
     } catch (error) {
-      logger.log('Expect to found post image', error);
+      logger.error('Expect to found post image -', error);
     }
     // If the image is connected to this post only, delete it with the post in a single transaction
     if (postImage && postImage._count.posts === 1) {
