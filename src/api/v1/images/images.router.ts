@@ -2,6 +2,7 @@ import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './image.schema';
+import * as Storage from '@/lib/storage';
 import * as Service from './images.service';
 import * as Middlewares from '@/middlewares';
 import { Image } from '@/../prisma/client';
@@ -29,7 +30,7 @@ imagesRouter.post(
       ...Schema.imageSchema.parse(req.body),
       ...Service.getImageMetadata(imageFile),
     };
-    const uploadRes = await Service.uploadImage(imageFile, user);
+    const uploadRes = await Storage.uploadImage(imageFile, user);
     const savedImage = await Service.saveImage(uploadRes, data, user);
     res.status(201).json(savedImage);
   }
@@ -51,7 +52,7 @@ imagesRouter.put(
         ...Schema.imageSchema.parse(req.body),
         ...Service.getImageMetadata(imageFile),
       };
-      const uploadRes = await Service.uploadImage(imageFile, user, image);
+      const uploadRes = await Storage.uploadImage(imageFile, user, image);
       const savedImage = await Service.saveImage(uploadRes, data, user);
       res.json(savedImage);
     } else {
@@ -70,7 +71,7 @@ imagesRouter.delete(
   ),
   async (req, res: Exp.Response<unknown, { image: Image }>) => {
     const { image } = res.locals;
-    await Service.removeUploadedImage(image);
+    await Storage.removeImage(image);
     await Service.deleteImageById(image.id);
     res.status(204).send();
   }

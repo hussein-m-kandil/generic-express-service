@@ -1,9 +1,8 @@
 import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
-import * as Config from '@/lib/config';
+import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
-import { Image } from '@/../prisma/client';
 import db from '@/lib/db';
 import sharp from 'sharp';
 
@@ -70,34 +69,6 @@ export const getValidImageFileFormReq = async (
   );
 };
 
-export const uploadImage = async (
-  imageFile: Types.ImageFile,
-  user: Types.PublicUser,
-  imageData?: Image
-) => {
-  let bucket = Config.SUPABASE_BUCKET,
-    upsert = false,
-    filePath: string;
-  if (imageData) {
-    const [bucketName, ...splittedPath] = imageData.storageFullPath.split('/');
-    filePath = splittedPath.join('/');
-    bucket = bucketName;
-    upsert = true;
-  } else {
-    const randomSuffix = Math.round(Math.random() * Date.now()) % 10 ** 8;
-    const uniqueFileName = `${user.id}-${randomSuffix}${imageFile.ext}`;
-    filePath = `${Config.STORAGE_ROOT_DIR}/${user.username}/${uniqueFileName}`;
-  }
-  const { data, error } = await Config.supabase.storage
-    .from(bucket)
-    .upload(filePath, imageFile.buffer, {
-      contentType: imageFile.mimetype,
-      upsert,
-    });
-  if (error) throw new AppError.AppBaseError(error.message, 500, error.name);
-  return data;
-};
-
 export const getImageMetadata = ({
   mimetype,
   width,
@@ -108,11 +79,11 @@ export const getImageMetadata = ({
 };
 
 export const saveImage = async (
-  uploadImageRes: Awaited<ReturnType<typeof uploadImage>>,
+  uploadImageRes: Storage.UploadedImageData,
   data: Types.FullImageData,
   user: Types.PublicUser
 ): Promise<Types.PublicImage> => {
-  const src = `${Config.SUPABASE_BUCKET_URL}/${uploadImageRes.path}`;
+  const src = uploadImageRes.publicUrl;
   const imageData = {
     ...data,
     src,
@@ -141,17 +112,6 @@ export const updateImageData = async (
     uniqueFieldName: 'src',
   });
   return savedImage;
-};
-
-export const removeUploadedImage = async (imageData: Image) => {
-  const [bucketName, ...splittedPath] = imageData.storageFullPath.split('/');
-  const filePath = splittedPath.join('/');
-  const bucket = bucketName;
-  const { data, error } = await Config.supabase.storage
-    .from(bucket)
-    .remove([filePath]);
-  if (error) throw new AppError.AppBaseError(error.message, 500, error.name);
-  return data;
 };
 
 export const deleteImageById = async (id: string) => {
