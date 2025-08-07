@@ -1,5 +1,6 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
+import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
 import db from '@/lib/db';
@@ -239,18 +240,26 @@ export const deletePost = async (
     let postImage;
     try {
       postImage = await db.image.findUnique({
+        include: Utils.fieldsToIncludeWithImage,
+        omit: { storageFullPath: false, storageId: false },
         where: { id: post.imageId, ownerId: post.authorId },
-        include: { _count: { select: { posts: true } } },
       });
     } catch (error) {
       logger.error('Expect to found post image -', error);
     }
     // If the image is connected to this post only, delete it with the post in a single transaction
     if (postImage && postImage._count.posts === 1) {
-      const delImgQ = db.image.delete({ where: { id: postImage.id } });
-      return await Utils.handleDBKnownErrors(
-        db.$transaction([delPostQ, delImgQ])
-      );
+      try {
+        await Storage.removeImage(postImage);
+        return await Utils.handleDBKnownErrors(
+          db.$transaction([
+            delPostQ,
+            db.image.delete({ where: { id: postImage.id } }),
+          ])
+        );
+      } catch (error) {
+        logger.error('Failed to remove an image form the storage -', error);
+      }
     }
   }
   // Otherwise, only delete the post and leave its image alone ;)

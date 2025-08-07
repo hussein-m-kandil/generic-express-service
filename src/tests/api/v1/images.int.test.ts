@@ -12,29 +12,6 @@ import { IMAGES_URL, SIGNIN_URL } from './utils';
 import setup from '../setup';
 import fs from 'node:fs';
 
-const { storage, upload, remove } = vi.hoisted(() => {
-  const uploadedData = {
-    fullPath: 'test-file-full-path.jpg',
-    path: 'test-file-path.jpg',
-    id: 'test-file-id',
-  };
-  const uploadRes = { data: uploadedData, error: null };
-  const removeRes = { data: [], error: null };
-  const remove = vi.fn(
-    () => new Promise((resolve) => setImmediate(() => resolve(removeRes)))
-  );
-  const upload = vi.fn(
-    () => new Promise((resolve) => setImmediate(() => resolve(uploadRes)))
-  );
-  const from = vi.fn(() => ({ upload, remove }));
-  const storage = { from };
-  return { uploadedData, uploadRes, removeRes, storage, upload, remove, from };
-});
-
-vi.mock('@supabase/supabase-js', () => {
-  return { createClient: vi.fn(() => ({ storage })) };
-});
-
 describe('Images endpoint', async () => {
   const {
     api,
@@ -44,6 +21,7 @@ describe('Images endpoint', async () => {
     adminData,
     userOneData,
     userTwoData,
+    storageData,
     createImage,
     assertErrorRes,
     deleteAllUsers,
@@ -56,6 +34,10 @@ describe('Images endpoint', async () => {
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
+
+  const {
+    storage: { upload, remove },
+  } = storageData;
 
   const { authorizedApi } = await prepForAuthorizedTest(userOneData);
 

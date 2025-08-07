@@ -1,13 +1,37 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import { Prisma } from '@/../prisma/client';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { z } from 'zod';
 import app from '@/app';
 import db from '@/lib/db';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import supertest from 'supertest';
+
+const storageData = vi.hoisted(() => {
+  const uploadedData = {
+    fullPath: 'test-file-full-path.jpg',
+    path: 'test-file-path.jpg',
+    id: 'test-file-id',
+  };
+  const uploadRes = { data: uploadedData, error: null };
+  const removeRes = { data: [], error: null };
+  const remove = vi.fn(
+    () => new Promise((resolve) => setImmediate(() => resolve(removeRes)))
+  );
+  const upload = vi.fn(
+    () => new Promise((resolve) => setImmediate(() => resolve(uploadRes)))
+  );
+  const from = vi.fn(() => ({ upload, remove }));
+  const storage = { client: { from }, upload, remove };
+  return { uploadedData, uploadRes, removeRes, storage };
+});
+
+vi.mock('@supabase/supabase-js', () => {
+  const storage = storageData.storage.client;
+  return { createClient: vi.fn(() => ({ storage })) };
+});
 
 export const setup = async (signinUrl: string) => {
   const api = supertest(app);
@@ -262,6 +286,7 @@ export const setup = async (signinUrl: string) => {
     userTwoData,
     commentData,
     newUserData,
+    storageData,
     adminData,
     xUserData,
     dbUserOne,
