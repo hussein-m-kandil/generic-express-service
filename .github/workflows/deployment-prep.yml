@@ -1,4 +1,4 @@
-name: Deployment preparation
+name: Deployment Preparation
 
 on:
   push:
@@ -10,51 +10,69 @@ on:
   workflow_dispatch:
 
 jobs:
-  deployment_prep:
+  prepare-for-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Docker Compose
         uses: docker/setup-compose-action@v1
 
-      - name: Checkout the Repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Check for Linting Issues
+      - name: Lint code
         run: npm run lint
 
-      - name: Type-Check the Code
+      - name: Type-check
         run: npm run type-check
 
-      - name: Start PostgreSQl Database Service
+      - name: Start PostgreSQL (test DB)
         run: npm run pg:up -- -d
 
-      - name: Wait for PostgreSQL to Be Ready
+      - name: Wait for PostgreSQL
         run: |
           until docker compose -f docker-compose.postgres.yml exec pg-db pg_isready -U kanux; do
             echo "Waiting for PostgreSQL..."
             sleep 1
           done
 
-      - name: Apply All Migrations to the Testing Database
+      - name: Apply migrations to test DB
         run: npm run test:db:push
 
-      - name: Run All Tests
+      - name: Run tests
         run: npm run test -- --run
 
-      - name: Stop PostgreSQl Service
+      - name: Stop PostgreSQL (test DB)
         run: npm run pg:down
 
-      - name: Apply All Migrations to the Production Database
+      - name: Optionally reset production DB
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESET_DB: ${{ secrets.RESET_DB }}
+        if: ${{ env.RESET_DB == 'true' }}
+        run: npm run db:reset -- --force --skip-generate
+
+      - name: Deploy migrations to production DB
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
+
+      - name: Optionally seed production DB
+        env:
+          AUTHOR_PASSWORD: ${{ secrets.AUTHOR_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEED_DB: ${{ secrets.SEED_DB }}
+        if: ${{ env.SEED_DB == 'true' }}
+        run: npm run db:seed
+
+      - name: Deployment preparation completed
+        run: echo "✔ Deployment preparation complete."
