@@ -39,7 +39,7 @@ export const passwordSchema = z
       .min(8)
       .max(50)
       .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/,
         'Password must contain a number, a special character a lowercase letter, and an uppercase letter'
       ),
     confirm: z
