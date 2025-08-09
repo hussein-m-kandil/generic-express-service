@@ -51,6 +51,25 @@ usersRouter.post('/', async (req, res) => {
   res.status(201).json(signupRes);
 });
 
+usersRouter.post('/guest', async (req, res) => {
+  const [randVal, ...randVals] = crypto.randomUUID().split('-');
+  const randNum = Date.now() % 100000;
+  const questUser = await Service.createUser({
+    bio:
+      'Consider updating your profile data, especially the password, ' +
+      'to be able to sign in to this profile again.',
+    password: `G_${randVals.slice(1, 3).join('_')}`,
+    username: `guest_${randVal}${randNum}`,
+    fullname: `Guest ${randVal}${randNum}`,
+    isAdmin: false,
+  });
+  const signupRes: Types.AuthResponse = {
+    token: Utils.createJwtForUser(questUser),
+    user: questUser,
+  };
+  res.status(201).json(signupRes);
+});
+
 usersRouter.patch(
   '/:id',
   Validators.authValidator,
