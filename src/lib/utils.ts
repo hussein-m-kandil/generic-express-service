@@ -1,10 +1,12 @@
 import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Config from '@/lib/config';
+import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
 import { z } from 'zod';
 import ms from 'ms';
+import db from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
 export const createJwtForUser = (user: Types.PublicUser): string => {
@@ -162,3 +164,29 @@ export const fieldsToIncludeWithPost = {
 export const fieldsToIncludeWithComment = { post: true, author: true };
 
 export const fieldsToIncludeWithVote = { post: true, user: true };
+
+export const PURGE_INTERVAL_MS = 12 * 60 * 60 * 1000;
+
+export const purgeNonAdminData = async (now: number, interval: number) => {
+  const createdAt = { lte: new Date(now - interval) };
+  const author = { isAdmin: false };
+  const images = await db.image.findMany({
+    omit: { storageFullPath: false, storageId: false },
+    where: { owner: author, createdAt },
+  });
+  for (const image of images) {
+    await db.$transaction(async (transClient) => {
+      await Storage.removeImage(image);
+      return await transClient.image.delete({ where: { id: image.id } });
+    });
+  }
+  await db.$transaction([
+    db.comment.deleteMany({ where: { author, createdAt } }),
+    db.votesOnPosts.deleteMany({ where: { post: { author, createdAt } } }),
+    db.tagsOnPosts.deleteMany({ where: { post: { author, createdAt } } }),
+    db.post.deleteMany({ where: { author, createdAt } }),
+    db.user.deleteMany({ where: { ...author, createdAt } }),
+  ]);
+  const tags = (await db.tagsOnPosts.findMany({})).map((t) => t.name);
+  await db.tag.deleteMany({ where: { name: { notIn: tags } } });
+};
