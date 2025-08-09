@@ -1,13 +1,13 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './image.schema';
 import * as Storage from '@/lib/storage';
 import * as Service from './images.service';
 import * as Middlewares from '@/middlewares';
+import { Router, Request, Response } from 'express';
 import { Image } from '@/../prisma/client';
 
-export const imagesRouter = Exp.Router();
+export const imagesRouter = Router();
 
 imagesRouter.get('/', async (req, res) => {
   res.json(
@@ -23,7 +23,7 @@ imagesRouter.post(
   '/',
   Middlewares.authValidator,
   Middlewares.createFileProcessor('image'),
-  async (req: Exp.Request, res: Exp.Response) => {
+  async (req: Request, res: Response) => {
     const user = req.user as Types.PublicUser;
     const imageFile = await Service.getValidImageFileFormReq(req);
     const data = {
@@ -43,7 +43,7 @@ imagesRouter.put(
     Service.getImageOwnerAndInjectImageInResLocals
   ),
   Middlewares.createFileProcessor('image'),
-  async (req: Exp.Request, res: Exp.Response<unknown, { image: Image }>) => {
+  async (req: Request, res: Response<unknown, { image: Image }>) => {
     const { image } = res.locals;
     const user = req.user as Types.PublicUser;
     if (req.file) {
@@ -69,7 +69,7 @@ imagesRouter.delete(
   Middlewares.createAdminOrOwnerValidator(
     Service.getImageOwnerAndInjectImageInResLocals
   ),
-  async (req, res: Exp.Response<unknown, { image: Image }>) => {
+  async (req, res: Response<unknown, { image: Image }>) => {
     const { image } = res.locals;
     await Storage.removeImage(image);
     await Service.deleteImageById(image.id);

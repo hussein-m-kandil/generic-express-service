@@ -1,12 +1,12 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './user.schema';
 import * as Service from './users.service';
 import * as Validators from '@/middlewares/validators';
+import { Router, Request, NextFunction } from 'express';
 import { Prisma } from '@/../prisma/client';
 
-export const usersRouter = Exp.Router();
+export const usersRouter = Router();
 
 usersRouter.get(
   '/',
@@ -28,7 +28,7 @@ usersRouter.get(
     if (param === user.id) {
       res.json(user);
     } else {
-      const nextWrapper: Exp.NextFunction = (x: unknown) => {
+      const nextWrapper: NextFunction = (x: unknown) => {
         if (x) next(x);
         else res.json(user);
       };
@@ -55,10 +55,7 @@ usersRouter.patch(
   '/:id',
   Validators.authValidator,
   Validators.createAdminOrOwnerValidator((req) => req.params.id),
-  async (
-    req: Exp.Request<{ id: string }, unknown, Types.NewUserInput>,
-    res
-  ) => {
+  async (req: Request<{ id: string }, unknown, Types.NewUserInput>, res) => {
     const { username, fullname, password, confirm, secret } = req.body;
     const data: Prisma.UserUpdateInput = {};
     if (username) data.username = Schema.usernameSchema.parse(username);

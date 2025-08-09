@@ -1,13 +1,13 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as AppError from '@/lib/app-error';
 import * as Validators from '@/middlewares/validators';
+import { Router, RequestHandler } from 'express';
 import { User } from '@/../prisma/client';
 import passport from '@/lib/passport';
 import logger from '@/lib/logger';
 
-export const authRouter = Exp.Router();
+export const authRouter = Router();
 
 authRouter.post('/signin', async (req, res, next) => {
   await (
@@ -29,7 +29,7 @@ authRouter.post('/signin', async (req, res, next) => {
           });
         }
       }
-    ) as Exp.RequestHandler
+    ) as RequestHandler
   )(req, res, next);
 });
 

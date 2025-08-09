@@ -1,10 +1,10 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
-import db from '@/lib/db';
+import { Request, Response } from 'express';
 import sharp from 'sharp';
+import db from '@/lib/db';
 
 const include = Utils.fieldsToIncludeWithImage;
 const notFoundErrMsg = 'image not found';
@@ -27,7 +27,7 @@ export const findImageById = async (id: string): Promise<Types.PublicImage> => {
 };
 
 export const getValidImageFileFormReq = async (
-  req: Exp.Request & { file?: Express.Multer.File }
+  req: Request & { file?: Express.Multer.File }
 ): Promise<Types.ImageFile> => {
   if (req.file) {
     let metadata: sharp.Metadata;
@@ -120,8 +120,8 @@ export const deleteImageById = async (id: string) => {
 };
 
 export const getImageOwnerAndInjectImageInResLocals = async (
-  req: Exp.Request,
-  res: Exp.Response
+  req: Request,
+  res: Response
 ) => {
   const dbQuery = db.image.findUnique({
     where: { id: req.params.id },
