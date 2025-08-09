@@ -133,6 +133,35 @@ describe('Users endpoint', async () => {
     it('should create an admin user', createPostNewUserTest(true));
   });
 
+  describe(`POST ${USERS_URL}/guest`, () => {
+    it.only('should create a random user and sign it in', async () => {
+      const res = await api.post(`${USERS_URL}/guest`);
+      const resBody = res.body as AuthResponse;
+      const resUser = resBody.user as User;
+      const dbUser = (await db.user.findMany({ omit: { password: false } })).at(
+        -1
+      );
+      const resJwtPayload = jwt.decode(
+        resBody.token.replace(/^Bearer /, '')
+      ) as User;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(201);
+      expect(resUser.password).toBeUndefined();
+      expect(resUser.isAdmin).toStrictEqual(false);
+      expect(resBody.token).toMatch(/^Bearer /i);
+      expect(resJwtPayload.isAdmin).toStrictEqual(false);
+      expect(resJwtPayload.id).toStrictEqual(dbUser?.id);
+      expect(resJwtPayload.createdAt).toBeUndefined();
+      expect(resJwtPayload.updatedAt).toBeUndefined();
+      expect(resJwtPayload.username).toBeUndefined();
+      expect(resJwtPayload.fullname).toBeUndefined();
+      expect(dbUser?.isAdmin).toBe(false);
+      expect(dbUser?.bio).toBe(resUser.bio);
+      expect(resUser.bio).toBe(resUser.bio);
+      expect(dbUser?.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
+    });
+  });
+
   describe(`GET ${USERS_URL}`, () => {
     it('should respond with 401 on request without JWT', async () => {
       const res = await api.get(USERS_URL);

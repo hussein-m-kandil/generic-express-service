@@ -51,6 +51,22 @@ usersRouter.post('/', async (req, res) => {
   res.status(201).json(signupRes);
 });
 
+usersRouter.post('/guest', async (req, res) => {
+  const password = `Guest_${crypto.randomUUID().split('-')[0]}_${Date.now()}`;
+  const questUser = await Service.createUser({
+    bio: 'Your password is the same as your username',
+    username: password,
+    fullname: password,
+    isAdmin: false,
+    password,
+  });
+  const signupRes: Types.AuthResponse = {
+    token: Utils.createJwtForUser(questUser),
+    user: questUser,
+  };
+  res.status(201).json(signupRes);
+});
+
 usersRouter.patch(
   '/:id',
   Validators.authValidator,
