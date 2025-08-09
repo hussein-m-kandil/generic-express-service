@@ -1,9 +1,9 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Config from '@/lib/config';
 import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
+import { Request } from 'express';
 import { z } from 'zod';
 import ms from 'ms';
 import db from '@/lib/db';
@@ -54,26 +54,26 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
-export const getCurrentUserIdFromReq = (req: Exp.Request) => {
+export const getCurrentUserIdFromReq = (req: Request) => {
   return (req.user as Types.PublicUser | undefined)?.id;
 };
 
-export const getTextFilterFromReqQuery = (req: Exp.Request) => {
+export const getTextFilterFromReqQuery = (req: Request) => {
   return z.string().nonempty().safeParse(req.query.q).data;
 };
 
-export const getVoteTypeFilterFromReqQuery = (req: Exp.Request) => {
+export const getVoteTypeFilterFromReqQuery = (req: Request) => {
   let isUpvote;
   if (req.query.upvote && !req.query.downvote) isUpvote = true;
   if (!req.query.upvote && req.query.downvote) isUpvote = false;
   return isUpvote;
 };
 
-export const getAuthorIdFilterFromReqQuery = (req: Exp.Request) => {
+export const getAuthorIdFilterFromReqQuery = (req: Request) => {
   return z.string().uuid().optional().safeParse(req.query.author).data;
 };
 
-export const getTagsFilterFromReqQuery = (req: Exp.Request) => {
+export const getTagsFilterFromReqQuery = (req: Request) => {
   /* E.g. `...?tags=x,y,z`, or `...?tags=x&blah=0&tags=y,z` */
   const strTagsSchema = z
     .string()
@@ -85,7 +85,7 @@ export const getTagsFilterFromReqQuery = (req: Exp.Request) => {
 };
 
 export const getPaginationFiltersFromReqQuery = (
-  req: Exp.Request
+  req: Request
 ): Types.PaginationFilters => {
   const { cursor, sort, limit } = req.query;
   return {
@@ -96,7 +96,7 @@ export const getPaginationFiltersFromReqQuery = (
 };
 
 export const getCommonFiltersFromReqQuery = (
-  req: Exp.Request
+  req: Request
 ): Types.PaginationFilters => {
   return {
     currentUserId: getCurrentUserIdFromReq(req),
@@ -106,7 +106,7 @@ export const getCommonFiltersFromReqQuery = (
 };
 
 export const getCommentFiltersFromReqQuery = (
-  req: Exp.Request
+  req: Request
 ): Types.CommentFilters => {
   return {
     ...getCommonFiltersFromReqQuery(req),
@@ -114,16 +114,14 @@ export const getCommentFiltersFromReqQuery = (
   };
 };
 
-export const getVoteFiltersFromReqQuery = (req: Exp.Request) => {
+export const getVoteFiltersFromReqQuery = (req: Request) => {
   return {
     ...getCommonFiltersFromReqQuery(req),
     isUpvote: getVoteTypeFilterFromReqQuery(req),
   };
 };
 
-export const getPostFiltersFromReqQuery = (
-  req: Exp.Request
-): Types.PostFilters => {
+export const getPostFiltersFromReqQuery = (req: Request): Types.PostFilters => {
   // Same as the comments filtration + tags filter
   return {
     ...getCommentFiltersFromReqQuery(req),

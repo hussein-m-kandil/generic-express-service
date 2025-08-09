@@ -1,15 +1,15 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './post.schema';
 import * as Service from './posts.service';
 import * as Validators from '@/middlewares/validators';
+import { Router, Request, Response } from 'express';
 
-export const postsRouter = Exp.Router();
+export const postsRouter = Router();
 
 const getPostAuthorIdAndInjectPostInResLocals = async (
-  req: Exp.Request,
-  res: Exp.Response
+  req: Request,
+  res: Response
 ) => {
   const userId = Utils.getCurrentUserIdFromReq(req);
   const post = await Service.findPostByIdOrThrow(req.params.id, userId);
@@ -17,7 +17,7 @@ const getPostAuthorIdAndInjectPostInResLocals = async (
   return post.authorId;
 };
 
-const getCommentAuthorId = async (req: Exp.Request) => {
+const getCommentAuthorId = async (req: Request) => {
   const userId = Utils.getCurrentUserIdFromReq(req);
   const comment = await Service.findPostCommentByCompoundIdOrThrow(
     req.params.pId,
@@ -32,7 +32,7 @@ const createHandlersForGettingPrivatePostData = (
 ) => {
   return [
     Validators.optionalAuthValidator,
-    async (req: Exp.Request, res: Exp.Response) => {
+    async (req: Request, res: Response) => {
       const userId = Utils.getCurrentUserIdFromReq(req);
       res.json(await postService(req.params.id, userId));
     },
@@ -119,7 +119,7 @@ postsRouter.get(
 postsRouter.get(
   '/:id/comments',
   Validators.optionalAuthValidator,
-  async (req: Exp.Request, res: Exp.Response) => {
+  async (req: Request, res: Response) => {
     const postId = req.params.id;
     const filters = { ...Utils.getCommentFiltersFromReqQuery(req), postId };
     res.json(await Service.findFilteredComments(filters));
@@ -129,7 +129,7 @@ postsRouter.get(
 postsRouter.get(
   '/:id/votes',
   Validators.optionalAuthValidator,
-  async (req: Exp.Request, res: Exp.Response) => {
+  async (req: Request, res: Response) => {
     const filters = {
       ...Utils.getVoteFiltersFromReqQuery(req),
       postId: req.params.id,
@@ -195,10 +195,7 @@ postsRouter.post('/:id/unvote', Validators.authValidator, async (req, res) => {
 postsRouter.post(
   '/:id/comments',
   Validators.authValidator,
-  async (
-    req: Exp.Request<{ id: string }, unknown, { content: string }>,
-    res
-  ) => {
+  async (req: Request<{ id: string }, unknown, { content: string }>, res) => {
     const user = req.user as Types.PublicUser;
     const commentData = Schema.commentSchema.parse(req.body);
     const newComment = await Service.findPostByIdAndCreateComment(
@@ -245,7 +242,7 @@ postsRouter.delete(
   Validators.createAdminOrOwnerValidator(
     async (req, res) => await getPostAuthorIdAndInjectPostInResLocals(req, res)
   ),
-  async (req, res: Exp.Response<unknown, { post: Types.PostFullData }>) => {
+  async (req, res: Response<unknown, { post: Types.PostFullData }>) => {
     const userId = Utils.getCurrentUserIdFromReq(req);
     await Service.deletePost(res.locals.post, userId);
     res.status(204).end();
