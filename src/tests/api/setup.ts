@@ -1,12 +1,15 @@
+import * as API from '@/api';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
+import * as Middlewares from '@/middlewares';
 import { Prisma } from '@/../prisma/client';
+import { BASE_URL } from './v1/utils';
 import { expect, vi } from 'vitest';
 import { z } from 'zod';
-import app from '@/app';
 import db from '@/lib/db';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
+import express from 'express';
 import supertest from 'supertest';
 
 const storageData = vi.hoisted(() => {
@@ -33,8 +36,13 @@ vi.mock('@supabase/supabase-js', () => {
   return { createClient: vi.fn(() => ({ storage })) };
 });
 
-export const setup = async (signinUrl: string) => {
-  const api = supertest(app);
+const app = express()
+  .use(express.json())
+  .use(BASE_URL, API.V1.apiRouter)
+  .use(Middlewares.errorHandler);
+
+export const setup = async (signinUrl: string, expApp = app) => {
+  const api = supertest(expApp);
 
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
