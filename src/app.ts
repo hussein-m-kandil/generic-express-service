@@ -14,6 +14,7 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use(express.json());
 app.use(Middlewares.requestLogger);
+app.use(Middlewares.createNonAdminDataPurger());
 
 logger.info('ALLOWED_ORIGINS: ', ALLOWED_ORIGINS);
 app.use(
