@@ -260,44 +260,48 @@ describe('Users endpoint', async () => {
       credentials: { username: string; password: string }
     ) => {
       return async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(credentials);
+        const {
+          authorizedApi,
+          signedInUserData: { token },
+        } = await prepForAuthorizedTest(credentials);
         const res = await authorizedApi
           .patch(`${USERS_URL}/${dbUser.id}`)
           .send(data);
-        const updatedDBUser = await db.user.findUnique({
+        const updatedDBUser = (await db.user.findUnique({
           where: { id: dbUser.id },
           omit: { password: false },
-        });
-        expect(res.statusCode).toBe(204);
-        expect(updatedDBUser).toBeTruthy();
-        if (updatedDBUser) {
-          const updatedFields = Object.keys(data);
-          if (updatedFields.includes('username')) {
-            expect(updatedDBUser.username).toBe(data.username);
-          } else {
-            expect(updatedDBUser.username).toBe(dbUser.username);
-          }
-          if (updatedFields.includes('fullname')) {
-            expect(updatedDBUser.fullname).toBe(data.fullname);
-          } else {
-            expect(updatedDBUser.fullname).toBe(dbUser.fullname);
-          }
-          if (updatedFields.includes('password')) {
-            expect(
-              bcrypt.compareSync(
-                data.password as string,
-                updatedDBUser.password
-              )
-            ).toBe(true);
-          } else {
-            expect(updatedDBUser.password).toBe(dbUser.password);
-          }
-          if (updatedFields.includes('secret')) {
-            expect(updatedDBUser.isAdmin).toBe(data.secret === ADMIN_SECRET);
-          }
-          expect(+updatedDBUser.createdAt).toBe(+dbUser.createdAt);
-          expect(+updatedDBUser.updatedAt).toBeGreaterThan(+dbUser.updatedAt);
+        })) as User;
+        expect(res.statusCode).toBe(200);
+        expect(JSON.stringify((res.body as AuthResponse).user)).toBe(
+          JSON.stringify({
+            ...updatedDBUser,
+            password: undefined,
+          })
+        );
+        expect((res.body as AuthResponse).token).toBe(token);
+        const updatedFields = Object.keys(data);
+        if (updatedFields.includes('username')) {
+          expect(updatedDBUser.username).toBe(data.username);
+        } else {
+          expect(updatedDBUser.username).toBe(dbUser.username);
         }
+        if (updatedFields.includes('fullname')) {
+          expect(updatedDBUser.fullname).toBe(data.fullname);
+        } else {
+          expect(updatedDBUser.fullname).toBe(dbUser.fullname);
+        }
+        if (updatedFields.includes('password')) {
+          expect(
+            bcrypt.compareSync(data.password as string, updatedDBUser.password)
+          ).toBe(true);
+        } else {
+          expect(updatedDBUser.password).toBe(dbUser.password);
+        }
+        if (updatedFields.includes('secret')) {
+          expect(updatedDBUser.isAdmin).toBe(data.secret === ADMIN_SECRET);
+        }
+        expect(+updatedDBUser.createdAt).toBe(+dbUser.createdAt);
+        expect(+updatedDBUser.updatedAt).toBeGreaterThan(+dbUser.updatedAt);
       };
     };
 

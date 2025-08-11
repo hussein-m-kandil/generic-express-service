@@ -86,8 +86,12 @@ usersRouter.patch(
       }).password;
     }
     if (secret && Schema.secretSchema.parse(secret)) data.isAdmin = true;
-    await Service.updateUser(req.params.id, data);
-    res.status(204).end();
+    const updatedUser = await Service.updateUser(req.params.id, data);
+    const resBody: Types.AuthResponse = {
+      token: req.headers.authorization ?? '',
+      user: updatedUser,
+    };
+    res.json(resBody);
   }
 );
 

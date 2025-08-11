@@ -63,7 +63,7 @@ export const findUserByIdOrByUsernameOrThrow = async (idOrUsername: string) => {
 export const updateUser = async (
   id: string,
   userData: Prisma.UserUpdateInput
-): Promise<void> => {
+) => {
   const data = { ...userData };
   if (data.password && typeof data.password === 'string') {
     data.password = await hashPassword(data.password);
@@ -73,7 +73,7 @@ export const updateUser = async (
     notFoundErrMsg: 'User not found',
     uniqueFieldName: 'username',
   };
-  await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
