@@ -54,16 +54,16 @@ describe('Authentication endpoint', async () => {
     it('should sign in and response with JWT and user insensitive-info', async () => {
       const res = await api.post(SIGNIN_URL).send(userData);
       const resBody = res.body as AuthResponse;
-      const resUser = resBody.user as User;
+      const resUser = resBody.user;
       const resJwtPayload = jwt.decode(
         resBody.token.replace(/^Bearer /, '')
       ) as User;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
+      expect(Object.keys(resUser)).not.toContain('password');
       expect(resUser.username).toBe(userData.username);
       expect(resUser.fullname).toBe(userData.fullname);
       expect(resUser.isAdmin).toStrictEqual(false);
-      expect(resUser.password).toBeUndefined();
       expect(resBody.token).toMatch(/^Bearer /i);
       expect(resJwtPayload.id).toStrictEqual(dbUser.id);
       expect(resJwtPayload.isAdmin).toStrictEqual(false);

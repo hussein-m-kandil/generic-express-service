@@ -4,7 +4,6 @@ import * as Schema from './user.schema';
 import * as Service from './users.service';
 import * as Validators from '@/middlewares/validators';
 import { Router, Request, NextFunction } from 'express';
-import { Prisma } from '@/../prisma/client';
 
 export const usersRouter = Router();
 
@@ -75,17 +74,7 @@ usersRouter.patch(
   Validators.authValidator,
   Validators.createAdminOrOwnerValidator((req) => req.params.id),
   async (req: Request<{ id: string }, unknown, Types.NewUserInput>, res) => {
-    const { username, fullname, password, confirm, secret } = req.body;
-    const data: Prisma.UserUpdateInput = {};
-    if (username) data.username = Schema.usernameSchema.parse(username);
-    if (fullname) data.fullname = Schema.fullnameSchema.parse(fullname);
-    if (password) {
-      data.password = Schema.passwordSchema.parse({
-        password: password,
-        confirm,
-      }).password;
-    }
-    if (secret && Schema.secretSchema.parse(secret)) data.isAdmin = true;
+    const data = Schema.createUpdateUserSchema(req.body).parse(req.body);
     const updatedUser = await Service.updateUser(req.params.id, data);
     const resBody: Types.AuthResponse = {
       token: req.headers.authorization ?? '',

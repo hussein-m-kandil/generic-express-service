@@ -10,6 +10,7 @@ const hashPassword = (password: string) => Bcrypt.hash(password, 10);
 export const getAllUsers = async (filters?: Types.PaginationFilters) => {
   return await db.user.findMany({
     ...(filters ? Utils.getPaginationArgs(filters) : {}),
+    ...Utils.userAggregation,
   });
 };
 
@@ -18,7 +19,7 @@ export const createUser = async (
 ): Promise<Types.PublicUser> => {
   const data = { ...newUser };
   data.password = await hashPassword(data.password);
-  const dbQuery = db.user.create({ data });
+  const dbQuery = db.user.create({ data, ...Utils.userAggregation });
   const handlerOptions = { uniqueFieldName: 'username' };
   const user = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
   return user;
@@ -27,7 +28,10 @@ export const createUser = async (
 export const findUserById = async (
   id: string
 ): Promise<Types.PublicUser | null> => {
-  const dbQuery = db.user.findUnique({ where: { id } });
+  const dbQuery = db.user.findUnique({
+    where: { id },
+    ...Utils.userAggregation,
+  });
   const user = await Utils.handleDBKnownErrors(dbQuery);
   return user;
 };
@@ -35,7 +39,10 @@ export const findUserById = async (
 export const findUserByUsername = async (
   username: string
 ): Promise<Types.PublicUser | null> => {
-  const dbQuery = db.user.findUnique({ where: { username } });
+  const dbQuery = db.user.findUnique({
+    where: { username },
+    ...Utils.userAggregation,
+  });
   const user = await Utils.handleDBKnownErrors(dbQuery);
   return user;
 };
@@ -68,7 +75,11 @@ export const updateUser = async (
   if (data.password && typeof data.password === 'string') {
     data.password = await hashPassword(data.password);
   }
-  const dbQuery = db.user.update({ where: { id }, data });
+  const dbQuery = db.user.update({
+    where: { id },
+    data,
+    ...Utils.userAggregation,
+  });
   const handlerOptions = {
     notFoundErrMsg: 'User not found',
     uniqueFieldName: 'username',
@@ -77,6 +88,6 @@ export const updateUser = async (
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
-  const dbQuery = db.user.delete({ where: { id } });
+  const dbQuery = db.user.delete({ where: { id }, ...Utils.userAggregation });
   await Utils.handleDBKnownErrors(dbQuery);
 };

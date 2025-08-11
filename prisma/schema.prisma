@@ -11,17 +11,18 @@ datasource db {
 model User {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   order        Int            @unique @default(autoincrement())
+  bio          String         @default("")
   password     String         @db.Char(60)
   fullname     String         @db.VarChar(100)
   username     String         @unique @db.VarChar(50)
   isAdmin      Boolean        @default(false) @map("is_admin")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
-  votesOnPosts VotesOnPosts[]
-  comments     Comment[]
-  images       Image[]
+  avatar       Image?         @relation("avatar")
+  images       Image[]        @relation("images")
   posts        Post[]
-  bio          String?
+  comments     Comment[]
+  votesOnPosts VotesOnPosts[]
 
   @@map("users")
 }
@@ -96,8 +97,10 @@ model VotesOnPosts {
 model Image {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   order           Int      @unique @default(autoincrement())
-  ownerId         String   @map("author_id") @db.Uuid
-  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId         String   @map("owner_id") @db.Uuid
+  owner           User     @relation("images", fields: [ownerId], references: [id], onDelete: Cascade)
+  userId          String?  @unique @map("user_id") @db.Uuid
+  user            User?    @relation("avatar", fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   storageFullPath String   @map("storage_full_path")

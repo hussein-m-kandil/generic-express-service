@@ -53,8 +53,9 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
   const createUser = async (data: Prisma.UserCreateInput) => {
     const password = bcrypt.hashSync(data.password, 10);
     return await db.user.create({
-      data: { ...data, password },
       omit: { password: false, isAdmin: false },
+      include: { avatar: true, images: true },
+      data: { ...data, password },
     });
   };
 

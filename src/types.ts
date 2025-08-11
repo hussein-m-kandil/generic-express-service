@@ -14,11 +14,19 @@ export interface UserSensitiveDataToOmit {
   password: true;
 }
 
-export interface OmitUserSensitiveData {
-  omit: UserSensitiveDataToOmit;
+export interface UserDataToAggregate {
+  avatar: { omit: ImageSensitiveDataToOmit };
 }
 
-export type PublicUser = Prisma.UserGetPayload<OmitUserSensitiveData>;
+export interface UserAggregation {
+  omit: UserSensitiveDataToOmit;
+  include: UserDataToAggregate;
+}
+
+export type PublicUser = Prisma.UserGetPayload<{
+  include: UserAggregation['include'];
+  omit: UserAggregation['omit'];
+}>;
 
 export interface ImageSensitiveDataToOmit {
   storageId: true;
@@ -31,7 +39,7 @@ export interface OmitImageSensitiveData {
 
 export interface ImageDataToAggregate {
   _count: { select: { posts: true } };
-  owner: OmitUserSensitiveData;
+  owner: UserAggregation;
 }
 
 export type PublicImage = Prisma.ImageGetPayload<{
@@ -69,9 +77,9 @@ export type PostFullData = Prisma.PostGetPayload<{
   include: {
     _count: { select: { comments: true; votes: true } };
     image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
-    comments: { include: { author: OmitUserSensitiveData } };
-    votes: { include: { user: OmitUserSensitiveData } };
-    author: OmitUserSensitiveData;
+    comments: { include: { author: UserAggregation } };
+    votes: { include: { user: UserAggregation } };
+    author: UserAggregation;
     tags: true;
   };
 }>;

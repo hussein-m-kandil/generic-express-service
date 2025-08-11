@@ -145,9 +145,14 @@ export const getPaginationArgs = (
   };
 };
 
+export const userAggregation: Types.UserAggregation = {
+  include: { avatar: { omit: { storageId: true, storageFullPath: true } } },
+  omit: { password: true },
+};
+
 export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
   _count: { select: { posts: true } },
-  owner: { omit: { password: true } },
+  owner: userAggregation,
 };
 
 export const fieldsToIncludeWithPost = {
@@ -155,13 +160,16 @@ export const fieldsToIncludeWithPost = {
   votes: { include: { user: true }, ...getPaginationArgs() },
   comments: { include: { author: true }, ...getPaginationArgs() },
   image: { include: fieldsToIncludeWithImage },
+  author: userAggregation,
   tags: true,
-  author: true,
 };
 
-export const fieldsToIncludeWithComment = { post: true, author: true };
+export const fieldsToIncludeWithComment = {
+  post: true,
+  author: userAggregation,
+};
 
-export const fieldsToIncludeWithVote = { post: true, user: true };
+export const fieldsToIncludeWithVote = { post: true, user: userAggregation };
 
 export const PURGE_INTERVAL_MS = 12 * 60 * 60 * 1000;
 

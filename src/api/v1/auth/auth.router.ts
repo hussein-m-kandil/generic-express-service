@@ -3,7 +3,6 @@ import * as Utils from '@/lib/utils';
 import * as AppError from '@/lib/app-error';
 import * as Validators from '@/middlewares/validators';
 import { Router, RequestHandler } from 'express';
-import { User } from '@/../prisma/client';
 import passport from '@/lib/passport';
 import logger from '@/lib/logger';
 
@@ -14,7 +13,7 @@ authRouter.post('/signin', async (req, res, next) => {
     passport.authenticate(
       'local',
       { session: false },
-      (error: unknown, user: User | false | null | undefined) => {
+      (error: unknown, user: Types.PublicUser | false | null | undefined) => {
         if (error || !user) {
           if (error) logger.error(error);
           next(new AppError.AppSignInError());
