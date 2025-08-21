@@ -1,5 +1,6 @@
 import * as API from '@/api';
 import * as Types from '@/types';
+import * as Image from '@/lib/image';
 import * as Utils from '@/lib/utils';
 import * as Middlewares from '@/middlewares';
 import { default as express } from 'express';
@@ -133,7 +134,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
 
   const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
     return await db.image.upsert({
-      include: Utils.fieldsToIncludeWithImage,
+      include: Image.FIELDS_TO_INCLUDE,
       where: { src: imageData.src },
       create: imageData,
       update: imageData,

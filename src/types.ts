@@ -1,6 +1,6 @@
 import { postSchema, commentSchema } from '@/api/v1/posts';
 import { PrismaClient, Prisma } from '@/../prisma/client';
-import { imageSchema } from '@/api/v1/images';
+import { imageSchema } from '@/lib/image/schema';
 import { userSchema } from '@/api/v1/users';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -46,6 +46,22 @@ export type PublicImage = Prisma.ImageGetPayload<{
   omit: ImageSensitiveDataToOmit;
   include: ImageDataToAggregate;
 }>;
+
+export interface ImageMetadata {
+  mimetype: string;
+  height: number;
+  width: number;
+  size: number;
+}
+
+export interface ImageFile extends Express.Multer.File, ImageMetadata {
+  format: string;
+  ext: string;
+}
+
+export type ImageDataInput = z.output<typeof imageSchema>;
+
+export type ImageFullData = ImageDataInput & ImageMetadata;
 
 export type CustomPrismaClient = PrismaClient<{
   omit: { image: ImageSensitiveDataToOmit; user: UserSensitiveDataToOmit };
@@ -117,19 +133,3 @@ export interface VoteFilters extends PaginationFilters {
   isUpvote?: boolean;
   postId?: string;
 }
-
-export interface ImageMetadata {
-  mimetype: string;
-  height: number;
-  width: number;
-  size: number;
-}
-
-export interface ImageFile extends Express.Multer.File, ImageMetadata {
-  format: string;
-  ext: string;
-}
-
-export type ImageDataInput = z.output<typeof imageSchema>;
-
-export type FullImageData = ImageDataInput & ImageMetadata;

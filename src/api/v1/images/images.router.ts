@@ -1,11 +1,11 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
-import * as Schema from './image.schema';
+import * as Image from '@/lib/image';
 import * as Storage from '@/lib/storage';
 import * as Service from './images.service';
 import * as Middlewares from '@/middlewares';
 import { Router, Request, Response } from 'express';
-import { Image } from '@/../prisma/client';
+import { Image as ImageT } from '@/../prisma/client';
 
 export const imagesRouter = Router();
 
@@ -25,10 +25,10 @@ imagesRouter.post(
   Middlewares.createFileProcessor('image'),
   async (req: Request, res: Response) => {
     const user = req.user as Types.PublicUser;
-    const imageFile = await Service.getValidImageFileFormReq(req);
+    const imageFile = await Image.getValidImageFileFormReq(req);
     const data = {
-      ...Schema.imageSchema.parse(req.body),
-      ...Service.getImageMetadata(imageFile),
+      ...Image.imageSchema.parse(req.body),
+      ...Image.getImageMetadata(imageFile),
     };
     const uploadRes = await Storage.uploadImage(imageFile, user);
     const savedImage = await Service.saveImage(uploadRes, data, user);
@@ -40,23 +40,23 @@ imagesRouter.put(
   '/:id',
   Middlewares.authValidator,
   Middlewares.createOwnerValidator(
-    Service.getImageOwnerAndInjectImageInResLocals
+    Image.getImageOwnerAndInjectImageInResLocals
   ),
   Middlewares.createFileProcessor('image'),
-  async (req: Request, res: Response<unknown, { image: Image }>) => {
+  async (req: Request, res: Response<unknown, { image: ImageT }>) => {
     const { image } = res.locals;
     const user = req.user as Types.PublicUser;
     if (req.file) {
-      const imageFile = await Service.getValidImageFileFormReq(req);
+      const imageFile = await Image.getValidImageFileFormReq(req);
       const data = {
-        ...Schema.imageSchema.parse(req.body),
-        ...Service.getImageMetadata(imageFile),
+        ...Image.imageSchema.parse(req.body),
+        ...Image.getImageMetadata(imageFile),
       };
       const uploadRes = await Storage.uploadImage(imageFile, user, image);
       const savedImage = await Service.saveImage(uploadRes, data, user);
       res.json(savedImage);
     } else {
-      const data = Schema.imageSchema.parse(req.body);
+      const data = Image.imageSchema.parse(req.body);
       const updatedImage = await Service.updateImageData(data, req.params.id);
       res.json(updatedImage);
     }
@@ -67,9 +67,9 @@ imagesRouter.delete(
   '/:id',
   Middlewares.authValidator,
   Middlewares.createAdminOrOwnerValidator(
-    Service.getImageOwnerAndInjectImageInResLocals
+    Image.getImageOwnerAndInjectImageInResLocals
   ),
-  async (req, res: Response<unknown, { image: Image }>) => {
+  async (req, res: Response<unknown, { image: ImageT }>) => {
     const { image } = res.locals;
     await Storage.removeImage(image);
     await Service.deleteImageById(image.id);

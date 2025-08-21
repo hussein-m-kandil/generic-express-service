@@ -1,5 +1,6 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
+import * as Image from '@/lib/image';
 import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
@@ -240,7 +241,7 @@ export const deletePost = async (
     let postImage;
     try {
       postImage = await db.image.findUnique({
-        include: Utils.fieldsToIncludeWithImage,
+        include: Image.FIELDS_TO_INCLUDE,
         omit: { storageFullPath: false, storageId: false },
         where: { id: post.imageId, ownerId: post.authorId },
       });

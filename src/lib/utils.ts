@@ -1,4 +1,5 @@
 import * as Types from '@/types';
+import * as Image from '@/lib/image';
 import * as Config from '@/lib/config';
 import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
@@ -150,16 +151,11 @@ export const userAggregation: Types.UserAggregation = {
   omit: { password: true },
 };
 
-export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
-  _count: { select: { posts: true } },
-  owner: userAggregation,
-};
-
 export const fieldsToIncludeWithPost = {
   _count: { select: { comments: true, votes: true } },
   votes: { include: { user: true }, ...getPaginationArgs() },
   comments: { include: { author: true }, ...getPaginationArgs() },
-  image: { include: fieldsToIncludeWithImage },
+  image: { include: Image.FIELDS_TO_INCLUDE },
   author: userAggregation,
   tags: true,
 };
