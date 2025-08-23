@@ -102,7 +102,10 @@ export type PostFullData = Prisma.PostGetPayload<{
 
 export type NewPostParsedData = z.output<typeof postSchema>;
 
-export type NewPostAuthorizedData = NewPostParsedData & { authorId: string };
+export type NewPostParsedDataWithoutImage = Omit<
+  NewPostParsedData,
+  'imagedata'
+>;
 
 export type NewCommentParsedData = z.output<typeof commentSchema>;
 

@@ -150,7 +150,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     return await db.image.createMany({ data: imageData });
   };
 
-  const postDataInput: Types.NewPostParsedData = {
+  const postDataInput: Types.NewPostParsedDataWithoutImage = {
     published: true,
     title: 'Test Post',
     content: 'Test post content...',
@@ -175,11 +175,11 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
 
   const commentData = { content: 'Keep it up' };
 
-  const createPost = async (data: typeof postFullData) => {
+  const createPost = async (data: typeof postFullData, imageId?: string) => {
     return await db.post.create({
       data: {
+        imageId,
         title: data.title,
-        imageId: data.image,
         content: data.content,
         authorId: data.authorId,
         published: data.published,
@@ -217,13 +217,13 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
 
   const assertPostData = (
     actualPost: Types.PostFullData,
-    expectedPost: typeof postFullData & { image?: string }
+    expectedPost: typeof postFullData & { imageId?: string }
   ) => {
     expect(actualPost.title).toBe(expectedPost.title);
     expect(actualPost.content).toBe(expectedPost.content);
     expect(actualPost.authorId).toBe(expectedPost.authorId);
     expect(actualPost.published).toBe(expectedPost.published);
-    expect(actualPost.imageId).toStrictEqual(expectedPost.image ?? null);
+    expect(actualPost.imageId).toStrictEqual(expectedPost.imageId ?? null);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.tags.length).toBe(expectedPost.tags.length);
     expect(actualPost.tags.map(({ name }) => name.toLowerCase())).toStrictEqual(

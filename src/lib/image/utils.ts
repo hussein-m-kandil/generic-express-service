@@ -8,10 +8,7 @@ import db from '@/lib/db';
 
 export const NOT_FOUND_ERR_MSG = 'image not found';
 
-export const FIELDS_TO_INCLUDE: Types.ImageDataToAggregate = {
-  _count: { select: { posts: true } },
-  owner: Utils.userAggregation,
-};
+export const FIELDS_TO_INCLUDE = Utils.fieldsToIncludeWithImage;
 
 export const getValidImageFileFormReq = async (
   req: Request & { file?: Express.Multer.File }
