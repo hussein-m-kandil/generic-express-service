@@ -26,7 +26,7 @@ export const supabase = createClient(STORAGE_URL, STORAGE_KEY);
 export const uploadImage = async (
   imageFile: Types.ImageFile,
   user: Types.PublicUser,
-  imageData?: Image
+  imageData?: Image | null
 ) => {
   let bucket = STORAGE_BUCKET,
     upsert = false,
