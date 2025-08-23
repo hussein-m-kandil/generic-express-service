@@ -1,3 +1,4 @@
+import * as Image from '@/lib/image';
 import { z } from 'zod';
 
 const getRequiredAndTypeErrors = (
@@ -18,19 +19,14 @@ export const titleSchema = z
   .trim()
   .nonempty('A post must have a title');
 
-export const imageSchema = z
-  .string()
-  .trim()
-  .uuid({ message: 'expect image to be UUID' })
-  .optional();
-
 export const contentSchema = z
   .string(getRequiredAndTypeErrors('Post-Content'))
   .trim()
   .nonempty('A post must have content');
 
-export const publishedSchema = z.boolean(
-  getRequiredAndTypeErrors('Published flag', 'boolean', true)
+export const publishedSchema = z.preprocess(
+  (v) => v && [true, 'true', 'on'].includes(v as string | boolean),
+  z.boolean(getRequiredAndTypeErrors('Published flag', 'boolean', true))
 );
 
 export const tagSchema = z
@@ -56,8 +52,8 @@ export const commentSchema = z.object({
 
 export const postSchema = z.object({
   title: titleSchema,
-  image: imageSchema,
   content: contentSchema,
   tags: tagsSchema.default([]),
   published: publishedSchema.optional(),
+  imagedata: Image.imageSchema.optional(),
 });

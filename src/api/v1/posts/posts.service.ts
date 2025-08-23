@@ -33,26 +33,65 @@ export const getTags = async (tags?: Types.TagsFilter) => {
   });
 };
 
-export const createPost = async (data: Types.NewPostAuthorizedData) => {
-  const dbQuery = db.post.create({
-    data: {
-      title: data.title,
-      imageId: data.image,
-      content: data.content,
-      authorId: data.authorId,
-      published: data.published,
-      tags: {
-        create: data.tags.map((name) => ({
-          tag: {
-            connectOrCreate: { where: { name }, create: { name } },
-          },
-        })),
-      },
+export const getPostUpdateData = (
+  data: Types.NewPostParsedData,
+  imageId?: string
+) => {
+  return {
+    imageId,
+    title: data.title,
+    content: data.content,
+    published: data.published,
+    tags: {
+      create: data.tags.map((name) => ({
+        tag: { connectOrCreate: { where: { name }, create: { name } } },
+      })),
     },
-    include: Utils.fieldsToIncludeWithPost,
-  });
+  };
+};
+
+export const getPostCreateData = (
+  data: Types.NewPostParsedData,
+  authorId: string,
+  imageId?: string
+) => {
+  return { ...getPostUpdateData(data, imageId), authorId };
+};
+
+const wrapPostCreate = async <T>(dbQuery: Promise<T>): Promise<T> => {
   const handlerOptions = { uniqueFieldName: 'tag' };
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+};
+
+export const createPost = (
+  postData: Types.NewPostParsedDataWithoutImage,
+  user: Types.PublicUser
+) => {
+  return wrapPostCreate(
+    db.post.create({
+      data: getPostCreateData(postData, user.id),
+      include: Utils.fieldsToIncludeWithPost,
+    })
+  );
+};
+
+export const createPostWithImage = (
+  postData: Types.NewPostParsedDataWithoutImage,
+  user: Types.PublicUser,
+  imageData: Types.ImageFullData,
+  uploadedImage: Storage.UploadedImageData
+) => {
+  return wrapPostCreate(
+    db.$transaction(async (prismaClient) => {
+      const image = await prismaClient.image.create({
+        data: Image.getImageUpsertData(uploadedImage, imageData, user),
+      });
+      return await prismaClient.post.create({
+        data: getPostCreateData(postData, user.id, image.id),
+        include: Utils.fieldsToIncludeWithPost,
+      });
+    })
+  );
 };
 
 export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
@@ -64,6 +103,29 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
   return post;
 };
+
+export const _findPostWithAggregationOrThrow = async (
+  id: string,
+  authorId?: string
+) => {
+  const dbQuery = db.post.findUnique({
+    where: { id, ...getPrivatePostProtectionArgs(authorId) },
+    include: {
+      ...Utils.fieldsToIncludeWithPost,
+      image: {
+        ...Utils.fieldsToIncludeWithPost.image,
+        omit: { storageFullPath: false, storageId: false },
+      },
+    },
+  });
+  const post = await Utils.handleDBKnownErrors(dbQuery);
+  if (!post) throw new AppError.AppNotFoundError('Post Not Found');
+  return post;
+};
+
+export type _PostFullData = Awaited<
+  ReturnType<typeof _findPostWithAggregationOrThrow>
+>;
 
 export const findFilteredPosts = async (
   filters: Types.PostFilters = {},
@@ -145,33 +207,64 @@ export const findFilteredVotes = async (
       );
 };
 
-export const updatePost = async (id: string, data: Types.NewPostParsedData) => {
-  const dbQuery = (async () =>
-    (
-      await db.$transaction([
-        db.tagsOnPosts.deleteMany({ where: { postId: id } }),
-        db.post.update({
-          where: { id },
-          data: {
-            title: data.title,
-            imageId: data.image,
-            content: data.content,
-            published: data.published,
-            tags: {
-              create: data.tags.map((name) => ({
-                tag: { connectOrCreate: { where: { name }, create: { name } } },
-              })),
-            },
-          },
-          include: Utils.fieldsToIncludeWithPost,
-        }),
-      ])
-    )[1])();
+const wrapPostUpdate = async <T>(dbQuery: Promise<T>): Promise<T> => {
   const handlerOptions = {
     notFoundErrMsg: 'Post not found',
     uniqueFieldName: 'tag',
   };
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+};
+
+export const updatePost = (
+  post: _PostFullData,
+  postData: Types.NewPostParsedData,
+  imageData?: Types.ImageDataInput
+) => {
+  return wrapPostUpdate(
+    db.$transaction(async (prismaClient) => {
+      if (imageData && post.image) {
+        await prismaClient.image.update({
+          where: { id: post.image.id },
+          data: imageData,
+        });
+      }
+      await prismaClient.tagsOnPosts.deleteMany({ where: { postId: post.id } });
+      return await prismaClient.post.update({
+        where: { id: post.id },
+        data: getPostUpdateData(postData),
+        include: Utils.fieldsToIncludeWithPost,
+      });
+    })
+  );
+};
+
+export const updatePostWithImage = (
+  post: _PostFullData,
+  user: Types.PublicUser,
+  postData: Types.NewPostParsedData,
+  imageData: Types.ImageFullData,
+  uploadedImage: Storage.UploadedImageData
+) => {
+  return wrapPostUpdate(
+    db.$transaction(async (prismaClient) => {
+      const imgUpData = Image.getImageUpsertData(
+        uploadedImage,
+        imageData,
+        user
+      );
+      const { id: imageId } = await db.image.upsert({
+        where: { src: imgUpData.src },
+        create: imgUpData,
+        update: imgUpData,
+      });
+      await prismaClient.tagsOnPosts.deleteMany({ where: { postId: post.id } });
+      return await prismaClient.post.update({
+        where: { id: post.id },
+        include: Utils.fieldsToIncludeWithPost,
+        data: getPostUpdateData(postData, imageId),
+      });
+    })
+  );
 };
 
 const upvoteOrDownvotePost = async (
