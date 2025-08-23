@@ -18,6 +18,7 @@ describe('Images endpoint', async () => {
     imgOne,
     imgTwo,
     imgData,
+    imagedata,
     adminData,
     userOneData,
     userTwoData,
@@ -144,10 +145,7 @@ describe('Images endpoint', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi
         .post(IMAGES_URL)
-        .field('scale', imgData.scale)
-        .field('xPos', imgData.xPos)
-        .field('yPos', imgData.yPos)
-        .field('alt', imgData.alt)
+        .field(imagedata)
         .attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, imgData);
@@ -157,12 +155,12 @@ describe('Images endpoint', async () => {
 
     it('should upload the image with data and truncate the given position values', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
+      const { xPos, yPos, ...data } = imagedata;
       const res = await authorizedApi
         .post(IMAGES_URL)
-        .field('xPos', imgData.xPos + 0.25)
-        .field('yPos', imgData.yPos + 0.75)
-        .field('scale', imgData.scale)
-        .field('alt', imgData.alt)
+        .field(data)
+        .field('xPos', xPos + 0.25)
+        .field('yPos', yPos + 0.75)
         .attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, imgData);
@@ -264,10 +262,7 @@ describe('Images endpoint', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi
         .put(url)
-        .field('scale', imgData.scale)
-        .field('xPos', imgData.xPos)
-        .field('yPos', imgData.yPos)
-        .field('alt', imgData.alt)
+        .field(imagedata)
         .attach('image', stream);
       expect(res.statusCode).toBe(200);
       assertImageData(res, imgData);
@@ -277,12 +272,12 @@ describe('Images endpoint', async () => {
 
     it('should update the image with data and truncate the given position values', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
+      const { xPos, yPos, ...data } = imagedata;
       const res = await authorizedApi
         .put(url)
-        .field('xPos', imgData.xPos + 0.25)
-        .field('yPos', imgData.yPos + 0.75)
-        .field('scale', imgData.scale)
-        .field('alt', imgData.alt)
+        .field(data)
+        .field('xPos', xPos + 0.25)
+        .field('yPos', yPos + 0.75)
         .attach('image', stream);
       expect(res.statusCode).toBe(200);
       assertImageData(res, imgData);

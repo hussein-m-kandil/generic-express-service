@@ -124,12 +124,17 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     width: 2048,
   };
 
-  const imgData = {
-    ...imgOne,
+  const imagedata = {
+    info: 'blah blah blah...',
     alt: 'test-img-alt',
     scale: 1.25,
     xPos: 10,
     yPos: 25,
+  };
+
+  const imgData = {
+    ...imgOne,
+    ...imagedata,
   };
 
   const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
@@ -302,6 +307,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     xUserData,
     dbUserOne,
     dbUserTwo,
+    imagedata,
     userData,
     dbAdmin,
     dbXUser,
