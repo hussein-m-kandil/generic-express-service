@@ -11,6 +11,8 @@ import { AppErrorResponse } from '@/types';
 import { IMAGES_URL, SIGNIN_URL } from './utils';
 import setup from '../setup';
 import fs from 'node:fs';
+import db from '@/lib/db';
+import { Image } from 'prisma/client';
 
 describe('Images endpoint', async () => {
   const {
@@ -40,7 +42,9 @@ describe('Images endpoint', async () => {
     storage: { upload, remove },
   } = storageData;
 
-  const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+  const { authorizedApi, signedInUserData } = await prepForAuthorizedTest(
+    userOneData
+  );
 
   let url: string;
   const prepImageUrl = async () => {
@@ -208,6 +212,44 @@ describe('Images endpoint', async () => {
       assertResponseWithValidationError(res, 'scale');
       expect(upload).not.toHaveBeenCalledOnce();
     });
+
+    it('should upload the avatar image and connect it to the current user', async () => {
+      const userId = signedInUserData.user.id;
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('isAvatar', true)
+        .attach('image', stream);
+      const dbImg = (await db.image.findMany({})).at(-1) as Image;
+      assertImageData(res, { ...imgOne, userId });
+      expect(dbImg.userId).toBe(userId);
+      expect(res.statusCode).toBe(201);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+
+    it('should upload the image and disconnect the user form an old image before reconnecting it', async () => {
+      const userId = signedInUserData.user.id;
+      const dbOldImg = await createImage({
+        ...imgTwo,
+        ownerId: userId,
+        userId,
+      });
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('isAvatar', true)
+        .attach('image', stream);
+      const dbImgs = await db.image.findMany({});
+      expect(res.statusCode).toBe(201);
+      assertImageData(res, { ...imgOne, userId });
+      expect(dbImgs[0].id).toBe(dbOldImg.id);
+      expect(dbImgs[1].userId).toBe(userId);
+      expect(dbOldImg.userId).toBe(userId);
+      expect(dbImgs[0].userId).toBeNull();
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
   });
 
   describe(`PUT ${IMAGES_URL}/:id`, () => {
@@ -335,6 +377,21 @@ describe('Images endpoint', async () => {
         .attach('image', stream);
       assertResponseWithValidationError(res, 'scale');
       expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should update the avatar image and connect it to the current user', async () => {
+      const userId = signedInUserData.user.id;
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .put(url)
+        .field('isAvatar', true)
+        .attach('image', stream);
+      const dbImg = (await db.image.findMany({})).at(-1) as Image;
+      assertImageData(res, { ...imgOne, userId });
+      expect(res.statusCode).toBe(200);
+      expect(dbImg.userId).toBe(userId);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', true);
     });
   });
 

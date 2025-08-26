@@ -2,6 +2,7 @@ import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Image from '@/lib/image';
 import * as Storage from '@/lib/storage';
+import * as Schema from './image.schema';
 import * as Service from './images.service';
 import * as Middlewares from '@/middlewares';
 import { Router, Request, Response } from 'express';
@@ -27,7 +28,7 @@ imagesRouter.post(
     const user = req.user as Types.PublicUser;
     const imageFile = await Image.getValidImageFileFormReq(req);
     const data = {
-      ...Image.imageSchema.parse(req.body),
+      ...Schema.imageSchema.parse(req.body),
       ...Image.getImageMetadata(imageFile),
     };
     const uploadRes = await Storage.uploadImage(imageFile, user);
@@ -49,15 +50,15 @@ imagesRouter.put(
     if (req.file) {
       const imageFile = await Image.getValidImageFileFormReq(req);
       const data = {
-        ...Image.imageSchema.parse(req.body),
+        ...Schema.imageSchema.parse(req.body),
         ...Image.getImageMetadata(imageFile),
       };
       const uploadRes = await Storage.uploadImage(imageFile, user, image);
       const savedImage = await Service.saveImage(uploadRes, data, user);
       res.json(savedImage);
     } else {
-      const data = Image.imageSchema.parse(req.body);
-      const updatedImage = await Service.updateImageData(data, req.params.id);
+      const data = Schema.imageSchema.parse(req.body);
+      const updatedImage = await Service.updateImageData(data, image, user);
       res.json(updatedImage);
     }
   }

@@ -199,7 +199,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
 
   const assertImageData = (
     res: supertest.Response,
-    expected: typeof imgOne
+    expected: typeof imgOne & { userId?: string }
   ) => {
     const resBody = res.body as Types.PublicImage;
     expect(res.type).toMatch(/json/);
@@ -207,6 +207,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     expect(resBody.src).toMatch(new RegExp(`${path.extname(expected.src)}$`));
     expect(resBody.info).toStrictEqual(expected.info ?? '');
     expect(resBody.alt).toStrictEqual(expected.alt ?? '');
+    expect(resBody.userId).toBe(expected.userId ?? null);
     expect(resBody.scale).toBe(expected.scale ?? 1.0);
     expect(resBody.mimetype).toBe(expected.mimetype);
     expect(resBody.xPos).toBe(expected.xPos ?? 0);
