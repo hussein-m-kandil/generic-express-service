@@ -7,8 +7,8 @@ import {
   beforeEach,
   TestFunction,
 } from 'vitest';
-import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
 import { AppErrorResponse, AuthResponse, PublicUser } from '@/types';
+import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
 import { Image, Prisma, User } from '@/../prisma/client';
 import { z } from 'zod';
 import db from '@/lib/db';
@@ -16,7 +16,7 @@ import setup from '../setup';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-describe('Users endpoint', async () => {
+describe('User endpoints', async () => {
   const {
     newUserData,
     xUserData,
@@ -257,7 +257,7 @@ describe('Users endpoint', async () => {
       return Object.entries({
         ...xUserData,
         bio: 'Test bio',
-        avatar: dbXImg.id,
+        avatarId: dbXImg.id,
       }).map((k, v) => ({ k: v }));
     };
 
@@ -265,7 +265,11 @@ describe('Users endpoint', async () => {
       await createUser(adminData);
       dbUser = await createUser(userData);
       const dbXUser = await createUser(xUserData);
-      await createImage({ ...imgData, ownerId: dbUser.id, userId: dbUser.id });
+      await createImage({
+        ...imgData,
+        ownerId: dbUser.id,
+        avatars: { create: { userId: dbUser.id } },
+      });
       dbXImg = await createImage({ ...imgData, ownerId: dbXUser.id });
     });
 
@@ -275,7 +279,7 @@ describe('Users endpoint', async () => {
       data: Prisma.UserUpdateInput & {
         confirm?: string;
         secret?: string;
-        avatar?: string;
+        avatarId?: string;
       },
       credentials: { username: string; password: string }
     ) => {
@@ -286,12 +290,12 @@ describe('Users endpoint', async () => {
         } = await prepForAuthorizedTest(credentials);
         const res = await authorizedApi
           .patch(`${USERS_URL}/${dbUser.id}`)
-          .send({ ...data, avatar: dbXImg.id });
+          .send({ ...data, avatarId: dbXImg.id });
         const updatedDBUser = (await db.user.findUnique({
           where: { id: dbUser.id },
           omit: { password: false },
-          include: { avatar: true },
-        })) as User & { avatar: Image };
+          include: { avatar: { select: { image: true } } },
+        })) as User & { avatar: { image: Image } };
         expect(res.statusCode).toBe(200);
         expect(JSON.stringify((res.body as AuthResponse).user)).toBe(
           JSON.stringify({
@@ -300,8 +304,10 @@ describe('Users endpoint', async () => {
           })
         );
         expect((res.body as AuthResponse).token).toBe(token);
-        expect((res.body as AuthResponse).user.avatar?.id).toBe(dbXImg.id);
-        expect(updatedDBUser.avatar.id).toBe(dbXImg.id);
+        expect((res.body as AuthResponse).user.avatar?.image.id).toBe(
+          dbXImg.id
+        );
+        expect(updatedDBUser.avatar.image.id).toBe(dbXImg.id);
         const updatedFields = Object.keys(data);
         if (updatedFields.includes('username')) {
           expect(updatedDBUser.username).toBe(data.username);

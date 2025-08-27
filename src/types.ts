@@ -1,7 +1,7 @@
 import { postSchema, commentSchema } from '@/api/v1/posts';
 import { PrismaClient, Prisma } from '@/../prisma/client';
 import { imageSchema } from '@/lib/image/schema';
-import { userSchema } from '@/api/v1/users';
+import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 
@@ -15,7 +15,7 @@ export interface UserSensitiveDataToOmit {
 }
 
 export interface UserDataToAggregate {
-  avatar: { omit: ImageSensitiveDataToOmit };
+  avatar: { select: { image: { omit: ImageSensitiveDataToOmit } } };
 }
 
 export interface UserAggregation {
@@ -68,8 +68,13 @@ export type CustomPrismaClient = PrismaClient<{
 }>;
 
 export type NewUserInput = z.input<typeof userSchema>;
-
 export type NewUserOutput = z.output<typeof userSchema>;
+export type UpdateUserInput = z.input<
+  ReturnType<typeof createUpdateUserSchema>
+>;
+export type UpdateUserOutput = z.output<
+  ReturnType<typeof createUpdateUserSchema>
+>;
 
 export type JwtUser = Prisma.UserGetPayload<{
   select: { id: true; isAdmin: true };

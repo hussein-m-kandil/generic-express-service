@@ -2,7 +2,6 @@ import * as Types from '@/types';
 import * as Bcrypt from 'bcryptjs';
 import * as Utils from '@/lib/utils';
 import * as AppError from '@/lib/app-error';
-import { Prisma } from '@/../prisma/client';
 import db from '@/lib/db';
 
 const hashPassword = (password: string) => Bcrypt.hash(password, 10);
@@ -14,12 +13,19 @@ export const getAllUsers = async (filters?: Types.PaginationFilters) => {
   });
 };
 
-export const createUser = async (
-  newUser: Types.NewUserOutput
-): Promise<Types.PublicUser> => {
-  const data = { ...newUser };
-  data.password = await hashPassword(data.password);
-  const dbQuery = db.user.create({ data, ...Utils.userAggregation });
+export const createUser = async ({
+  avatarId,
+  password,
+  ...data
+}: Types.NewUserOutput): Promise<Types.PublicUser> => {
+  const dbQuery = db.user.create({
+    data: {
+      ...data,
+      password: await hashPassword(password),
+      ...(avatarId ? { avatar: { create: { imageId: avatarId } } } : {}),
+    },
+    ...Utils.userAggregation,
+  });
   const handlerOptions = { uniqueFieldName: 'username' };
   const user = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
   return user;
@@ -69,15 +75,26 @@ export const findUserByIdOrByUsernameOrThrow = async (idOrUsername: string) => {
 
 export const updateUser = async (
   id: string,
-  userData: Prisma.UserUpdateInput
+  { avatarId, password, ...data }: Types.UpdateUserOutput
 ) => {
-  const data = { ...userData };
-  if (data.password && typeof data.password === 'string') {
-    data.password = await hashPassword(data.password);
-  }
   const dbQuery = db.user.update({
     where: { id },
-    data,
+    data: {
+      ...data,
+      ...(password && typeof password === 'string'
+        ? { password: await hashPassword(password) }
+        : {}),
+      ...(avatarId
+        ? {
+            avatar: {
+              connectOrCreate: {
+                where: { userId: id },
+                create: { imageId: avatarId },
+              },
+            },
+          }
+        : {}),
+    },
     ...Utils.userAggregation,
   });
   const handlerOptions = {

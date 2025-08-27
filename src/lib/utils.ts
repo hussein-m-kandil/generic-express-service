@@ -146,7 +146,11 @@ export const getPaginationArgs = (
 };
 
 export const userAggregation: Types.UserAggregation = {
-  include: { avatar: { omit: { storageId: true, storageFullPath: true } } },
+  include: {
+    avatar: {
+      select: { image: { omit: { storageId: true, storageFullPath: true } } },
+    },
+  },
   omit: { password: true },
 };
 

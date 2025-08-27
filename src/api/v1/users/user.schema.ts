@@ -1,7 +1,7 @@
 import { ADMIN_SECRET } from '@/lib/config';
 import { z } from 'zod';
 
-export const avatarSchema = z
+export const avatarIdSchema = z
   .string()
   .trim()
   .uuid({ message: 'Expect image to be UUID' })
@@ -65,12 +65,12 @@ export const secretSchema = z
   }); // for isAdmin
 
 const userObjectSchema = z.object({
+  avatarId: avatarIdSchema,
   username: usernameSchema,
   fullname: fullnameSchema,
   password: passwordSchema,
   confirm: passConfSchema,
   secret: secretSchema,
-  avatar: avatarSchema,
   bio: bioSchema,
 });
 
@@ -100,16 +100,11 @@ export const transformUserObject = <
 >({
   confirm: _,
   secret,
-  avatar,
   ...data
 }: T) => {
-  type TransformedData = typeof data & {
-    avatar?: { connect: { id: string } };
-    isAdmin?: boolean;
-  };
+  type TransformedData = typeof data & { isAdmin?: boolean };
   const result: TransformedData = { ...data };
   if (secret) result.isAdmin = Boolean(secret);
-  if (avatar) result.avatar = { connect: { id: avatar } };
   return result;
 };
 

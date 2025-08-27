@@ -18,8 +18,8 @@ model User {
   isAdmin      Boolean        @default(false) @map("is_admin")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
-  avatar       Image?         @relation("avatar")
-  images       Image[]        @relation("images")
+  avatar       Avatar?
+  images       Image[]
   posts        Post[]
   comments     Comment[]
   votesOnPosts VotesOnPosts[]
@@ -98,9 +98,7 @@ model Image {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   order           Int      @unique @default(autoincrement())
   ownerId         String   @map("owner_id") @db.Uuid
-  owner           User     @relation("images", fields: [ownerId], references: [id], onDelete: Cascade)
-  userId          String?  @unique @map("user_id") @db.Uuid
-  user            User?    @relation("avatar", fields: [userId], references: [id], onDelete: Cascade)
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   storageFullPath String   @map("storage_full_path")
@@ -116,6 +114,14 @@ model Image {
   yPos            Int      @default(0) @map("y_pos")
   scale           Float    @default(1.0)
   posts           Post[]
+  avatars         Avatar[]
 
   @@map("images")
+}
+
+model Avatar {
+  userId  String @unique @map("user_id") @db.Uuid
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imageId String @map("image_id") @db.Uuid
+  image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
 }

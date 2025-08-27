@@ -38,7 +38,16 @@ export const saveImage = async (
 ): Promise<Types.PublicImage> => {
   const imageData = {
     ...Image.getImageUpsertData(uploadedImage, data, user),
-    ...(isAvatar ? { user: { connect: { id: user.id } } } : {}),
+    ...(isAvatar
+      ? {
+          avatars: {
+            connectOrCreate: {
+              where: { userId: user.id },
+              create: { userId: user.id },
+            },
+          },
+        }
+      : {}),
   };
   const dbQuery = db.image.upsert({
     create: imageData,
@@ -58,7 +67,19 @@ export const updateImageData = async (
   user: Types.PublicUser
 ): Promise<Types.PublicImage> => {
   const dbQuery = db.image.update({
-    data: { ...data, userId: isAvatar ? user.id : null },
+    data: {
+      ...data,
+      ...(isAvatar
+        ? {
+            avatars: {
+              connectOrCreate: {
+                where: { userId: user.id },
+                create: { userId: user.id },
+              },
+            },
+          }
+        : {}),
+    },
     where: { id },
     include,
   });
