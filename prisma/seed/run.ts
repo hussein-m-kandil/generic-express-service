@@ -26,8 +26,8 @@ const postCount = titles.length;
 const tags = [
   'open_source',
   'full_stack',
-  'javaScript',
-  'typeScript',
+  'javascript',
+  'typescript',
   'security',
   'frontend',
   'software',
