@@ -1815,34 +1815,28 @@ describe('Post endpoints', async () => {
     );
 
     describe(`GET ${POSTS_URL}/tags/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/tags/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of tags for the current signed-in user', async () => {
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
+      it('should respond with the count of all tags, event the ones that not connected to posts', async () => {
+        await db.tag.create({ data: { name: crypto.randomUUID() } });
+        await createPost(postFullData);
+        await createPost(postFullData);
         const distinctTags = new Set(postFullData.tags);
         const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(distinctTags.size);
+        expect(res.body).toStrictEqual(distinctTags.size + 1);
       });
 
-      it('should respond with 0 if the current signed-in user do not have any post tags', async () => {
-        await createPost({
-          ...postDataOutput,
-          tags: [],
-          authorId: dbUserOne.id,
-        });
+      it('should respond with the count of distinct tags for the given user', async () => {
+        await createPost({ ...postFullData, authorId: dbUserOne.id });
+        await createPost({ ...postFullData, authorId: dbUserOne.id });
         await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
+        const distinctTags = new Set(postFullData.tags);
+        const res = await api.get(
+          `${POSTS_URL}/tags/count?author=${dbUserOne.id}`
+        );
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(0);
+        expect(res.body).toStrictEqual(distinctTags.size);
       });
     });
 

@@ -431,13 +431,14 @@ export const findPostTags = async (postId: string, authorId?: string) => {
   );
 };
 
-export const countPostsTagsByPostsAuthorId = async (authorId: string) => {
-  const dbQuery = db.tagsOnPosts.findMany({
-    where: { post: { authorId } },
-    distinct: ['name'],
-  });
-  const postDistinctTags = await Utils.handleDBKnownErrors(dbQuery);
-  return postDistinctTags.length;
+export const countTagsOnPosts = async (postAuthorId?: string) => {
+  return await Utils.handleDBKnownErrors(
+    db.tag.count(
+      postAuthorId
+        ? { where: { posts: { some: { post: { authorId: postAuthorId } } } } }
+        : undefined
+    )
+  );
 };
 
 export const countPostTags = async (postId: string, authorId?: string) => {

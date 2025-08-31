@@ -82,10 +82,9 @@ postsRouter.get(
   }
 );
 
-postsRouter.get('/tags/count', Middlewares.authValidator, async (req, res) => {
-  const user = req.user as Types.PublicUser;
-  const tagsCount = await Service.countPostsTagsByPostsAuthorId(user.id);
-  res.json(tagsCount);
+postsRouter.get('/tags/count', async (req, res) => {
+  const postAuthorId = Utils.getAuthorIdFilterFromReqQuery(req);
+  res.json(await Service.countTagsOnPosts(postAuthorId));
 });
 
 postsRouter.get(
