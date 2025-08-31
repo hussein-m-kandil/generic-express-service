@@ -63,16 +63,29 @@ describe('Image endpoints', async () => {
   });
 
   describe(`GET ${IMAGES_URL}`, () => {
-    it('should respond with an empty array', async () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
       const res = await api.get(IMAGES_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 401 on a request with user token', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(IMAGES_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with an empty array on a request with admin token', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(IMAGES_URL);
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toStrictEqual([]);
     });
 
-    it('should respond with an array of image objects', async () => {
+    it('should respond with an array of image objects on a request with admin token', async () => {
       await createManyImages([imgOne, imgTwo]);
-      const res = await api.get(IMAGES_URL);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(IMAGES_URL);
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toHaveLength(2);

@@ -10,11 +10,16 @@ import { Image as ImageT } from '@/../prisma/client';
 
 export const imagesRouter = Router();
 
-imagesRouter.get('/', async (req, res) => {
-  res.json(
-    await Service.getAllImages(Utils.getPaginationFiltersFromReqQuery(req))
-  );
-});
+imagesRouter.get(
+  '/',
+  Middlewares.authValidator,
+  Middlewares.adminValidator,
+  async (req, res) => {
+    res.json(
+      await Service.getAllImages(Utils.getPaginationFiltersFromReqQuery(req))
+    );
+  }
+);
 
 imagesRouter.get('/:id', async (req, res) => {
   res.json(await Service.findImageById(req.params.id));
