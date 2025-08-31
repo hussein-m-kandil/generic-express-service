@@ -3,7 +3,7 @@ import * as Utils from '@/lib/utils';
 import * as Schema from './user.schema';
 import * as Service from './users.service';
 import * as Validators from '@/middlewares/validators';
-import { Router, Request, NextFunction } from 'express';
+import { Router, Request } from 'express';
 
 export const usersRouter = Router();
 
@@ -18,27 +18,10 @@ usersRouter.get(
   }
 );
 
-usersRouter.get(
-  '/:idOrUsername',
-  Validators.optionalAuthValidator,
-  async (req, res, next) => {
-    const param = req.params.idOrUsername;
-    const user = await Service.findUserByIdOrByUsernameOrThrow(param);
-    if (param === user.id) {
-      res.json(user);
-    } else {
-      const nextWrapper: NextFunction = (x: unknown) => {
-        if (x) next(x);
-        else res.json(user);
-      };
-      await Validators.createAdminOrOwnerValidator(() => user.id)(
-        req,
-        res,
-        nextWrapper
-      );
-    }
-  }
-);
+usersRouter.get('/:idOrUsername', async (req, res) => {
+  const { idOrUsername } = req.params;
+  res.json(await Service.findUserByIdOrByUsernameOrThrow(idOrUsername));
+});
 
 usersRouter.post('/', async (req, res) => {
   const parsedNewUser = Schema.userSchema.parse(req.body);

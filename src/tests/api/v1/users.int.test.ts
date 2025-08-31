@@ -206,26 +206,20 @@ describe('User endpoints', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with 401 on non-owner request with username', async () => {
-      await createUser(xUserData);
+    it('should find a user by id/username', async () => {
       const dbUser = await createUser(userData);
-      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
-      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.username}`);
-      assertUnauthorizedErrorRes(res);
-    });
-
-    it('should respond with the found user on request with id for anyone', async () => {
-      const dbUser = await createUser(userData);
-      const res = await api.get(`${USERS_URL}/${dbUser.id}`);
-      const resUser = res.body as PublicUser;
-      expect(res.statusCode).toBe(200);
-      expect(res.type).toMatch(/json/);
-      expect(resUser.id).toBe(dbUser.id);
-      expect(resUser.avatar).toBeDefined();
-      expect(resUser.isAdmin).toStrictEqual(false);
-      expect(resUser.username).toBe(dbUser.username);
-      expect(resUser.fullname).toBe(dbUser.fullname);
-      expect(Object.keys(resUser)).not.toContain('password');
+      for (const param of [dbUser.id, dbUser.username]) {
+        const res = await api.get(`${USERS_URL}/${param}`);
+        const resUser = res.body as PublicUser;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resUser.id).toBe(dbUser.id);
+        expect(resUser.avatar).toBeDefined();
+        expect(resUser.isAdmin).toStrictEqual(false);
+        expect(resUser.username).toBe(dbUser.username);
+        expect(resUser.fullname).toBe(dbUser.fullname);
+        expect(Object.keys(resUser)).not.toContain('password');
+      }
     });
 
     it('should respond with the found user on owner request with id or username', async () => {
