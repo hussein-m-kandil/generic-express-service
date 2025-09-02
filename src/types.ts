@@ -1,7 +1,7 @@
 import { postSchema, commentSchema } from '@/api/v1/posts';
 import { PrismaClient, Prisma } from '@/../prisma/client';
-import { imageSchema } from '@/api/v1/images';
-import { userSchema } from '@/api/v1/users';
+import { imageSchema } from '@/lib/image/schema';
+import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 
@@ -14,11 +14,19 @@ export interface UserSensitiveDataToOmit {
   password: true;
 }
 
-export interface OmitUserSensitiveData {
-  omit: UserSensitiveDataToOmit;
+export interface UserDataToAggregate {
+  avatar: { select: { image: { omit: ImageSensitiveDataToOmit } } };
 }
 
-export type PublicUser = Prisma.UserGetPayload<OmitUserSensitiveData>;
+export interface UserAggregation {
+  omit: UserSensitiveDataToOmit;
+  include: UserDataToAggregate;
+}
+
+export type PublicUser = Prisma.UserGetPayload<{
+  include: UserAggregation['include'];
+  omit: UserAggregation['omit'];
+}>;
 
 export interface ImageSensitiveDataToOmit {
   storageId: true;
@@ -30,7 +38,8 @@ export interface OmitImageSensitiveData {
 }
 
 export interface ImageDataToAggregate {
-  owner: OmitUserSensitiveData;
+  _count: { select: { posts: true } };
+  owner: UserAggregation;
 }
 
 export type PublicImage = Prisma.ImageGetPayload<{
@@ -38,13 +47,34 @@ export type PublicImage = Prisma.ImageGetPayload<{
   include: ImageDataToAggregate;
 }>;
 
+export interface ImageMetadata {
+  mimetype: string;
+  height: number;
+  width: number;
+  size: number;
+}
+
+export interface ImageFile extends Express.Multer.File, ImageMetadata {
+  format: string;
+  ext: string;
+}
+
+export type ImageDataInput = z.output<typeof imageSchema>;
+
+export type ImageFullData = ImageDataInput & ImageMetadata;
+
 export type CustomPrismaClient = PrismaClient<{
   omit: { image: ImageSensitiveDataToOmit; user: UserSensitiveDataToOmit };
 }>;
 
 export type NewUserInput = z.input<typeof userSchema>;
-
 export type NewUserOutput = z.output<typeof userSchema>;
+export type UpdateUserInput = z.input<
+  ReturnType<typeof createUpdateUserSchema>
+>;
+export type UpdateUserOutput = z.output<
+  ReturnType<typeof createUpdateUserSchema>
+>;
 
 export type JwtUser = Prisma.UserGetPayload<{
   select: { id: true; isAdmin: true };
@@ -68,16 +98,19 @@ export type PostFullData = Prisma.PostGetPayload<{
   include: {
     _count: { select: { comments: true; votes: true } };
     image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
-    comments: { include: { author: OmitUserSensitiveData } };
-    votes: { include: { user: OmitUserSensitiveData } };
-    author: OmitUserSensitiveData;
+    comments: { include: { author: UserAggregation } };
+    votes: { include: { user: UserAggregation } };
+    author: UserAggregation;
     tags: true;
   };
 }>;
 
 export type NewPostParsedData = z.output<typeof postSchema>;
 
-export type NewPostAuthorizedData = NewPostParsedData & { authorId: string };
+export type NewPostParsedDataWithoutImage = Omit<
+  NewPostParsedData,
+  'imagedata'
+>;
 
 export type NewCommentParsedData = z.output<typeof commentSchema>;
 
@@ -108,19 +141,3 @@ export interface VoteFilters extends PaginationFilters {
   isUpvote?: boolean;
   postId?: string;
 }
-
-export interface ImageMetadata {
-  mimetype: string;
-  height: number;
-  width: number;
-  size: number;
-}
-
-export interface ImageFile extends Express.Multer.File, ImageMetadata {
-  format: string;
-  ext: string;
-}
-
-export type ImageDataInput = z.output<typeof imageSchema>;
-
-export type FullImageData = ImageDataInput & ImageMetadata;

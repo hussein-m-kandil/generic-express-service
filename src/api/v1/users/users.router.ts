@@ -1,12 +1,11 @@
-import * as Exp from 'express';
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './user.schema';
 import * as Service from './users.service';
 import * as Validators from '@/middlewares/validators';
-import { Prisma } from '@/../prisma/client';
+import { Router, Request } from 'express';
 
-export const usersRouter = Exp.Router();
+export const usersRouter = Router();
 
 usersRouter.get(
   '/',
@@ -19,27 +18,10 @@ usersRouter.get(
   }
 );
 
-usersRouter.get(
-  '/:idOrUsername',
-  Validators.optionalAuthValidator,
-  async (req, res, next) => {
-    const param = req.params.idOrUsername;
-    const user = await Service.findUserByIdOrByUsernameOrThrow(param);
-    if (param === user.id) {
-      res.json(user);
-    } else {
-      const nextWrapper: Exp.NextFunction = (x: unknown) => {
-        if (x) next(x);
-        else res.json(user);
-      };
-      await Validators.createAdminOrOwnerValidator(() => user.id)(
-        req,
-        res,
-        nextWrapper
-      );
-    }
-  }
-);
+usersRouter.get('/:idOrUsername', async (req, res) => {
+  const { idOrUsername } = req.params;
+  res.json(await Service.findUserByIdOrByUsernameOrThrow(idOrUsername));
+});
 
 usersRouter.post('/', async (req, res) => {
   const parsedNewUser = Schema.userSchema.parse(req.body);
@@ -51,27 +33,37 @@ usersRouter.post('/', async (req, res) => {
   res.status(201).json(signupRes);
 });
 
+usersRouter.post('/guest', async (req, res) => {
+  const [randVal, ...randVals] = crypto.randomUUID().split('-');
+  const randNum = Date.now() % 100000;
+  const questUser = await Service.createUser({
+    bio:
+      'Consider updating your profile data, especially the password, ' +
+      'to be able to sign in to this profile again.',
+    password: `G_${randVals.slice(1, 3).join('_')}`,
+    username: `guest_${randVal}${randNum}`,
+    fullname: `Guest ${randVal}${randNum}`,
+    isAdmin: false,
+  });
+  const signupRes: Types.AuthResponse = {
+    token: Utils.createJwtForUser(questUser),
+    user: questUser,
+  };
+  res.status(201).json(signupRes);
+});
+
 usersRouter.patch(
   '/:id',
   Validators.authValidator,
   Validators.createAdminOrOwnerValidator((req) => req.params.id),
-  async (
-    req: Exp.Request<{ id: string }, unknown, Types.NewUserInput>,
-    res
-  ) => {
-    const { username, fullname, password, confirm, secret } = req.body;
-    const data: Prisma.UserUpdateInput = {};
-    if (username) data.username = Schema.usernameSchema.parse(username);
-    if (fullname) data.fullname = Schema.fullnameSchema.parse(fullname);
-    if (password) {
-      data.password = Schema.passwordSchema.parse({
-        password: password,
-        confirm,
-      }).password;
-    }
-    if (secret && Schema.secretSchema.parse(secret)) data.isAdmin = true;
-    await Service.updateUser(req.params.id, data);
-    res.status(204).end();
+  async (req: Request<{ id: string }, unknown, Types.NewUserInput>, res) => {
+    const data = Schema.createUpdateUserSchema(req.body).parse(req.body);
+    const updatedUser = await Service.updateUser(req.params.id, data);
+    const resBody: Types.AuthResponse = {
+      token: req.headers.authorization ?? '',
+      user: updatedUser,
+    };
+    res.json(resBody);
   }
 );
 

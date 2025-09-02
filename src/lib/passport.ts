@@ -1,5 +1,6 @@
 import * as Types from '@/types';
 import * as JWT from 'passport-jwt';
+import * as Utils from '@/lib/utils';
 import * as Config from '@/lib/config';
 import * as PassportLocal from 'passport-local';
 import passport from 'passport';
@@ -42,7 +43,7 @@ passport.use(
     (jwtPayload: Types.AppJwtPayload, done) => {
       const { id } = jwtPayload;
       db.user
-        .findUnique({ where: { id } })
+        .findUnique({ where: { id }, ...Utils.userAggregation })
         .then((user) => {
           if (user) done(null, user);
           else done(null, false);

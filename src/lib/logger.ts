@@ -1,4 +1,4 @@
-import { CI, NODE_ENV } from './config';
+import * as Config from './config';
 import winston from 'winston';
 import util from 'node:util';
 
@@ -14,7 +14,7 @@ const stripSymbols = (anyObj: unknown): unknown => {
 const inspectObj = (anyObj: unknown): string => {
   if (typeof anyObj === 'string') return anyObj;
   const obj = stripSymbols(anyObj);
-  return util.inspect(obj, { depth: null, colors: true, compact: CI });
+  return util.inspect(obj, { depth: null, colors: true, compact: Config.CI });
 };
 
 const winstonLevelColorsExt = Object.fromEntries(
@@ -27,6 +27,9 @@ const winstonLevelColorsExt = Object.fromEntries(
 winston.addColors(winstonLevelColorsExt);
 
 export const logger = winston.createLogger({
+  level: Config.NODE_ENV === 'production' ? 'http' : 'silly',
+  transports: [new winston.transports.Console()],
+  silent: Config.NODE_ENV === 'test',
   format: winston.format.combine(
     winston.format((info) => {
       info.level = info.level.toUpperCase();
@@ -40,12 +43,9 @@ export const logger = winston.createLogger({
       }`;
     })
   ),
-  transports: [new winston.transports.Console()],
-  silent: NODE_ENV === 'test',
-  level: 'info',
 });
 
-if (!CI) {
+if (!Config.CI) {
   logger.add(
     new winston.transports.File({
       tailable: true,

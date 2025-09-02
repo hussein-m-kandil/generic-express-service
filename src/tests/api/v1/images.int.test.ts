@@ -9,41 +9,22 @@ import {
 } from 'vitest';
 import { AppErrorResponse } from '@/types';
 import { IMAGES_URL, SIGNIN_URL } from './utils';
+import { Image } from 'prisma/client';
 import setup from '../setup';
 import fs from 'node:fs';
+import db from '@/lib/db';
 
-const { storage, upload, remove } = vi.hoisted(() => {
-  const uploadedData = {
-    fullPath: 'test-file-full-path.jpg',
-    path: 'test-file-path.jpg',
-    id: 'test-file-id',
-  };
-  const uploadRes = { data: uploadedData, error: null };
-  const removeRes = { data: [], error: null };
-  const remove = vi.fn(
-    () => new Promise((resolve) => setImmediate(() => resolve(removeRes)))
-  );
-  const upload = vi.fn(
-    () => new Promise((resolve) => setImmediate(() => resolve(uploadRes)))
-  );
-  const from = vi.fn(() => ({ upload, remove }));
-  const storage = { from };
-  return { uploadedData, uploadRes, removeRes, storage, upload, remove, from };
-});
-
-vi.mock('@supabase/supabase-js', () => {
-  return { createClient: vi.fn(() => ({ storage })) };
-});
-
-describe('Images endpoint', async () => {
+describe('Image endpoints', async () => {
   const {
     api,
     imgOne,
     imgTwo,
     imgData,
+    imagedata,
     adminData,
     userOneData,
     userTwoData,
+    storageData,
     createImage,
     assertErrorRes,
     deleteAllUsers,
@@ -57,7 +38,13 @@ describe('Images endpoint', async () => {
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
-  const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+  const {
+    storage: { upload, remove },
+  } = storageData;
+
+  const { authorizedApi, signedInUserData } = await prepForAuthorizedTest(
+    userOneData
+  );
 
   let url: string;
   const prepImageUrl = async () => {
@@ -76,16 +63,29 @@ describe('Images endpoint', async () => {
   });
 
   describe(`GET ${IMAGES_URL}`, () => {
-    it('should respond with an empty array', async () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
       const res = await api.get(IMAGES_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 401 on a request with user token', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(IMAGES_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with an empty array on a request with admin token', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(IMAGES_URL);
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toStrictEqual([]);
     });
 
-    it('should respond with an array of image objects', async () => {
+    it('should respond with an array of image objects on a request with admin token', async () => {
       await createManyImages([imgOne, imgTwo]);
-      const res = await api.get(IMAGES_URL);
+      const { authorizedApi } = await prepForAuthorizedTest(adminData);
+      const res = await authorizedApi.get(IMAGES_URL);
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toHaveLength(2);
@@ -162,10 +162,7 @@ describe('Images endpoint', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi
         .post(IMAGES_URL)
-        .field('scale', imgData.scale)
-        .field('xPos', imgData.xPos)
-        .field('yPos', imgData.yPos)
-        .field('alt', imgData.alt)
+        .field(imagedata)
         .attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, imgData);
@@ -175,12 +172,12 @@ describe('Images endpoint', async () => {
 
     it('should upload the image with data and truncate the given position values', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
+      const { xPos, yPos, ...data } = imagedata;
       const res = await authorizedApi
         .post(IMAGES_URL)
-        .field('xPos', imgData.xPos + 0.25)
-        .field('yPos', imgData.yPos + 0.75)
-        .field('scale', imgData.scale)
-        .field('alt', imgData.alt)
+        .field(data)
+        .field('xPos', xPos + 0.25)
+        .field('yPos', yPos + 0.75)
         .attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, imgData);
@@ -227,6 +224,45 @@ describe('Images endpoint', async () => {
         .attach('image', stream);
       assertResponseWithValidationError(res, 'scale');
       expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should upload the avatar image and connect it to the current user', async () => {
+      const userId = signedInUserData.user.id;
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('isAvatar', true)
+        .attach('image', stream);
+      const dbAvatar = (await db.avatar.findMany({})).at(-1)!;
+      expect((res.body as Image).id).toBe(dbAvatar.imageId);
+      expect(dbAvatar.userId).toBe(userId);
+      assertImageData(res, imgOne);
+      expect(res.statusCode).toBe(201);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+
+    it('should upload the image and disconnect the user form an old image before reconnecting it', async () => {
+      const userId = signedInUserData.user.id;
+      await createImage({
+        ...imgTwo,
+        ownerId: userId,
+        avatars: { create: { userId } },
+      });
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .post(IMAGES_URL)
+        .field('isAvatar', true)
+        .attach('image', stream);
+      const dbAvatars = await db.avatar.findMany({});
+      const avatar = dbAvatars.at(-1)!;
+      expect((res.body as Image).id).toBe(avatar.imageId);
+      expect(avatar.userId).toBe(userId);
+      expect(dbAvatars).toHaveLength(1);
+      expect(res.statusCode).toBe(201);
+      assertImageData(res, imgOne);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
     });
   });
 
@@ -282,10 +318,7 @@ describe('Images endpoint', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
       const res = await authorizedApi
         .put(url)
-        .field('scale', imgData.scale)
-        .field('xPos', imgData.xPos)
-        .field('yPos', imgData.yPos)
-        .field('alt', imgData.alt)
+        .field(imagedata)
         .attach('image', stream);
       expect(res.statusCode).toBe(200);
       assertImageData(res, imgData);
@@ -295,12 +328,12 @@ describe('Images endpoint', async () => {
 
     it('should update the image with data and truncate the given position values', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
+      const { xPos, yPos, ...data } = imagedata;
       const res = await authorizedApi
         .put(url)
-        .field('xPos', imgData.xPos + 0.25)
-        .field('yPos', imgData.yPos + 0.75)
-        .field('scale', imgData.scale)
-        .field('alt', imgData.alt)
+        .field(data)
+        .field('xPos', xPos + 0.25)
+        .field('yPos', yPos + 0.75)
         .attach('image', stream);
       expect(res.statusCode).toBe(200);
       assertImageData(res, imgData);
@@ -358,6 +391,22 @@ describe('Images endpoint', async () => {
         .attach('image', stream);
       assertResponseWithValidationError(res, 'scale');
       expect(upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should update the avatar image and connect it to the current user', async () => {
+      const userId = signedInUserData.user.id;
+      stream = fs.createReadStream('src/tests/files/good.jpg');
+      const res = await authorizedApi
+        .put(url)
+        .field('isAvatar', true)
+        .attach('image', stream);
+      const dbAvatar = (await db.avatar.findMany({})).at(-1)!;
+      expect((res.body as Image).id).toBe(dbAvatar.imageId);
+      expect(res.statusCode).toBe(200);
+      assertImageData(res, imgOne);
+      expect(dbAvatar.userId).toBe(userId);
+      expect(upload).toHaveBeenCalledOnce();
+      expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', true);
     });
   });
 

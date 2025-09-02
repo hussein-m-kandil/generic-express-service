@@ -1,23 +1,27 @@
 import { Tag, Comment, VotesOnPosts, TagsOnPosts } from '@/../prisma/client';
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { PostFullData, PublicImage } from '@/types';
+import { PostFullData, PublicImage, AppErrorResponse } from '@/types';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { POSTS_URL, SIGNIN_URL } from './utils';
 import { ZodIssue } from 'zod';
 import setup from '../setup';
 import db from '@/lib/db';
+import fs from 'node:fs';
 
-describe('Posts endpoint', async () => {
+describe('Post endpoints', async () => {
   const {
     postDataOutput,
     postDataInput,
     postFullData,
     userOneData,
     userTwoData,
+    storageData,
     commentData,
     adminData,
     xUserData,
     dbUserOne,
     dbUserTwo,
+    imagedata,
+    imgData,
     dbAdmin,
     dbXUser,
     imgOne,
@@ -29,15 +33,21 @@ describe('Posts endpoint', async () => {
     assertPostData,
     deleteAllPosts,
     deleteAllUsers,
+    assertImageData,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
+  const {
+    storage: { upload, remove },
+  } = storageData;
+
   let dbImgOne: Omit<PublicImage, 'owner'>;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     await deleteAllPosts();
     await deleteAllTags();
     dbImgOne = await createImage(imgOne);
@@ -333,7 +343,7 @@ describe('Posts endpoint', async () => {
       };
 
       const SUCCESS_CODE = forUpdating ? 200 : 201;
-      const VERB = forUpdating ? 'update' : 'create';
+      const action = forUpdating ? 'update' : 'create';
 
       it('should respond with 401 on a request without valid JWT', async () => {
         const res = await sendRequest(postDataInput, false);
@@ -375,7 +385,7 @@ describe('Posts endpoint', async () => {
         });
       }
 
-      it(`should not ${VERB} a post without title`, async () => {
+      it(`should not ${action} a post without title`, async () => {
         const res = await sendRequest({ ...postDataInput, title: '' });
         const resBody = res.body as ZodIssue[];
         expect(res.statusCode).toBe(400);
@@ -383,7 +393,7 @@ describe('Posts endpoint', async () => {
         expect(resBody[0].message).toMatch(/title/i);
       });
 
-      it(`should not ${VERB} a post without content`, async () => {
+      it(`should not ${action} a post without content`, async () => {
         const res = await sendRequest({ ...postDataInput, content: '' });
         const resBody = res.body as ZodIssue[];
         expect(res.statusCode).toBe(400);
@@ -391,7 +401,7 @@ describe('Posts endpoint', async () => {
         expect(resBody[0].message).toMatch(/content|body/i);
       });
 
-      it(`should ${VERB} a post even with duplicated tags but not save duplication`, async () => {
+      it(`should ${action} a post even with duplicated tags but not save duplication`, async () => {
         const tags = [
           ...postDataInput.tags.map((c) => c.toLowerCase()),
           ...postDataInput.tags.map((c) => c.toUpperCase()),
@@ -410,7 +420,7 @@ describe('Posts endpoint', async () => {
         });
       });
 
-      it(`should ${VERB} a post even without tags`, async () => {
+      it(`should ${action} a post even without tags`, async () => {
         const res = await sendRequest({
           ...postDataInput,
           tags: undefined,
@@ -428,7 +438,7 @@ describe('Posts endpoint', async () => {
         });
       });
 
-      it(`should ${VERB} a published post`, async () => {
+      it(`should ${action} a published post`, async () => {
         const res = await sendRequest({ ...postDataInput, published: true });
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
@@ -443,7 +453,7 @@ describe('Posts endpoint', async () => {
         });
       });
 
-      it(`should ${VERB} a post with all tags converted to lowercase`, async () => {
+      it(`should ${action} a post with all tags converted to lowercase`, async () => {
         const res = await sendRequest({
           ...postDataInput,
           tags: postDataInput.tags.map((c) => c.toUpperCase()),
@@ -461,7 +471,7 @@ describe('Posts endpoint', async () => {
         });
       });
 
-      it(`should not ${VERB} a post with more than 7 tags`, async () => {
+      it(`should not ${action} a post with more than 7 tags`, async () => {
         const res = await sendRequest({
           ...postDataInput,
           tags: Array.from({ length: 8 }).map((_, i) => `Cat_${i}`),
@@ -469,11 +479,17 @@ describe('Posts endpoint', async () => {
         assertResponseWithValidationError(res, 'tags');
       });
 
-      it(`should ${VERB} a post with an image`, async () => {
-        const res = await sendRequest({
-          ...postDataInput,
-          image: dbImgOne.id,
-        });
+      it(`should ${action} a post without image, and ignore 'imagedata' field if present`, async () => {
+        const postData = { ...postDataInput, imagedata };
+        let res;
+        if (forUpdating) {
+          const dbPost = await createPost(postDataToUpdate);
+          res = await authorizedApi
+            .put(`${POSTS_URL}/${dbPost.id}`)
+            .send(postData);
+        } else {
+          res = await authorizedApi.post(POSTS_URL).send(postData);
+        }
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
         expect(res.type).toMatch(/json/);
@@ -483,15 +499,39 @@ describe('Posts endpoint', async () => {
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
-          image: dbImgOne.id,
+          imageId: undefined,
         });
       });
 
-      it(`should ${VERB} a post without image id`, async () => {
-        const res = await sendRequest({
-          ...postDataInput,
-          image: undefined,
-        });
+      it(`should ${action} a post with an image`, async () => {
+        const stream = fs.createReadStream('src/tests/files/good.jpg');
+        const updatedImagedata = forUpdating
+          ? { ...imagedata, xPos: 23, yPos: 19, alt: 'updated' }
+          : imagedata;
+        const preparedImagedata = Object.fromEntries(
+          Object.entries(updatedImagedata).map(([k, v]) => [
+            `imagedata[${k}]`,
+            v,
+          ])
+        );
+        let res;
+        if (forUpdating) {
+          const dbPost = await createPost(postDataToUpdate);
+          res = await authorizedApi
+            .put(`${POSTS_URL}/${dbPost.id}`)
+            .field(postDataInput)
+            .field(preparedImagedata)
+            .attach('image', stream);
+        } else {
+          res = await authorizedApi
+            .post(POSTS_URL)
+            .field(postDataInput)
+            .field(preparedImagedata)
+            .attach('image', stream);
+        }
+        const dbImg = (
+          await db.image.findMany({ orderBy: { order: 'desc' }, take: 1 })
+        )[0];
         const resBody = res.body as PostFullData;
         expect(res.statusCode).toBe(SUCCESS_CODE);
         expect(res.type).toMatch(/json/);
@@ -501,24 +541,60 @@ describe('Posts endpoint', async () => {
         assertPostData(resBody, {
           ...postDataOutput,
           authorId: signedInUserData.user.id,
-          image: undefined,
+          imageId: dbImg.id,
         });
+        assertImageData(Object.assign(res, { body: resBody.image }), {
+          ...imgData,
+          ...updatedImagedata,
+        });
+        expect(upload).toHaveBeenCalledOnce();
+        expect(upload.mock.calls.at(-1)?.at(-1)).toHaveProperty(
+          'upsert',
+          false
+        );
       });
 
-      it(`should respond with 400 on {VERB} request with invalid image id`, async () => {
-        const res = await sendRequest({
-          ...postDataInput,
-          image: `${crypto.randomUUID()}x_@`,
-        });
-        assertResponseWithValidationError(res, 'image');
+      it(`should respond with 400 on ${action} request with invalid image type`, async () => {
+        const stream = fs.createReadStream('src/tests/files/ugly.txt');
+        let res;
+        if (forUpdating) {
+          const dbPost = await createPost(postDataToUpdate);
+          res = await authorizedApi
+            .put(`${POSTS_URL}/${dbPost.id}`)
+            .field(postDataInput)
+            .attach('image', stream);
+        } else {
+          res = await authorizedApi
+            .post(POSTS_URL)
+            .field(postDataInput)
+            .attach('image', stream);
+        }
+        const resBody = res.body as AppErrorResponse;
+        expect(res.type).toMatch(/json/);
+        expect(res.statusCode).toBe(400);
+        expect(resBody.error.message).toMatch(/invalid image/i);
+        expect(upload).not.toHaveBeenCalledOnce();
       });
 
-      it(`should respond with 400 on {VERB} request with unknown image id`, async () => {
-        const res = await sendRequest({
-          ...postDataInput,
-          image: crypto.randomUUID(),
-        });
-        assertInvalidIdErrorRes(res);
+      it('should respond with 400 on request with too large image', async () => {
+        const stream = fs.createReadStream('src/tests/files/bad.jpg');
+        let res;
+        if (forUpdating) {
+          const dbPost = await createPost(postDataToUpdate);
+          res = await authorizedApi
+            .put(`${POSTS_URL}/${dbPost.id}`)
+            .field(postDataInput)
+            .attach('image', stream);
+        } else {
+          res = await authorizedApi
+            .post(POSTS_URL)
+            .field(postDataInput)
+            .attach('image', stream);
+        }
+        const resBody = res.body as AppErrorResponse;
+        expect(res.statusCode).toBe(400);
+        expect(res.type).toMatch(/json/);
+        expect(resBody.error.message).toMatch(/too large/i);
       });
     };
   };
@@ -742,11 +818,8 @@ describe('Posts endpoint', async () => {
           assertInvalidIdErrorRes(res);
         });
 
-        it(`should delete the post and its image if it is owned by the post author`, async () => {
-          const dbPost = await createPost({
-            ...postDataToDelete,
-            image: dbImgOne.id,
-          });
+        it(`should delete the post and its image`, async () => {
+          const dbPost = await createPost(postDataToDelete, dbImgOne.id);
           const res = await authorizedApi.delete(`${POSTS_URL}/${dbPost.id}`);
           expect(res.statusCode).toBe(204);
           expect(res.body).toStrictEqual({});
@@ -756,45 +829,7 @@ describe('Posts endpoint', async () => {
           expect(
             await db.image.findUnique({ where: { id: dbImgOne.id } })
           ).toBeNull();
-        });
-
-        it(`should delete the post without its image if it is not owned by the post author`, async () => {
-          const { authorizedApi, signedInUserData } =
-            await prepForAuthorizedTest(xUserData);
-          const dbPost = await createPost({
-            ...postDataToDelete,
-            image: dbImgOne.id,
-            authorId: signedInUserData.user.id,
-          });
-          const res = await authorizedApi.delete(`${POSTS_URL}/${dbPost.id}`);
-          expect(res.statusCode).toBe(204);
-          expect(res.body).toStrictEqual({});
-          expect(
-            await db.post.findUnique({ where: { id: dbPost.id } })
-          ).toBeNull();
-          expect(
-            (await db.image.findUnique({ where: { id: dbImgOne.id } }))?.src
-          ).toStrictEqual(dbImgOne.src);
-        });
-
-        it(`should delete the post without its image if it is in use on another post`, async () => {
-          await createPost({
-            ...postDataToDelete,
-            image: dbImgOne.id,
-          });
-          const dbPost = await createPost({
-            ...postDataToDelete,
-            image: dbImgOne.id,
-          });
-          const res = await authorizedApi.delete(`${POSTS_URL}/${dbPost.id}`);
-          expect(res.statusCode).toBe(204);
-          expect(res.body).toStrictEqual({});
-          expect(
-            await db.post.findUnique({ where: { id: dbPost.id } })
-          ).toBeNull();
-          expect(
-            (await db.image.findUnique({ where: { id: dbImgOne.id } }))?.src
-          ).toStrictEqual(dbImgOne.src);
+          expect(remove).toHaveBeenCalledOnce();
         });
       }
     };
@@ -1780,34 +1815,28 @@ describe('Posts endpoint', async () => {
     );
 
     describe(`GET ${POSTS_URL}/tags/count`, () => {
-      it('should respond with 401 on a request without JWT', async () => {
-        const res = await api.get(`${POSTS_URL}/tags/count`);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
-      });
-
-      it('should respond with the count of tags for the current signed-in user', async () => {
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserOne.id });
-        await createPost({ ...postFullData, authorId: dbUserTwo.id });
+      it('should respond with the count of all tags, event the ones that not connected to posts', async () => {
+        await db.tag.create({ data: { name: crypto.randomUUID() } });
+        await createPost(postFullData);
+        await createPost(postFullData);
         const distinctTags = new Set(postFullData.tags);
         const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(distinctTags.size);
+        expect(res.body).toStrictEqual(distinctTags.size + 1);
       });
 
-      it('should respond with 0 if the current signed-in user do not have any post tags', async () => {
-        await createPost({
-          ...postDataOutput,
-          tags: [],
-          authorId: dbUserOne.id,
-        });
+      it('should respond with the count of distinct tags for the given user', async () => {
+        await createPost({ ...postFullData, authorId: dbUserOne.id });
+        await createPost({ ...postFullData, authorId: dbUserOne.id });
         await createPost({ ...postFullData, authorId: dbUserTwo.id });
-        const res = await authorizedApi.get(`${POSTS_URL}/tags/count`);
+        const distinctTags = new Set(postFullData.tags);
+        const res = await api.get(
+          `${POSTS_URL}/tags/count?author=${dbUserOne.id}`
+        );
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual(0);
+        expect(res.body).toStrictEqual(distinctTags.size);
       });
     });
 

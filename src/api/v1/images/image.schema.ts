@@ -1,20 +1,11 @@
+import * as Image from '@/lib/image';
 import { z } from 'zod';
 
-export const posSchema = z.coerce
-  .number()
-  .optional()
-  .transform((n) => n && Math.trunc(n));
-
-export const scaleSchema = z.coerce.number().optional();
-
-export const infoSchema = z.string().trim().optional();
-
-export const altSchema = z.string().trim().optional();
-
-export const imageSchema = z.object({
-  scale: scaleSchema,
-  info: infoSchema,
-  xPos: posSchema,
-  yPos: posSchema,
-  alt: altSchema,
-});
+export const imageSchema = Image.imageSchema.merge(
+  z.object({
+    isAvatar: z.preprocess(
+      (v) => [true, 'true', 'on'].includes(v as string | boolean),
+      z.boolean().optional().default(false)
+    ),
+  })
+);

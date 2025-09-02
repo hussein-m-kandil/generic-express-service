@@ -1,10 +1,10 @@
-import * as Exp from 'express';
 import { imagesRouter } from './images';
 import { usersRouter } from './users';
 import { postsRouter } from './posts';
 import { authRouter } from './auth';
+import { Router } from 'express';
 
-export const apiRouter = Exp.Router();
+export const apiRouter = Router();
 
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', usersRouter);

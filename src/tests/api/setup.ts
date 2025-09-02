@@ -1,16 +1,50 @@
+import * as API from '@/api';
 import * as Types from '@/types';
+import * as Image from '@/lib/image';
 import * as Utils from '@/lib/utils';
+import * as Middlewares from '@/middlewares';
+import { default as express } from 'express';
 import { Prisma } from '@/../prisma/client';
-import { expect } from 'vitest';
+import { App } from 'supertest/types';
+import { BASE_URL } from './v1/utils';
+import { expect, vi } from 'vitest';
 import { z } from 'zod';
-import app from '@/app';
 import db from '@/lib/db';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import supertest from 'supertest';
 
-export const setup = async (signinUrl: string) => {
-  const api = supertest(app);
+const storageData = vi.hoisted(() => {
+  const uploadedData = {
+    fullPath: 'test-file-full-path.jpg',
+    path: 'test-file-path.jpg',
+    id: 'test-file-id',
+  };
+  const uploadRes = { data: uploadedData, error: null };
+  const removeRes = { data: [], error: null };
+  const remove = vi.fn(
+    () => new Promise((resolve) => setImmediate(() => resolve(removeRes)))
+  );
+  const upload = vi.fn(
+    () => new Promise((resolve) => setImmediate(() => resolve(uploadRes)))
+  );
+  const from = vi.fn(() => ({ upload, remove }));
+  const storage = { client: { from }, upload, remove };
+  return { uploadedData, uploadRes, removeRes, storage };
+});
+
+vi.mock('@supabase/supabase-js', () => {
+  const storage = storageData.storage.client;
+  return { createClient: vi.fn(() => ({ storage })) };
+});
+
+const app = express()
+  .use(express.json())
+  .use(BASE_URL, API.V1.apiRouter)
+  .use(Middlewares.errorHandler);
+
+export const setup = async (signinUrl: string, expApp: App = app) => {
+  const api = supertest(expApp);
 
   const deleteAllPosts = async () => await db.post.deleteMany({});
   const deleteAllUsers = async () => await db.user.deleteMany({});
@@ -20,8 +54,9 @@ export const setup = async (signinUrl: string) => {
   const createUser = async (data: Prisma.UserCreateInput) => {
     const password = bcrypt.hashSync(data.password, 10);
     return await db.user.create({
-      data: { ...data, password },
       omit: { password: false, isAdmin: false },
+      include: { avatar: true, images: true },
+      data: { ...data, password },
     });
   };
 
@@ -89,16 +124,24 @@ export const setup = async (signinUrl: string) => {
     width: 2048,
   };
 
-  const imgData = {
-    ...imgOne,
+  const imagedata = {
+    info: 'blah blah blah...',
     alt: 'test-img-alt',
     scale: 1.25,
     xPos: 10,
     yPos: 25,
   };
 
-  const createImage = async (imageData: Prisma.ImageCreateManyInput) => {
+  const imgData = {
+    ...imgOne,
+    ...imagedata,
+  };
+
+  const createImage = async (
+    imageData: Prisma.ImageCreateManyInput & Prisma.ImageUncheckedCreateInput
+  ) => {
     return await db.image.upsert({
+      include: Image.FIELDS_TO_INCLUDE,
       where: { src: imageData.src },
       create: imageData,
       update: imageData,
@@ -109,7 +152,7 @@ export const setup = async (signinUrl: string) => {
     return await db.image.createMany({ data: imageData });
   };
 
-  const postDataInput: Types.NewPostParsedData = {
+  const postDataInput: Types.NewPostParsedDataWithoutImage = {
     published: true,
     title: 'Test Post',
     content: 'Test post content...',
@@ -134,11 +177,11 @@ export const setup = async (signinUrl: string) => {
 
   const commentData = { content: 'Keep it up' };
 
-  const createPost = async (data: typeof postFullData) => {
+  const createPost = async (data: typeof postFullData, imageId?: string) => {
     return await db.post.create({
       data: {
+        imageId,
         title: data.title,
-        imageId: data.image,
         content: data.content,
         authorId: data.authorId,
         published: data.published,
@@ -176,13 +219,13 @@ export const setup = async (signinUrl: string) => {
 
   const assertPostData = (
     actualPost: Types.PostFullData,
-    expectedPost: typeof postFullData & { image?: string }
+    expectedPost: typeof postFullData & { imageId?: string }
   ) => {
     expect(actualPost.title).toBe(expectedPost.title);
     expect(actualPost.content).toBe(expectedPost.content);
     expect(actualPost.authorId).toBe(expectedPost.authorId);
     expect(actualPost.published).toBe(expectedPost.published);
-    expect(actualPost.imageId).toStrictEqual(expectedPost.image ?? null);
+    expect(actualPost.imageId).toStrictEqual(expectedPost.imageId ?? null);
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.tags.length).toBe(expectedPost.tags.length);
     expect(actualPost.tags.map(({ name }) => name.toLowerCase())).toStrictEqual(
@@ -261,10 +304,12 @@ export const setup = async (signinUrl: string) => {
     userTwoData,
     commentData,
     newUserData,
+    storageData,
     adminData,
     xUserData,
     dbUserOne,
     dbUserTwo,
+    imagedata,
     userData,
     dbAdmin,
     dbXUser,

@@ -7,23 +7,25 @@ import {
   beforeEach,
   TestFunction,
 } from 'vitest';
+import { AppErrorResponse, AuthResponse, PublicUser } from '@/types';
 import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
-import { AppErrorResponse, AuthResponse } from '@/types';
-import { Prisma, User } from '@/../prisma/client';
+import { Image, Prisma, User } from '@/../prisma/client';
 import { z } from 'zod';
 import db from '@/lib/db';
 import setup from '../setup';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-describe('Users endpoint', async () => {
+describe('User endpoints', async () => {
   const {
     newUserData,
     xUserData,
     adminData,
     userData,
+    imgData,
     api,
     createUser,
+    createImage,
     deleteAllUsers,
     deleteAllPosts,
     prepForAuthorizedTest,
@@ -90,17 +92,13 @@ describe('Users endpoint', async () => {
 
     const createPostNewUserTest = (isAdmin: boolean): TestFunction => {
       return async () => {
-        const res = await api.post(USERS_URL).send(
-          isAdmin
-            ? {
-                ...newUserData,
-                secret: ADMIN_SECRET, // Must be defined
-              }
-            : newUserData
-        );
+        const res = await api.post(USERS_URL).send({
+          ...newUserData,
+          ...(isAdmin ? { secret: ADMIN_SECRET } : {}),
+        });
         const resBody = res.body as AuthResponse;
         // Pretend that the user is a `User` and tests should prove that it is a `PublicUser`
-        const resUser = resBody.user as User;
+        const resUser = resBody.user;
         const dbUser = await db.user.findUniqueOrThrow({
           where: { id: resUser.id },
           omit: { password: false },
@@ -110,7 +108,7 @@ describe('Users endpoint', async () => {
         ) as User;
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(201);
-        expect(resUser.password).toBeUndefined();
+        expect(resUser.avatar).toBeDefined();
         expect(resUser.isAdmin).toStrictEqual(isAdmin);
         expect(resUser.username).toBe(newUserData.username);
         expect(resUser.fullname).toBe(newUserData.fullname);
@@ -121,6 +119,7 @@ describe('Users endpoint', async () => {
         expect(resJwtPayload.updatedAt).toBeUndefined();
         expect(resJwtPayload.username).toBeUndefined();
         expect(resJwtPayload.fullname).toBeUndefined();
+        expect(Object.keys(resUser)).not.toContain('password');
         expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
         expect(dbUser.isAdmin).toBe(isAdmin);
         expect(dbUser.bio).toBe(newUserData.bio);
@@ -131,6 +130,36 @@ describe('Users endpoint', async () => {
     it('should create a normal user (not admin)', createPostNewUserTest(false));
 
     it('should create an admin user', createPostNewUserTest(true));
+  });
+
+  describe(`POST ${USERS_URL}/guest`, () => {
+    it('should create a random user and sign it in', async () => {
+      const res = await api.post(`${USERS_URL}/guest`);
+      const resBody = res.body as AuthResponse;
+      const resUser = resBody.user;
+      const dbUser = (await db.user.findMany({ omit: { password: false } })).at(
+        -1
+      ) as User;
+      const resJwtPayload = jwt.decode(
+        resBody.token.replace(/^Bearer /, '')
+      ) as User;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(201);
+      expect(resUser.avatar).toBeDefined();
+      expect(resBody.token).toMatch(/^Bearer /i);
+      expect(resUser.isAdmin).toStrictEqual(false);
+      expect(resJwtPayload.fullname).toBeUndefined();
+      expect(resJwtPayload.username).toBeUndefined();
+      expect(resJwtPayload.createdAt).toBeUndefined();
+      expect(resJwtPayload.updatedAt).toBeUndefined();
+      expect(resJwtPayload.id).toStrictEqual(dbUser.id);
+      expect(resJwtPayload.isAdmin).toStrictEqual(false);
+      expect(Object.keys(resUser)).not.toContain('password');
+      expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
+      expect(resUser.bio).toBe(resUser.bio);
+      expect(dbUser.bio).toBe(resUser.bio);
+      expect(dbUser.isAdmin).toBe(false);
+    });
   });
 
   describe(`GET ${USERS_URL}`, () => {
@@ -151,10 +180,11 @@ describe('Users endpoint', async () => {
       const dbUser = await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(adminData);
       const res = await authorizedApi.get(USERS_URL);
-      const users = res.body as User[];
+      const users = res.body as PublicUser[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(res.body).toHaveLength(2);
+      expect(users[1].avatar).toBeDefined();
       expect(users[1].username).toBe(userData.username);
       expect(users[1].fullname).toBe(userData.fullname);
       await db.user.delete({ where: { id: dbUser.id } });
@@ -176,25 +206,20 @@ describe('Users endpoint', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with 401 on non-owner request with username', async () => {
-      await createUser(xUserData);
+    it('should find a user by id/username', async () => {
       const dbUser = await createUser(userData);
-      const { authorizedApi } = await prepForAuthorizedTest(xUserData);
-      const res = await authorizedApi.get(`${USERS_URL}/${dbUser.username}`);
-      assertUnauthorizedErrorRes(res);
-    });
-
-    it('should respond with the found user on request with id for anyone', async () => {
-      const dbUser = await createUser(userData);
-      const res = await api.get(`${USERS_URL}/${dbUser.id}`);
-      const resUser = res.body as User;
-      expect(res.statusCode).toBe(200);
-      expect(res.type).toMatch(/json/);
-      expect(resUser.id).toBe(dbUser.id);
-      expect(resUser.isAdmin).toStrictEqual(false);
-      expect(resUser.username).toBe(dbUser.username);
-      expect(resUser.fullname).toBe(dbUser.fullname);
-      expect(resUser.password).toBeUndefined();
+      for (const param of [dbUser.id, dbUser.username]) {
+        const res = await api.get(`${USERS_URL}/${param}`);
+        const resUser = res.body as PublicUser;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resUser.id).toBe(dbUser.id);
+        expect(resUser.avatar).toBeDefined();
+        expect(resUser.isAdmin).toStrictEqual(false);
+        expect(resUser.username).toBe(dbUser.username);
+        expect(resUser.fullname).toBe(dbUser.fullname);
+        expect(Object.keys(resUser)).not.toContain('password');
+      }
     });
 
     it('should respond with the found user on owner request with id or username', async () => {
@@ -202,14 +227,15 @@ describe('Users endpoint', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       for (const param of [dbUser.id, dbUser.username]) {
         const res = await authorizedApi.get(`${USERS_URL}/${param}`);
-        const resUser = res.body as User;
+        const resUser = res.body as PublicUser;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(resUser.id).toBe(dbUser.id);
+        expect(resUser.avatar).toBeDefined();
         expect(resUser.isAdmin).toStrictEqual(false);
         expect(resUser.username).toBe(dbUser.username);
         expect(resUser.fullname).toBe(dbUser.fullname);
-        expect(resUser.password).toBeUndefined();
+        expect(Object.keys(resUser)).not.toContain('password');
       }
     });
   });
@@ -218,57 +244,87 @@ describe('Users endpoint', async () => {
     let longString = '';
     for (let i = 0; i < 1000; i++) longString += 'x';
 
+    let dbXImg: Omit<Image, 'storageId' | 'storageFullPath'>;
     let dbUser: User;
+
+    const getAllFields = () => {
+      return Object.entries({
+        ...xUserData,
+        bio: 'Test bio',
+        avatarId: dbXImg.id,
+      }).map((k, v) => ({ k: v }));
+    };
+
     beforeEach(async () => {
       await createUser(adminData);
       dbUser = await createUser(userData);
+      const dbXUser = await createUser(xUserData);
+      await createImage({
+        ...imgData,
+        ownerId: dbUser.id,
+        avatars: { create: { userId: dbUser.id } },
+      });
+      dbXImg = await createImage({ ...imgData, ownerId: dbXUser.id });
     });
 
     afterEach(deleteAllUsers);
 
     const createTestForUpdateField = (
-      data: Prisma.UserUpdateInput & { confirm?: string; secret?: string },
+      data: Prisma.UserUpdateInput & {
+        confirm?: string;
+        secret?: string;
+        avatarId?: string;
+      },
       credentials: { username: string; password: string }
     ) => {
       return async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(credentials);
+        const {
+          authorizedApi,
+          signedInUserData: { token },
+        } = await prepForAuthorizedTest(credentials);
         const res = await authorizedApi
           .patch(`${USERS_URL}/${dbUser.id}`)
-          .send(data);
-        const updatedDBUser = await db.user.findUnique({
+          .send({ ...data, avatarId: dbXImg.id });
+        const updatedDBUser = (await db.user.findUnique({
           where: { id: dbUser.id },
           omit: { password: false },
-        });
-        expect(res.statusCode).toBe(204);
-        expect(updatedDBUser).toBeTruthy();
-        if (updatedDBUser) {
-          const updatedFields = Object.keys(data);
-          if (updatedFields.includes('username')) {
-            expect(updatedDBUser.username).toBe(data.username);
-          } else {
-            expect(updatedDBUser.username).toBe(dbUser.username);
-          }
-          if (updatedFields.includes('fullname')) {
-            expect(updatedDBUser.fullname).toBe(data.fullname);
-          } else {
-            expect(updatedDBUser.fullname).toBe(dbUser.fullname);
-          }
-          if (updatedFields.includes('password')) {
-            expect(
-              bcrypt.compareSync(
-                data.password as string,
-                updatedDBUser.password
-              )
-            ).toBe(true);
-          } else {
-            expect(updatedDBUser.password).toBe(dbUser.password);
-          }
-          if (updatedFields.includes('secret')) {
-            expect(updatedDBUser.isAdmin).toBe(data.secret === ADMIN_SECRET);
-          }
-          expect(+updatedDBUser.createdAt).toBe(+dbUser.createdAt);
-          expect(+updatedDBUser.updatedAt).toBeGreaterThan(+dbUser.updatedAt);
+          include: { avatar: { select: { image: true } } },
+        })) as User & { avatar: { image: Image } };
+        expect(res.statusCode).toBe(200);
+        expect(JSON.stringify((res.body as AuthResponse).user)).toBe(
+          JSON.stringify({
+            ...updatedDBUser,
+            password: undefined,
+          })
+        );
+        expect((res.body as AuthResponse).token).toBe(token);
+        expect((res.body as AuthResponse).user.avatar?.image.id).toBe(
+          dbXImg.id
+        );
+        expect(updatedDBUser.avatar.image.id).toBe(dbXImg.id);
+        const updatedFields = Object.keys(data);
+        if (updatedFields.includes('username')) {
+          expect(updatedDBUser.username).toBe(data.username);
+        } else {
+          expect(updatedDBUser.username).toBe(dbUser.username);
         }
+        if (updatedFields.includes('fullname')) {
+          expect(updatedDBUser.fullname).toBe(data.fullname);
+        } else {
+          expect(updatedDBUser.fullname).toBe(dbUser.fullname);
+        }
+        if (updatedFields.includes('password')) {
+          expect(
+            bcrypt.compareSync(data.password as string, updatedDBUser.password)
+          ).toBe(true);
+        } else {
+          expect(updatedDBUser.password).toBe(dbUser.password);
+        }
+        if (updatedFields.includes('secret')) {
+          expect(updatedDBUser.isAdmin).toBe(data.secret === ADMIN_SECRET);
+        }
+        expect(+updatedDBUser.createdAt).toBe(+dbUser.createdAt);
+        expect(+updatedDBUser.updatedAt).toBeGreaterThan(+dbUser.updatedAt);
       };
     };
 
@@ -290,19 +346,20 @@ describe('Users endpoint', async () => {
     };
 
     it('should respond with 401, on a request without JWT', async () => {
-      const res = await api
-        .patch(`${USERS_URL}/${dbUser.id}`)
-        .send({ username: 'foobar' });
-      assertUnauthorizedErrorRes(res);
+      for (const field of getAllFields()) {
+        const res = await api.patch(`${USERS_URL}/${dbUser.id}`).send(field);
+        assertUnauthorizedErrorRes(res);
+      }
     });
 
     it('should respond with 401, on a request with non-owner/admin JWT', async () => {
-      await createUser(xUserData);
       const { authorizedApi } = await prepForAuthorizedTest(xUserData);
-      const res = await authorizedApi
-        .patch(`${USERS_URL}/${dbUser.id}`)
-        .send({ username: 'foobar' });
-      assertUnauthorizedErrorRes(res);
+      for (const field of getAllFields()) {
+        const res = await authorizedApi
+          .patch(`${USERS_URL}/${dbUser.id}`)
+          .send(field);
+        assertUnauthorizedErrorRes(res);
+      }
     });
 
     it('should not change username if the given is already exists, on request with owner JWT', async () => {
@@ -412,6 +469,11 @@ describe('Users endpoint', async () => {
         /secret/i,
         adminData
       )
+    );
+
+    it(
+      'should change bio, on request with owner JWT',
+      createTestForUpdateField({ bio: 'Test bio' }, userData)
     );
   });
 

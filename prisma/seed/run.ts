@@ -26,8 +26,8 @@ const postCount = titles.length;
 const tags = [
   'open_source',
   'full_stack',
-  'javaScript',
-  'typeScript',
+  'javascript',
+  'typescript',
   'security',
   'frontend',
   'software',
@@ -65,14 +65,14 @@ async function main() {
         fullname: 'Clark Kent / Kal-El',
         bio: 'From Krypton with love.',
         username: 'superman',
-        isAdmin: false,
+        isAdmin: true,
       },
       {
         password: bcrypt.hashSync(...passHashArgs),
         bio: 'From Gotham with love.',
         fullname: 'Bruce Wayne',
         username: 'batman',
-        isAdmin: false,
+        isAdmin: true,
       },
     ],
   });
