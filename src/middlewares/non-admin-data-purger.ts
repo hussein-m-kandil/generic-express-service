@@ -9,7 +9,7 @@ export function createNonAdminDataPurger(initLastPurgeTime = 0) {
     try {
       const now = Date.now();
       if (
-        (req.method === 'GET' || req.originalUrl.includes('/auth')) &&
+        (req.method === 'GET' || req.originalUrl.split('/').includes('auth')) &&
         (!lastPurgeTime || now - lastPurgeTime >= Utils.PURGE_INTERVAL_MS)
       ) {
         await Utils.purgeNonAdminData(now, Utils.PURGE_INTERVAL_MS);
