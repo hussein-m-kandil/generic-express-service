@@ -125,3 +125,8 @@ model Avatar {
   imageId String @map("image_id") @db.Uuid
   image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
 }
+
+model Visitor {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+}

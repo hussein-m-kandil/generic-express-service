@@ -2,6 +2,7 @@ import * as API from '@/api';
 import * as Middlewares from '@/middlewares';
 import { ALLOWED_ORIGINS } from '@/lib/config';
 import { AppBaseError } from '@/lib/app-error';
+import cookieParser from 'cookie-parser';
 import logger from '@/lib/logger';
 import express from 'express';
 import helmet from 'helmet';
@@ -13,14 +14,17 @@ app.disable('x-powered-by');
 
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 app.use(Middlewares.requestLogger);
+app.use(Middlewares.visitorsRegistrar);
 app.use(Middlewares.createNonAdminDataPurger());
 
 logger.info('ALLOWED_ORIGINS: ', ALLOWED_ORIGINS);
 app.use(
   cors({
     origin: ALLOWED_ORIGINS,
-    optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
+    credentials: true, // Enable cookies and credentials
+    optionsSuccessStatus: 200, // Align more than 204 with legacy browsers
   })
 );
 
