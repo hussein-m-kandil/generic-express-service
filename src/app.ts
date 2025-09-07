@@ -17,6 +17,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(Middlewares.requestLogger);
 app.use(Middlewares.visitorsRegistrar);
+app.use(Middlewares.creationRegistrar);
 app.use(Middlewares.createNonAdminDataPurger());
 
 logger.info('ALLOWED_ORIGINS: ', ALLOWED_ORIGINS);
