@@ -9,6 +9,10 @@ import ms from 'ms';
 import db from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
+export const lowerCase = <T extends string>(s: T): Lowercase<T> => {
+  return s.toLowerCase() as Lowercase<T>;
+};
+
 export const createJwtForUser = (user: Types.PublicUser): string => {
   const { id, isAdmin } = user;
   const payload: Types.AppJwtPayload = { id, isAdmin };

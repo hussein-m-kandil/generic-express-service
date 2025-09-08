@@ -6,6 +6,8 @@ export const USERS_URL = `${BASE_URL}/users`;
 
 export const POSTS_URL = `${BASE_URL}/posts`;
 
+export const STATS_URL = `${BASE_URL}/stats`;
+
 export const IMAGES_URL = `${BASE_URL}/images`;
 
 export const SIGNIN_URL = `${BASE_URL}/auth/signin`;
