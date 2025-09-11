@@ -1,7 +1,7 @@
-import { postSchema, commentSchema } from '@/api/v1/posts';
-import { PrismaClient, Prisma } from '@/../prisma/client';
-import { imageSchema } from '@/lib/image/schema';
 import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
+import { PrismaClient, Prisma, Model } from '@/../prisma/client';
+import { postSchema, commentSchema } from '@/api/v1/posts';
+import { imageSchema } from '@/lib/image/schema';
 import { JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 
@@ -141,3 +141,8 @@ export interface VoteFilters extends PaginationFilters {
   isUpvote?: boolean;
   postId?: string;
 }
+
+export type Stats = Record<
+  `${Lowercase<Model>}s` | 'visitors',
+  { count: number; date: Date }[]
+>;

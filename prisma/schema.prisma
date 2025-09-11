@@ -125,3 +125,25 @@ model Avatar {
   imageId String @map("image_id") @db.Uuid
   image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
 }
+
+model Visitor {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+model Creation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  model     Model
+  username  String
+  isAdmin   Boolean  @map("is_admin")
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+enum Model {
+  COMMENT
+  IMAGE
+  USER
+  VOTE
+  POST
+  TAG
+}

@@ -1,2 +1,2 @@
-export { default } from './run';
-export * from './run';
+export { default } from './script';
+export * from './script';

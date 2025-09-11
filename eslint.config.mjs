@@ -5,7 +5,7 @@ import pluginSecurity from 'eslint-plugin-security';
 
 export default tseslint.config({
   ignores: ['dist'],
-  files: ['src/**/*.ts'],
+  files: ['src/**/*.ts', 'prisma/seed/**/*.ts'],
   extends: [
     eslint.configs.recommended,
     tseslint.configs.strictTypeChecked,
