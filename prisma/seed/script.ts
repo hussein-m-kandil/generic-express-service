@@ -144,8 +144,8 @@ async function main() {
       }
     },
     {
-      maxWait: 10000, // default: 2000
-      timeout: 60000, // default: 5000
+      maxWait: 15000, // default: 2000
+      timeout: 90000, // default: 5000
     }
   );
 }
