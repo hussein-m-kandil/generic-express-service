@@ -54,25 +54,10 @@ jobs:
       - name: Stop PostgreSQL (test DB)
         run: npm run pg:down
 
-      - name: Optionally reset production DB
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          RESET_DB: ${{ secrets.RESET_DB }}
-        if: ${{ env.RESET_DB == 'true' }}
-        run: npm run db:reset -- --force --skip-generate
-
       - name: Deploy migrations to production DB
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma migrate deploy
-
-      - name: Optionally seed production DB
-        env:
-          AUTHOR_PASSWORD: ${{ secrets.AUTHOR_PASSWORD }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SEED_DB: ${{ secrets.SEED_DB }}
-        if: ${{ env.SEED_DB == 'true' }}
-        run: npm run db:seed
 
       - name: Deployment preparation completed
         run: echo "✔ Deployment preparation complete."
