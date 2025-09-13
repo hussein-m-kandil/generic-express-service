@@ -6,6 +6,7 @@ export const VISITOR_COOKIE_NAME = 'visitor';
 
 const cookieOptions: CookieOptions = {
   maxAge: 365 * 24 * 60 * 60 * 1000,
+  partitioned: true,
   sameSite: 'none',
   httpOnly: true,
   secure: true,
