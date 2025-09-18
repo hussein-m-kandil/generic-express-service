@@ -69,6 +69,23 @@ describe('Post endpoints', async () => {
       expect(resBody.length).toBe(0);
     });
 
+    it('should respond with posts array on invalid auth token and not send 401', async () => {
+      const POST_COUNT = 2;
+      for (let i = 0; i < POST_COUNT; i++) {
+        await createPost(postFullData);
+      }
+      const res = await api.get(POSTS_URL).set('Authorization', 'blah');
+      const resBody = res.body as PostFullData[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody).toBeTypeOf('object');
+      expect(Array.isArray(resBody)).toBe(true);
+      expect(resBody.length).toBe(POST_COUNT);
+      for (const post of resBody) {
+        assertPostData(post, postFullData);
+      }
+    });
+
     it('should respond with an array of posts with their images', async () => {
       const POST_COUNT = 2;
       const postData = { ...postFullData, image: dbImgOne.id };

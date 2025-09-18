@@ -47,7 +47,16 @@ export const optionalAuthValidator = async (
   next: NextFunction
 ) => {
   if (req.headers.authorization) {
-    await authValidator(req, res, next);
+    // The purpose of this middleware is to optionally retrieve user info
+    // if applicable, thereby preventing a 401 error on an invalid token
+    const callNext: unknown = () => next();
+    const controlledRes = {
+      ...res,
+      sendStatus: callNext as typeof res.sendStatus,
+      send: callNext as typeof res.send,
+      end: callNext as typeof res.end,
+    } as Response;
+    await authValidator(req, controlledRes, callNext as NextFunction);
   } else next();
 };
 
