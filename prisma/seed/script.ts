@@ -1,5 +1,5 @@
+import { usersData, IMAGE_BASE_URL, characters } from './data';
 import { PrismaClient, Prisma, User, Image } from '../client';
-import { usersData, IMAGE_BASE_URL } from './data';
 import { createPostsData } from './utils';
 import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
@@ -33,6 +33,7 @@ async function main() {
       await transClient.image.deleteMany({});
       await transClient.user.deleteMany({});
       await transClient.tag.deleteMany({});
+      await transClient.characterRect.deleteMany({});
       await transClient.creation.deleteMany({ where: { isAdmin: true } });
 
       console.log('Seeding the database...');
@@ -141,6 +142,10 @@ async function main() {
             username: voter.username,
           });
         }
+      }
+
+      for (const data of characters) {
+        await transClient.characterRect.create({ data });
       }
     },
     {

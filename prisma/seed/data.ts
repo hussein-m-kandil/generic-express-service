@@ -41,5 +41,11 @@ export const usersData = [
   },
 ];
 
-export const IMAGE_BASE_URL =
-  'https://ndauvqaezozccgtddhkr.supabase.co/storage/v1/object/public';
+export const IMAGE_BASE_URL = 'https://ndauvqaezozccgtddhkr.supabase.co/storage/v1/object/public';
+
+export const characters = [
+  { name: 'waldo', left: 2140, top: 1140, right: 2245, bottom: 1260 },
+  { name: 'wizard', left: 145, top: 1150, right: 215, bottom: 1265 },
+  { name: 'wilma', left: 1230, top: 650, right: 1280, bottom: 700 },
+  { name: 'odlaw', left: 790, top: 1010, right: 840, bottom: 1060 },
+];
