@@ -2,13 +2,13 @@ import * as API from '@/api';
 import * as Types from '@/types';
 import * as Image from '@/lib/image';
 import * as Utils from '@/lib/utils';
+import * as TestUtils from './v1/utils';
 import * as Middlewares from '@/middlewares';
 import { default as express } from 'express';
 import { Prisma } from '@/../prisma/client';
 import { App } from 'supertest/types';
 import { BASE_URL } from './v1/utils';
 import { expect, vi } from 'vitest';
-import { z } from 'zod';
 import db from '@/lib/db';
 import path from 'node:path';
 import bcrypt from 'bcryptjs';
@@ -22,12 +22,8 @@ const storageData = vi.hoisted(() => {
   };
   const uploadRes = { data: uploadedData, error: null };
   const removeRes = { data: [], error: null };
-  const remove = vi.fn(
-    () => new Promise((resolve) => setImmediate(() => resolve(removeRes)))
-  );
-  const upload = vi.fn(
-    () => new Promise((resolve) => setImmediate(() => resolve(uploadRes)))
-  );
+  const remove = vi.fn(() => new Promise((resolve) => setImmediate(() => resolve(removeRes))));
+  const upload = vi.fn(() => new Promise((resolve) => setImmediate(() => resolve(uploadRes))));
   const from = vi.fn(() => ({ upload, remove }));
   const storage = { client: { from }, upload, remove };
   return { uploadedData, uploadRes, removeRes, storage };
@@ -199,10 +195,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     });
   };
 
-  const assertImageData = (
-    res: supertest.Response,
-    expected: typeof imgOne
-  ) => {
+  const assertImageData = (res: supertest.Response, expected: typeof imgOne) => {
     const resBody = res.body as Types.PublicImage;
     expect(res.type).toMatch(/json/);
     // eslint-disable-next-line security/detect-non-literal-regexp
@@ -241,59 +234,10 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     expect(actualPost._count.votes).toBe(expectedPost.votes.length);
   };
 
-  const prepForAuthorizedTest = async (credentials: {
-    username: string;
-    password: string;
-  }) => {
-    const signedInUserData = await signin(
-      credentials.username,
-      credentials.password
-    );
-    const authorizedApi = supertest
-      .agent(app)
-      .set('Authorization', signedInUserData.token);
+  const prepForAuthorizedTest = async (credentials: { username: string; password: string }) => {
+    const signedInUserData = await signin(credentials.username, credentials.password);
+    const authorizedApi = supertest.agent(app).set('Authorization', signedInUserData.token);
     return { signedInUserData, authorizedApi };
-  };
-
-  const assertErrorRes = (
-    res: supertest.Response,
-    expected: RegExp | string
-  ) => {
-    const resBody = res.body as Types.AppErrorResponse;
-    expect(res.statusCode).toBe(400);
-    expect(res.type).toMatch(/json/);
-    expect(resBody.error.message).toMatch(expected);
-  };
-
-  const assertNotFoundErrorRes = (res: supertest.Response) => {
-    const resBody = res.body as Types.AppErrorResponse;
-    expect(res.statusCode).toBe(404);
-    expect(res.type).toMatch(/json/);
-    expect(resBody.error.message).toMatch(/not found/i);
-  };
-
-  const assertInvalidIdErrorRes = (res: supertest.Response) => {
-    const resBody = res.body as Types.AppErrorResponse;
-    expect(res.statusCode).toBe(400);
-    expect(res.type).toMatch(/json/);
-    expect(resBody.error.message).toMatch(/^.* ?id ?.*$/i);
-    expect(resBody.error.message).toMatch(/invalid/i);
-  };
-
-  const assertUnauthorizedErrorRes = (res: supertest.Response) => {
-    expect(res.statusCode).toBe(401);
-    expect(res.body).toStrictEqual({});
-  };
-
-  const assertResponseWithValidationError = (
-    res: supertest.Response,
-    issueField: string
-  ) => {
-    const issues = res.body as z.ZodIssue[];
-    expect(res.type).toMatch(/json/);
-    expect(res.statusCode).toBe(400);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].path).toContain(issueField);
   };
 
   return {
@@ -325,15 +269,15 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     deleteAllPosts,
     deleteAllUsers,
     assertPostData,
-    assertErrorRes,
     assertImageData,
     deleteAllImages,
     createManyImages,
     prepForAuthorizedTest,
-    assertNotFoundErrorRes,
-    assertInvalidIdErrorRes,
-    assertUnauthorizedErrorRes,
-    assertResponseWithValidationError,
+    assertErrorRes: TestUtils.assertErrorRes,
+    assertNotFoundErrorRes: TestUtils.assertNotFoundErrorRes,
+    assertInvalidIdErrorRes: TestUtils.assertInvalidIdErrorRes,
+    assertUnauthorizedErrorRes: TestUtils.assertUnauthorizedErrorRes,
+    assertResponseWithValidationError: TestUtils.assertResponseWithValidationError,
   };
 };
 
