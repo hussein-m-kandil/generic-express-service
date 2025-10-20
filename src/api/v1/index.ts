@@ -1,3 +1,4 @@
+import { charactersRouter } from './characters';
 import { imagesRouter } from './images';
 import { statsRouter } from './stats';
 import { usersRouter } from './users';
@@ -12,3 +13,4 @@ apiRouter.use('/users', usersRouter);
 apiRouter.use('/posts', postsRouter);
 apiRouter.use('/stats', statsRouter);
 apiRouter.use('/images', imagesRouter);
+apiRouter.use('/characters', charactersRouter);
