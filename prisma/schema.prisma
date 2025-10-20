@@ -126,6 +126,16 @@ model Avatar {
   image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
 }
 
+model CharacterFinder {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  name      String   @default("Anonymous")
+  duration  Int?
+
+  @@map("character_finder")
+}
+
 model CharacterRect {
   name   String @unique
   left   Int
