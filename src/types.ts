@@ -1,5 +1,5 @@
+import { PrismaClient, Prisma, Model, CharacterFinder } from '@/../prisma/client';
 import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
-import { PrismaClient, Prisma, Model } from '@/../prisma/client';
 import { postSchema, commentSchema } from '@/api/v1/posts';
 import { imageSchema } from '@/lib/image/schema';
 import { JwtPayload } from 'jsonwebtoken';
@@ -69,12 +69,8 @@ export type CustomPrismaClient = PrismaClient<{
 
 export type NewUserInput = z.input<typeof userSchema>;
 export type NewUserOutput = z.output<typeof userSchema>;
-export type UpdateUserInput = z.input<
-  ReturnType<typeof createUpdateUserSchema>
->;
-export type UpdateUserOutput = z.output<
-  ReturnType<typeof createUpdateUserSchema>
->;
+export type UpdateUserInput = z.input<ReturnType<typeof createUpdateUserSchema>>;
+export type UpdateUserOutput = z.output<ReturnType<typeof createUpdateUserSchema>>;
 
 export type JwtUser = Prisma.UserGetPayload<{
   select: { id: true; isAdmin: true };
@@ -107,10 +103,7 @@ export type PostFullData = Prisma.PostGetPayload<{
 
 export type NewPostParsedData = z.output<typeof postSchema>;
 
-export type NewPostParsedDataWithoutImage = Omit<
-  NewPostParsedData,
-  'imagedata'
->;
+export type NewPostParsedDataWithoutImage = Omit<NewPostParsedData, 'imagedata'>;
 
 export type NewCommentParsedData = z.output<typeof commentSchema>;
 
@@ -142,7 +135,11 @@ export interface VoteFilters extends PaginationFilters {
   postId?: string;
 }
 
-export type Stats = Record<
-  `${Lowercase<Model>}s` | 'visitors',
-  { count: number; date: Date }[]
->;
+export type Stats = Record<`${Lowercase<Model>}s` | 'visitors', { count: number; date: Date }[]>;
+
+export type SelectionEvaluation = Record<string, boolean>;
+
+export interface EvaluationResult {
+  evaluations: SelectionEvaluation[];
+  finder: CharacterFinder;
+}

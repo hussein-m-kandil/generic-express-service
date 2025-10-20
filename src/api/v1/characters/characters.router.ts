@@ -1,15 +1,28 @@
-import * as service from './characters.service';
-import * as schema from './character.schema';
+import * as Schema from './character.schema';
+import * as Service from './characters.service';
+import * as Middleware from './characters.middleware';
 import { Router } from 'express';
 
 export const charactersRouter = Router();
 
-charactersRouter.post('/eval', async (req, res) => {
-  if (Array.isArray(req.body)) {
-    const selections = req.body.map((selection) => schema.selectionSchema.parse(selection));
-    res.json(await service.evaluateManySelections(selections));
-  } else {
-    const selection = schema.selectionSchema.parse(req.body);
-    res.json(await service.evaluateOneSelection(selection));
-  }
+charactersRouter.get('/finders', Middleware.passiveFindersPurger, async (req, res) => {
+  const filter = req.query.filter as 'all' | 'winner';
+  res.json(await Service.getAllFinders(filter));
+});
+
+charactersRouter.get('/finders/:id', Middleware.passiveFindersPurger, async (req, res) => {
+  res.json(await Service.getFinder(req.params.id));
+});
+
+charactersRouter.post('/finders', async (req, res) => {
+  res.json(await Service.createFinder(Schema.finderSchema.parse(req.body)));
+});
+
+charactersRouter.patch('/finders/:id', async (req, res) => {
+  res.json(await Service.updateFinder(req.params.id, Schema.finderSchema.parse(req.body)));
+});
+
+charactersRouter.post('/eval/:id', async (req, res) => {
+  const validSelections = Schema.selectionsSchema.parse(req.body);
+  res.json(await Service.getSelectionsEvaluation(req.params.id, validSelections));
 });
