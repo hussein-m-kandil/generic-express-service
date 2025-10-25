@@ -1,7 +1,7 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import { CharacterFinder, CharacterRect } from '@/../prisma/client';
-import { ValidFinder, ValidSelections } from './character.schema';
+import { ValidFinder, CharacterSelection, Point } from './character.schema';
 import { AppNotFoundError } from '@/lib/app-error';
 import db from '@/lib/db';
 
@@ -40,31 +40,31 @@ export const updateFinder = async (id: CharacterFinder['id'], { name }: ValidFin
   return await Utils.handleDBKnownErrors(dbQuery);
 };
 
-const evaluateOneSelection = (selection: ValidSelections[0], characterRect: CharacterRect) => {
-  const { x, y } = selection.selectedPoint;
-  const { top, left, right, bottom } = characterRect;
-  return { [selection.characterName]: x > left && y > top && x < right && y < bottom };
+const isCharacterFound = ({ x, y }: Point, { top, left, right, bottom }: CharacterRect) => {
+  return Boolean(x > left && y > top && x < right && y < bottom);
 };
 
-const evaluateManySelections = (selections: ValidSelections, characterRects: CharacterRect[]) => {
-  let foundCharactersCount = 0;
-  const evaluations: Types.SelectionEvaluation[] = [];
-  for (const selection of selections) {
-    const character = characterRects.find(({ name }) => name === selection.characterName);
-    if (character) {
-      const evaluationResult = evaluateOneSelection(selection, character);
-      const found = evaluationResult[selection.characterName];
-      if (found) foundCharactersCount++;
-      evaluations.push(evaluationResult);
-    } else {
-      evaluations.push({ [selection.characterName]: false });
-    }
+const evaluateSelection = (
+  characterSelection: CharacterSelection,
+  characterRects: CharacterRect[]
+) => {
+  let foundCharactersNum = 0;
+  const evaluation: Types.EvaluationResult['evaluation'] = {};
+  const selectionEntries = Object.entries(characterSelection);
+  for (const [characterName, selectedPoint] of selectionEntries) {
+    const characterRect = characterRects.find((cr) => cr.name === characterName);
+    const characterFound = characterRect ? isCharacterFound(selectedPoint, characterRect) : false;
+    evaluation[String(characterName)] = characterFound;
+    if (characterFound) foundCharactersNum++;
   }
-  const foundAll = foundCharactersCount > 0 && foundCharactersCount === characterRects.length;
-  return { evaluations, foundAll };
+  const allCharactersFound = foundCharactersNum > 0 && foundCharactersNum === characterRects.length;
+  return { evaluation, allCharactersFound };
 };
 
 const saveFinderAsWinner = async (finder: CharacterFinder) => {
+  if (finder.duration !== null) {
+    return finder; // So, it won before, and it already has the shortest duration
+  }
   const duration = Math.ceil((Date.now() - finder.createdAt.getTime()) / 1000); // in seconds
   const dbQuery = db.characterFinder.update({ where: { id: finder.id }, data: { duration } });
   return await Utils.handleDBKnownErrors(dbQuery);
@@ -72,7 +72,7 @@ const saveFinderAsWinner = async (finder: CharacterFinder) => {
 
 export const getSelectionsEvaluation = async (
   id: CharacterFinder['id'],
-  selections: ValidSelections
+  selections: CharacterSelection
 ): Promise<Types.EvaluationResult> => {
   const [finder, characterRects] = await Utils.handleDBKnownErrors(
     db.$transaction([
@@ -81,10 +81,10 @@ export const getSelectionsEvaluation = async (
     ])
   );
   if (!finder) throw new AppNotFoundError('finder not found');
-  const { evaluations, foundAll } = evaluateManySelections(selections, characterRects);
-  if (foundAll) {
+  const { evaluation, allCharactersFound } = evaluateSelection(selections, characterRects);
+  if (allCharactersFound) {
     const winner = await saveFinderAsWinner(finder);
-    return { evaluations, finder: winner };
+    return { evaluation, finder: winner };
   }
-  return { evaluations, finder };
+  return { evaluation, finder };
 };

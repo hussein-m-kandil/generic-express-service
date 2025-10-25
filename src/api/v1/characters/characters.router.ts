@@ -23,6 +23,6 @@ charactersRouter.patch('/finders/:id', async (req, res) => {
 });
 
 charactersRouter.post('/eval/:id', async (req, res) => {
-  const validSelections = Schema.selectionsSchema.parse(req.body);
-  res.json(await Service.getSelectionsEvaluation(req.params.id, validSelections));
+  const characterSelection = Schema.characterSelectionSchema.parse(req.body);
+  res.json(await Service.getSelectionsEvaluation(req.params.id, characterSelection));
 });

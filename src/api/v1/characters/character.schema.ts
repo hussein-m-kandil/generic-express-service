@@ -1,18 +1,13 @@
 import { z } from 'zod';
 
 export const pointNumberSchema = z.coerce.number().transform((n) => Math.trunc(n <= 0 ? 0 : n));
+export type PointNumber = z.output<typeof pointNumberSchema>;
 
-export const selectionsSchema = z.preprocess(
-  <T>(value: T | T[]): T[] => (Array.isArray(value) ? value : [value]),
-  z.array(
-    z.object({
-      selectedPoint: z.object({ x: pointNumberSchema, y: pointNumberSchema }),
-      characterName: z.string().trim(),
-    })
-  )
-);
+export const pointSchema = z.object({ x: pointNumberSchema, y: pointNumberSchema });
+export type Point = z.output<typeof pointSchema>;
 
-export type ValidSelections = z.output<typeof selectionsSchema>;
+export const characterSelectionSchema = z.record(z.coerce.string().trim(), pointSchema);
+export type CharacterSelection = z.output<typeof characterSelectionSchema>;
 
 export const finderSchema = z
   .object({
@@ -25,5 +20,4 @@ export const finderSchema = z
   })
   .optional()
   .transform((v) => v ?? {});
-
 export type ValidFinder = z.output<typeof finderSchema>;

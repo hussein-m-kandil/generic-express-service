@@ -1,4 +1,3 @@
-/* eslint-disable security/detect-object-injection */
 import * as Types from '@/types';
 import * as TestUtils from './utils';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -46,8 +45,6 @@ const characters = Array.from({ length: faker.number.int({ min: 3, max: 5 }) }).
   const name = faker.person.firstName().toLowerCase();
   return { name, left, top, right, bottom };
 });
-
-const selectionProps = ['characterName', 'selectedPoint'];
 
 const assertCharacterFinder = (res: supertest.Response, name = 'Anonymous') => {
   const resBody = res.body as CharacterFinder;
@@ -244,14 +241,15 @@ describe('Characters endpoints', () => {
   });
 
   describe(`POST ${CHARACTERS_EVAL}`, () => {
-    const character = faker.helpers.arrayElement(characters);
+    const randChar1 = faker.helpers.arrayElement(characters);
+    const randChar2 = faker.helpers.arrayElement(characters);
     const validSelection = {
-      selectedPoint: createValidPoint(character),
-      characterName: character.name,
+      [randChar1.name]: createValidPoint(randChar1),
+      [randChar2.name]: createValidPoint(randChar2),
     };
 
-    // Test finder id cases for a single selection and a list of selections
-    for (const reqData of [validSelection, [validSelection, validSelection]]) {
+    // Test finder id cases for a single selection and multiple selections
+    for (const reqData of [{ [randChar1.name]: createValidPoint(randChar1) }, validSelection]) {
       it('should respond with 404 on a request without the finder id', async () => {
         const res = await api.post(CHARACTERS_EVAL).send(reqData);
         expect(res.statusCode).toBe(404);
@@ -279,104 +277,68 @@ describe('Characters endpoints', () => {
       TestUtils.assertResponseWithValidationError(res, '');
     });
 
-    it('should respond with 400 on an empty selection', async () => {
+    it(`should respond with 400 on a selection with invalid point`, async () => {
+      const character = faker.helpers.arrayElement(characters);
+      const selectedPoint = createValidPoint(character);
+      const selection = { [character.name]: { ...selectedPoint, x: 'foo' } };
+      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
+      TestUtils.assertResponseWithValidationError(res, 'x');
+    });
+
+    it('should respond with 200 on an empty evaluation object', async () => {
       const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send({});
-      TestUtils.assertResponseWithValidationError(res, '', selectionProps.length);
-    });
-
-    it('should respond with 400 on an array of empty selections', async () => {
-      const selections = [{}, {}, {}];
-      const issuesCount = selectionProps.length * selections.length;
-      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selections);
-      TestUtils.assertResponseWithValidationError(res, '', issuesCount);
-    });
-
-    for (const prop of selectionProps) {
-      it(`should respond with 400 on a selection without '${prop}'`, async () => {
-        const character = faker.helpers.arrayElement(characters);
-        const selectedPoint = createValidPoint(character);
-        const selection = { characterName: character.name, selectedPoint, [prop]: undefined };
-        const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
-        TestUtils.assertResponseWithValidationError(res, prop);
-      });
-
-      it(`should respond with 400 on request with an array includes a selection without '${prop}'`, async () => {
-        const selections = characters.map((character, i) => {
-          const selectedPoint = createValidPoint(character);
-          const selection = { characterName: character.name, selectedPoint, [prop]: undefined };
-          if (i % 2 === 0) selection[prop] = undefined;
-          return selection;
-        });
-        const issuesCount = 1 * selections.length; // One missing property per selection
-        const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selections);
-        TestUtils.assertResponseWithValidationError(res, prop, issuesCount);
-      });
-    }
-
-    it('should respond with 200 on an empty evaluations array', async () => {
-      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send([]);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
-      expect(resBody.evaluations).toStrictEqual([]);
+      expect(resBody.evaluation).toStrictEqual({});
       expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
     });
 
     it('should respond with 200, finder, and an array of a successful evaluation', async () => {
       const character = faker.helpers.arrayElement(characters);
-      const selection = {
-        selectedPoint: createValidPoint(character),
-        characterName: character.name,
-      };
+      const selection = { [character.name]: createValidPoint(character) };
       const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
       expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
-      expect(resBody.evaluations).toStrictEqual([{ [selection.characterName]: true }]);
+      expect(resBody.evaluation).toStrictEqual({ [character.name]: true });
     });
 
     it('should respond with 200, finder, and an array of a failed evaluation', async () => {
       const character = faker.helpers.arrayElement(characters);
-      const selection = {
-        selectedPoint: createInvalidPoint(character),
-        characterName: character.name,
-      };
+      const selection = { [character.name]: createInvalidPoint(character) };
       const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
-      expect(resBody.evaluations).toStrictEqual([{ [selection.characterName]: false }]);
+      expect(resBody.evaluation).toStrictEqual({ [character.name]: false });
       expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
     });
 
     it('should respond with 200, finder, and an array of a failed evaluation on a non-existent character', async () => {
-      const selection = {
-        selectedPoint: createValidPoint(faker.helpers.arrayElement(characters)),
-        characterName: 'anonymous',
-      };
+      const selection = { anonymous: createValidPoint(faker.helpers.arrayElement(characters)) };
       const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
-      expect(resBody.evaluations).toStrictEqual([{ [selection.characterName]: false }]);
+      expect(resBody.evaluation).toStrictEqual({ anonymous: false });
       expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
     });
 
     it('should respond with 200, finder (winner), and an array full of successful evaluations', async () => {
-      const selections = characters.map((character) => ({
-        selectedPoint: createValidPoint(character),
-        characterName: character.name,
-      }));
-      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selections);
+      const expectedEvaluation: Record<string, true> = {};
+      const selection = Object.fromEntries(
+        characters.map((character) => {
+          expectedEvaluation[character.name] = true;
+          return [character.name, createValidPoint(character)];
+        })
+      );
+      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
-      expect(resBody.evaluations).toBeInstanceOf(Array);
-      expect(resBody.evaluations).toHaveLength(selections.length);
-      for (const { characterName } of selections) {
-        expect(resBody.evaluations).toContainEqual({ [characterName]: true });
-      }
+      expect(resBody.evaluation).toStrictEqual(expectedEvaluation);
       expect({
         ...resBody.finder,
         duration: finder.duration,
@@ -388,48 +350,57 @@ describe('Characters endpoints', () => {
       expect(resBody.finder.duration).toBe(1); // We have a winner!
     });
 
-    it('should respond with 200, finder, and an array full of failed evaluations', async () => {
-      const selections = characters.map((character) => ({
-        selectedPoint: createInvalidPoint(character),
-        characterName: character.name,
-      }));
-      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selections);
+    it('should respond with 200, finder (winner with old duration), and an array full of successful evaluations', async () => {
+      const expectedEvaluation: Record<string, true> = {};
+      const selection = Object.fromEntries(
+        characters.map((character) => {
+          expectedEvaluation[character.name] = true;
+          return [character.name, createValidPoint(character)];
+        })
+      );
+      const duration = 7;
+      finder = await db.characterFinder.update({ where: { id: finder.id }, data: { duration } });
+      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
-      expect(resBody.evaluations).toBeInstanceOf(Array);
-      expect(resBody.evaluations).toHaveLength(selections.length);
-      for (const { characterName } of selections) {
-        expect(resBody.evaluations).toContainEqual({ [characterName]: false });
-      }
+      expect(resBody.evaluation).toStrictEqual(expectedEvaluation);
+      expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
+      expect(resBody.finder.duration).toBe(duration); // So, in case of re-win, it persists duration
+    });
+
+    it('should respond with 200, finder, and an array full of failed evaluations', async () => {
+      const expectedEvaluation: Record<string, false> = {};
+      const selection = Object.fromEntries(
+        characters.map((character) => {
+          expectedEvaluation[character.name] = false;
+          return [character.name, createInvalidPoint(character)];
+        })
+      );
+      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
+      const resBody = res.body as Types.EvaluationResult;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(200);
+      expect(resBody.evaluation).toStrictEqual(expectedEvaluation);
       expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
     });
 
     it('should respond with 200, finder, and a mixed array (with failed evaluation for non-existent characters)', async () => {
-      const results: Record<string, boolean> = {};
-      const selections = characters.map((character, i) => {
-        const success = i % 2 === 0;
-        results[character.name] = success;
-        return {
-          selectedPoint: (success ? createValidPoint : createInvalidPoint)(character),
-          characterName: character.name,
-        };
-      });
-      const anonymousSelection = {
-        selectedPoint: createValidPoint(faker.helpers.arrayElement(characters)),
-        characterName: 'anonymous',
-      };
-      selections.push(anonymousSelection);
-      results[anonymousSelection.characterName] = false;
-      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selections);
+      const expectedEvaluation: Record<string, boolean> = {};
+      const selection = Object.fromEntries(
+        characters.map((character, i) => {
+          const success = i % 2 === 0;
+          expectedEvaluation[character.name] = success;
+          return [character.name, (success ? createValidPoint : createInvalidPoint)(character)];
+        })
+      );
+      selection.anonymous = createValidPoint(faker.helpers.arrayElement(characters));
+      expectedEvaluation.anonymous = false;
+      const res = await api.post(`${CHARACTERS_EVAL}/${finder.id}`).send(selection);
       const resBody = res.body as Types.EvaluationResult;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(200);
-      expect(resBody.evaluations).toBeInstanceOf(Array);
-      expect(resBody.evaluations).toHaveLength(selections.length);
-      for (const { characterName } of selections) {
-        expect(resBody.evaluations).toContainEqual({ [characterName]: results[characterName] });
-      }
+      expect(resBody.evaluation).toStrictEqual(expectedEvaluation);
       expect(resBody.finder).toStrictEqual(JSON.parse(JSON.stringify(finder)));
     });
   });

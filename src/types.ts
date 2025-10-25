@@ -137,9 +137,7 @@ export interface VoteFilters extends PaginationFilters {
 
 export type Stats = Record<`${Lowercase<Model>}s` | 'visitors', { count: number; date: Date }[]>;
 
-export type SelectionEvaluation = Record<string, boolean>;
-
 export interface EvaluationResult {
-  evaluations: SelectionEvaluation[];
+  evaluation: Record<string, boolean>;
   finder: CharacterFinder;
 }
