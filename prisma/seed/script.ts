@@ -33,7 +33,6 @@ async function main() {
       await transClient.image.deleteMany({});
       await transClient.user.deleteMany({});
       await transClient.tag.deleteMany({});
-      await transClient.characterRect.deleteMany({});
       await transClient.creation.deleteMany({ where: { isAdmin: true } });
 
       console.log('Seeding the database...');
@@ -144,8 +143,13 @@ async function main() {
         }
       }
 
-      for (const data of characters) {
-        await transClient.characterRect.create({ data });
+      const dbCharacterRectCount = await transClient.characterRect.count();
+      if (dbCharacterRectCount < characters.length) {
+        console.log('Seeding the database with characters...');
+        for (const data of characters) {
+          const { name } = data;
+          await transClient.characterRect.upsert({ where: { name }, create: data, update: data });
+        }
       }
     },
     {
