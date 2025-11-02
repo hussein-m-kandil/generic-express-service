@@ -13,6 +13,11 @@ export class CreationRegistrarError extends Error {
 
 const isOk = (res: Response) => res.statusCode >= 200 && res.statusCode < 300;
 
+const shouldIgnoreRoute = (segments: string[]) => {
+  const segmentsToIgnore = ['auth', 'characters'];
+  return segments.some((s) => segmentsToIgnore.includes(s));
+};
+
 /**
  * An Express.js middleware that saves some creations into a custom table
  * after successful POST requests, for future analysis.
@@ -25,11 +30,7 @@ const isOk = (res: Response) => res.statusCode >= 200 && res.statusCode < 300;
  * @param res - Express.js response object
  * @param next - Express.js next function
  */
-export function creationRegistrar(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
+export function creationRegistrar(req: Request, res: Response, next: NextFunction) {
   const segments = req.originalUrl.split('/');
   const lastSegment = segments.at(-1);
   if (lastSegment) {
@@ -50,7 +51,7 @@ export function creationRegistrar(
 
     res.on('finish', () => {
       try {
-        if (req.method === 'POST' && isOk(res) && !segments.includes('auth')) {
+        if (req.method === 'POST' && isOk(res) && !shouldIgnoreRoute(segments)) {
           if (!usersRoute) {
             user = req.user as Types.PublicUser | undefined;
             if (!user) {
@@ -58,8 +59,7 @@ export function creationRegistrar(
               throw new CreationRegistrarError(message);
             }
           } else if (!user) {
-            const message =
-              'Expect newly created user to be part of the body object';
+            const message = 'Expect newly created user to be part of the body object';
             throw new CreationRegistrarError(message);
           }
 

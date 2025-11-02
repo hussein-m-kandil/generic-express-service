@@ -1,5 +1,5 @@
+import { usersData, IMAGE_BASE_URL, characters } from './data';
 import { PrismaClient, Prisma, User, Image } from '../client';
-import { usersData, IMAGE_BASE_URL } from './data';
 import { createPostsData } from './utils';
 import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
@@ -140,6 +140,15 @@ async function main() {
             createdAt: voteData.date,
             username: voter.username,
           });
+        }
+      }
+
+      const dbCharacterRectCount = await transClient.characterRect.count();
+      if (dbCharacterRectCount < characters.length) {
+        console.log('Seeding the database with characters...');
+        for (const data of characters) {
+          const { name } = data;
+          await transClient.characterRect.upsert({ where: { name }, create: data, update: data });
         }
       }
     },
