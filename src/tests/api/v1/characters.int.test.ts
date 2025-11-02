@@ -48,8 +48,8 @@ const characters = Array.from({ length: faker.number.int({ min: 3, max: 5 }) }).
 
 const assertCharacterFinder = (res: supertest.Response, name = 'Anonymous') => {
   const resBody = res.body as CharacterFinder;
+  expect(res.statusCode).toBe(res.request.method === 'POST' ? 201 : 200);
   expect(res.type).toMatch(/json/);
-  expect(res.statusCode).toBe(200);
   expect(resBody).toBeTypeOf('object');
   expect(resBody.createdAt).toBeTruthy();
   expect(resBody.updatedAt).toBeTruthy();

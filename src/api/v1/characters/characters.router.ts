@@ -15,7 +15,7 @@ charactersRouter.get('/finders/:id', Middleware.passiveFindersPurger, async (req
 });
 
 charactersRouter.post('/finders', async (req, res) => {
-  res.json(await Service.createFinder(Schema.finderSchema.parse(req.body)));
+  res.status(201).json(await Service.createFinder(Schema.finderSchema.parse(req.body)));
 });
 
 charactersRouter.patch('/finders/:id', async (req, res) => {
