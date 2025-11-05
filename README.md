@@ -10,9 +10,10 @@ I built this project to showcase what I am learning in web development, and I do
 
 ## Apps Consumes This Service
 
-- [Odin Shopping Cart](https://github.com/hussein-m-kandil/odin-shopping-cart) —_for the user management only_
-- [Odin Blog Author](https://github.com/hussein-m-kandil/odin-blog-author)
-- [Odin Blog Viewer](https://github.com/hussein-m-kandil/odin-blog-viewer/)
+1. [Odin Shopping Cart](https://github.com/hussein-m-kandil/odin-shopping-cart) —_for the user management only_
+2. [Odin Blog Author](https://github.com/hussein-m-kandil/odin-blog-author)
+3. [Odin Blog Viewer](https://github.com/hussein-m-kandil/odin-blog-viewer)
+4. [Odin Where's Waldo](https://github.com/hussein-m-kandil/odin-where-is-waldo)
 
 ## Features
 
