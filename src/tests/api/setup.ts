@@ -51,8 +51,8 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     const password = bcrypt.hashSync(data.password, 10);
     return await db.user.create({
       omit: { password: false, isAdmin: false },
-      include: { avatar: true, images: true },
-      data: { ...data, password },
+      include: { avatar: true, images: true, profile: true },
+      data: { ...data, password, profile: { create: { lastSeen: new Date() } } },
     });
   };
 

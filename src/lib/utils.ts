@@ -88,9 +88,7 @@ export const getTagsFilterFromReqQuery = (req: Request) => {
     .safeParse(req.query.tags).data;
 };
 
-export const getPaginationFiltersFromReqQuery = (
-  req: Request
-): Types.PaginationFilters => {
+export const getPaginationFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
   const { cursor, sort, limit } = req.query;
   return {
     sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
@@ -99,9 +97,7 @@ export const getPaginationFiltersFromReqQuery = (
   };
 };
 
-export const getCommonFiltersFromReqQuery = (
-  req: Request
-): Types.PaginationFilters => {
+export const getCommonFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
   return {
     currentUserId: getCurrentUserIdFromReq(req),
     authorId: getAuthorIdFilterFromReqQuery(req),
@@ -109,9 +105,7 @@ export const getCommonFiltersFromReqQuery = (
   };
 };
 
-export const getCommentFiltersFromReqQuery = (
-  req: Request
-): Types.CommentFilters => {
+export const getCommentFiltersFromReqQuery = (req: Request): Types.CommentFilters => {
   return {
     ...getCommonFiltersFromReqQuery(req),
     text: getTextFilterFromReqQuery(req),
@@ -133,10 +127,7 @@ export const getPostFiltersFromReqQuery = (req: Request): Types.PostFilters => {
   };
 };
 
-export const getPaginationArgs = (
-  filters: Types.PaginationFilters = {},
-  take = 3
-) => {
+export const getPaginationArgs = (filters: Types.PaginationFilters = {}, take = 3) => {
   return {
     orderBy: { order: filters.sort ?? 'asc' },
     take: filters.limit ?? take,
@@ -154,6 +145,7 @@ export const userAggregation: Types.UserAggregation = {
     avatar: {
       select: { image: { omit: { storageId: true, storageFullPath: true } } },
     },
+    profile: true,
   },
   omit: { password: true },
 };

@@ -1,15 +1,7 @@
-import {
-  it,
-  expect,
-  describe,
-  afterAll,
-  afterEach,
-  beforeEach,
-  TestFunction,
-} from 'vitest';
+import { it, expect, describe, afterAll, afterEach, beforeEach, TestFunction } from 'vitest';
 import { AppErrorResponse, AuthResponse, PublicUser } from '@/types';
+import { Image, Prisma, Profile, User } from '@/../prisma/client';
 import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
-import { Image, Prisma, User } from '@/../prisma/client';
 import { z } from 'zod';
 import db from '@/lib/db';
 import setup from '../setup';
@@ -45,18 +37,14 @@ describe('User endpoints', async () => {
   describe(`POST ${USERS_URL}`, () => {
     for (const field of Object.keys(newUserData).filter((k) => k !== 'bio')) {
       it(`should not create a user without ${field}`, async () => {
-        const res = await api
-          .post(USERS_URL)
-          .send({ ...newUserData, [field]: undefined });
+        const res = await api.post(USERS_URL).send({ ...newUserData, [field]: undefined });
         assertResponseWithValidationError(res, field);
         expect(await db.user.findMany()).toHaveLength(0);
       });
     }
 
     it(`should not create a user with wrong password confirmation`, async () => {
-      const res = await api
-        .post(USERS_URL)
-        .send({ ...userData, confirm: 'blah' });
+      const res = await api.post(USERS_URL).send({ ...userData, confirm: 'blah' });
       assertResponseWithValidationError(res, 'confirm');
       expect(await db.user.findMany()).toHaveLength(0);
     });
@@ -64,9 +52,7 @@ describe('User endpoints', async () => {
     const invalidUsernames = ['user-x', 'user x', 'user@x', 'user(x)'];
     for (const username of invalidUsernames) {
       it(`should not create a user while the username having a space`, async () => {
-        const res = await api
-          .post(USERS_URL)
-          .send({ ...newUserData, username });
+        const res = await api.post(USERS_URL).send({ ...newUserData, username });
         assertResponseWithValidationError(res, 'username');
         expect(await db.user.findMany()).toHaveLength(0);
       });
@@ -83,9 +69,7 @@ describe('User endpoints', async () => {
     });
 
     it('should not create an admin user', async () => {
-      const res = await api
-        .post(USERS_URL)
-        .send({ ...newUserData, secret: 'not_admin' });
+      const res = await api.post(USERS_URL).send({ ...newUserData, secret: 'not_admin' });
       assertResponseWithValidationError(res, 'secret');
       expect(await db.user.findMany()).toHaveLength(0);
     });
@@ -103,15 +87,14 @@ describe('User endpoints', async () => {
           where: { id: resUser.id },
           omit: { password: false },
         });
-        const resJwtPayload = jwt.decode(
-          resBody.token.replace(/^Bearer /, '')
-        ) as User;
+        const resJwtPayload = jwt.decode(resBody.token.replace(/^Bearer /, '')) as User;
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(201);
         expect(resUser.avatar).toBeDefined();
         expect(resUser.isAdmin).toStrictEqual(isAdmin);
         expect(resUser.username).toBe(newUserData.username);
         expect(resUser.fullname).toBe(newUserData.fullname);
+        expect(resUser.profile!.id).toBeTypeOf('string');
         expect(resBody.token).toMatch(/^Bearer /i);
         expect(resJwtPayload.isAdmin).toStrictEqual(isAdmin);
         expect(resJwtPayload.id).toStrictEqual(dbUser.id);
@@ -137,12 +120,8 @@ describe('User endpoints', async () => {
       const res = await api.post(`${USERS_URL}/guest`);
       const resBody = res.body as AuthResponse;
       const resUser = resBody.user;
-      const dbUser = (await db.user.findMany({ omit: { password: false } })).at(
-        -1
-      ) as User;
-      const resJwtPayload = jwt.decode(
-        resBody.token.replace(/^Bearer /, '')
-      ) as User;
+      const dbUser = (await db.user.findMany({ omit: { password: false } })).at(-1) as User;
+      const resJwtPayload = jwt.decode(resBody.token.replace(/^Bearer /, '')) as User;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(201);
       expect(resUser.avatar).toBeDefined();
@@ -156,6 +135,7 @@ describe('User endpoints', async () => {
       expect(resJwtPayload.isAdmin).toStrictEqual(false);
       expect(Object.keys(resUser)).not.toContain('password');
       expect(dbUser.password).toMatch(/^\$2[a|b|x|y]\$.{56}/);
+      expect(resUser.profile!.id).toBeTypeOf('string');
       expect(resUser.bio).toBe(resUser.bio);
       expect(dbUser.bio).toBe(resUser.bio);
       expect(dbUser.isAdmin).toBe(false);
@@ -187,6 +167,7 @@ describe('User endpoints', async () => {
       expect(users[1].avatar).toBeDefined();
       expect(users[1].username).toBe(userData.username);
       expect(users[1].fullname).toBe(userData.fullname);
+      for (const { profile } of users) expect(profile!.id).toBeTypeOf('string');
       await db.user.delete({ where: { id: dbUser.id } });
     });
   });
@@ -218,6 +199,7 @@ describe('User endpoints', async () => {
         expect(resUser.isAdmin).toStrictEqual(false);
         expect(resUser.username).toBe(dbUser.username);
         expect(resUser.fullname).toBe(dbUser.fullname);
+        expect(resUser.profile!.id).toBeTypeOf('string');
         expect(Object.keys(resUser)).not.toContain('password');
       }
     });
@@ -235,6 +217,7 @@ describe('User endpoints', async () => {
         expect(resUser.isAdmin).toStrictEqual(false);
         expect(resUser.username).toBe(dbUser.username);
         expect(resUser.fullname).toBe(dbUser.fullname);
+        expect(resUser.profile!.id).toBeTypeOf('string');
         expect(Object.keys(resUser)).not.toContain('password');
       }
     });
@@ -288,8 +271,8 @@ describe('User endpoints', async () => {
         const updatedDBUser = (await db.user.findUnique({
           where: { id: dbUser.id },
           omit: { password: false },
-          include: { avatar: { select: { image: true } } },
-        })) as User & { avatar: { image: Image } };
+          include: { avatar: { select: { image: true } }, profile: true },
+        })) as User & { avatar: { image: Image } | null } & { profile: Profile | null };
         expect(res.statusCode).toBe(200);
         expect(JSON.stringify((res.body as AuthResponse).user)).toBe(
           JSON.stringify({
@@ -298,10 +281,8 @@ describe('User endpoints', async () => {
           })
         );
         expect((res.body as AuthResponse).token).toBe(token);
-        expect((res.body as AuthResponse).user.avatar?.image.id).toBe(
-          dbXImg.id
-        );
-        expect(updatedDBUser.avatar.image.id).toBe(dbXImg.id);
+        expect((res.body as AuthResponse).user.avatar?.image.id).toBe(dbXImg.id);
+        expect(updatedDBUser.avatar?.image.id).toBe(dbXImg.id);
         const updatedFields = Object.keys(data);
         if (updatedFields.includes('username')) {
           expect(updatedDBUser.username).toBe(data.username);
@@ -314,9 +295,7 @@ describe('User endpoints', async () => {
           expect(updatedDBUser.fullname).toBe(dbUser.fullname);
         }
         if (updatedFields.includes('password')) {
-          expect(
-            bcrypt.compareSync(data.password as string, updatedDBUser.password)
-          ).toBe(true);
+          expect(bcrypt.compareSync(data.password as string, updatedDBUser.password)).toBe(true);
         } else {
           expect(updatedDBUser.password).toBe(dbUser.password);
         }
@@ -335,9 +314,7 @@ describe('User endpoints', async () => {
     ) => {
       return async () => {
         const { authorizedApi } = await prepForAuthorizedTest(credentials);
-        const res = await authorizedApi
-          .patch(`${USERS_URL}/${dbUser.id}`)
-          .send(data);
+        const res = await authorizedApi.patch(`${USERS_URL}/${dbUser.id}`).send(data);
         const issues = res.body as z.ZodIssue[];
         expect(res.type).toMatch(/json/);
         expect(res.statusCode).toBe(400);
@@ -355,9 +332,7 @@ describe('User endpoints', async () => {
     it('should respond with 401, on a request with non-owner/admin JWT', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(xUserData);
       for (const field of getAllFields()) {
-        const res = await authorizedApi
-          .patch(`${USERS_URL}/${dbUser.id}`)
-          .send(field);
+        const res = await authorizedApi.patch(`${USERS_URL}/${dbUser.id}`).send(field);
         assertUnauthorizedErrorRes(res);
       }
     });
@@ -366,9 +341,7 @@ describe('User endpoints', async () => {
       const username = 'foobar';
       await createUser({ ...userData, username });
       const { authorizedApi } = await prepForAuthorizedTest(userData);
-      const res = await authorizedApi
-        .patch(`${USERS_URL}/${dbUser.id}`)
-        .send({ username });
+      const res = await authorizedApi.patch(`${USERS_URL}/${dbUser.id}`).send({ username });
       const resBody = res.body as AppErrorResponse;
       expect(res.type).toMatch(/json/);
       expect(res.statusCode).toBe(400);
@@ -383,20 +356,12 @@ describe('User endpoints', async () => {
 
     it(
       'should not change username if the given is too short, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField(
-        { username: 'x' },
-        /username/i,
-        userData
-      )
+      createTestForNotUpdateInvalidField({ username: 'x' }, /username/i, userData)
     );
 
     it(
       'should not change username if the given is too long, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField(
-        { username: longString },
-        /username/i,
-        adminData
-      )
+      createTestForNotUpdateInvalidField({ username: longString }, /username/i, adminData)
     );
 
     it(
@@ -406,28 +371,17 @@ describe('User endpoints', async () => {
 
     it(
       'should not change fullname if the given is too short, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField(
-        { fullname: 'x' },
-        /fullname/i,
-        userData
-      )
+      createTestForNotUpdateInvalidField({ fullname: 'x' }, /fullname/i, userData)
     );
 
     it(
       'should not change fullname if the given is too long, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField(
-        { fullname: longString },
-        /fullname/i,
-        adminData
-      )
+      createTestForNotUpdateInvalidField({ fullname: longString }, /fullname/i, adminData)
     );
 
     it(
       'should change password, on request with owner/admin JWT',
-      createTestForUpdateField(
-        { password: 'aB@32121', confirm: 'aB@32121' },
-        userData
-      )
+      createTestForUpdateField({ password: 'aB@32121', confirm: 'aB@32121' }, userData)
     );
 
     it(
@@ -464,11 +418,7 @@ describe('User endpoints', async () => {
 
     it(
       'should not change admin state if given a wrong secret, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField(
-        { secret: 'not_admin' },
-        /secret/i,
-        adminData
-      )
+      createTestForNotUpdateInvalidField({ secret: 'not_admin' }, /secret/i, adminData)
     );
 
     it(
@@ -497,6 +447,8 @@ describe('User endpoints', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
       expect(res.statusCode).toBe(204);
+      expect(await db.user.findUnique({ where: { id: dbUser.id } })).toBeNull();
+      expect(await db.profile.findUnique({ where: { id: dbUser.profile!.id } })).toBeNull();
     });
 
     it('should respond with 204 if found a user and deleted it, on request with admin JWT', async () => {
@@ -505,6 +457,8 @@ describe('User endpoints', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(adminData);
       const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
       expect(res.statusCode).toBe(204);
+      expect(await db.user.findUnique({ where: { id: dbUser.id } })).toBeNull();
+      expect(await db.profile.findUnique({ where: { id: dbUser.profile!.id } })).toBeNull();
     });
 
     it('should respond with 401 if not found a user, on request with owner JWT', async () => {

@@ -22,6 +22,7 @@ export const createUser = async ({
     data: {
       ...data,
       password: await hashPassword(password),
+      profile: { create: { lastSeen: new Date() } },
       ...(avatarId ? { avatar: { create: { imageId: avatarId } } } : {}),
     },
     ...Utils.userAggregation,
@@ -31,9 +32,7 @@ export const createUser = async ({
   return user;
 };
 
-export const findUserById = async (
-  id: string
-): Promise<Types.PublicUser | null> => {
+export const findUserById = async (id: string): Promise<Types.PublicUser | null> => {
   const dbQuery = db.user.findUnique({
     where: { id },
     ...Utils.userAggregation,
@@ -42,9 +41,7 @@ export const findUserById = async (
   return user;
 };
 
-export const findUserByUsername = async (
-  username: string
-): Promise<Types.PublicUser | null> => {
+export const findUserByUsername = async (username: string): Promise<Types.PublicUser | null> => {
   const dbQuery = db.user.findUnique({
     where: { username },
     ...Utils.userAggregation,

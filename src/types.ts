@@ -16,6 +16,7 @@ export interface UserSensitiveDataToOmit {
 
 export interface UserDataToAggregate {
   avatar: { select: { image: { omit: ImageSensitiveDataToOmit } } };
+  profile: true;
 }
 
 export interface UserAggregation {
