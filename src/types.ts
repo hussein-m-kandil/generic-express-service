@@ -29,6 +29,14 @@ export type PublicUser = Prisma.UserGetPayload<{
   omit: UserAggregation['omit'];
 }>;
 
+export interface ProfileAggregation {
+  include: { user: UserAggregation };
+}
+
+export type PublicProfile = Prisma.ProfileGetPayload<{
+  include: ProfileAggregation['include'];
+}>;
+
 export interface ImageSensitiveDataToOmit {
   storageId: true;
   storageFullPath: true;

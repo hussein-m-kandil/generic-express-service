@@ -150,6 +150,8 @@ export const userAggregation: Types.UserAggregation = {
   omit: { password: true },
 };
 
+export const profileAggregation: Types.ProfileAggregation = { include: { user: userAggregation } };
+
 export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
   _count: { select: { posts: true } },
   owner: userAggregation,
