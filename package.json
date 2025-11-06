@@ -47,7 +47,7 @@
     "pg:up": "docker compose -f docker-compose.postgres.yml up"
   },
   "dependencies": {
-    "@prisma/client": "^6.17.1",
+    "@prisma/client": "^6.19.0",
     "@supabase/supabase-js": "^2.50.0",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
@@ -82,7 +82,7 @@
     "dotenv-cli": "^8.0.0",
     "eslint": "^9.24.0",
     "eslint-plugin-security": "^3.0.1",
-    "prisma": "^6.17.1",
+    "prisma": "^6.19.0",
     "simple-git-hooks": "^2.12.1",
     "supertest": "^7.1.0",
     "tsc-alias": "^1.8.16",
