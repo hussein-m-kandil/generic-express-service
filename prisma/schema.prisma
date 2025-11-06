@@ -18,6 +18,7 @@ model User {
   isAdmin      Boolean        @default(false) @map("is_admin")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
+  profile      Profile?
   avatar       Avatar?
   images       Image[]
   posts        Post[]
@@ -25,6 +26,115 @@ model User {
   votesOnPosts VotesOnPosts[]
 
   @@map("users")
+}
+
+model Profile {
+  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user             User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String                     @unique @map("user_id") @db.Uuid
+  lastSeen         DateTime                   @updatedAt @map("last_seen")
+  visible          Boolean                    @default(true)
+  tangible         Boolean                    @default(true)
+  chats            ProfilesChats[]
+  managedChats     ProfilesManagedChats[]
+  receivedMessages ProfilesReceivedMessages[]
+  seenMessages     ProfilesSeenMessages[]
+  sentMessages     Message[]
+  followers        Follows[]                  @relation("profile")
+  following        Follows[]                  @relation("follower")
+
+  @@map("profiles")
+}
+
+model Follows {
+  profile    Profile  @relation("profile", fields: [profileId], references: [id], onDelete: Cascade)
+  profileId  String   @map("profile_id") @db.Uuid
+  follower   Profile  @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId String   @map("follower_id") @db.Uuid
+  followedAt DateTime @default(now()) @map("followed_at")
+
+  @@id([profileId, followerId])
+  @@map("follows")
+}
+
+enum ManagerRole {
+  MODERATOR
+  OWNER
+
+  @@map("manager_roles")
+}
+
+model ProfilesManagedChats {
+  profile   Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String      @map("profile_id") @db.Uuid
+  chat      Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId    String      @db.Uuid
+  role      ManagerRole
+
+  @@unique([profileId, chatId])
+  @@map("profiles_managed_chats")
+}
+
+model ProfilesChats {
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String   @map("profile_id") @db.Uuid
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId    String   @map("chat_id") @db.Uuid
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  @@unique([profileId, chatId])
+  @@map("profiles_chats")
+}
+
+model ProfilesReceivedMessages {
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId  String   @map("profile_id") @db.Uuid
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId  String   @map("message_id") @db.Uuid
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  @@unique([profileId, messageId])
+  @@map("profiles_received_messages")
+}
+
+model ProfilesSeenMessages {
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String   @map("profile_id") @db.Uuid
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String   @map("message_id") @db.Uuid
+  seenAt    DateTime @default(now()) @map("seen_at")
+
+  @@unique([profileId, messageId])
+  @@map("profiles_seen_messages")
+}
+
+model Chat {
+  id        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messages  Message[]
+  profiles  ProfilesChats[]
+  managers  ProfilesManagedChats[]
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @updatedAt @map("updated_at")
+
+  @@map("chats")
+}
+
+model Message {
+  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chat        Chat                       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId      String                     @db.Uuid
+  profile     Profile?                   @relation(fields: [profileId], references: [id])
+  profileId   String?                    @map("profile_id") @db.Uuid
+  profileName String                     @map("profile_name")
+  body        String
+  image       Image?                     @relation(fields: [imageId], references: [id])
+  imageId     String?                    @map("image_id") @db.Uuid
+  receivedBy  ProfilesReceivedMessages[]
+  seenBy      ProfilesSeenMessages[]
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+
+  @@map("messages")
 }
 
 model Comment {
@@ -95,26 +205,27 @@ model VotesOnPosts {
 }
 
 model Image {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order           Int      @unique @default(autoincrement())
-  ownerId         String   @map("owner_id") @db.Uuid
-  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  storageFullPath String   @map("storage_full_path")
-  storageId       String   @map("storage_id")
-  info            String   @default("")
-  alt             String   @default("")
-  src             String   @unique
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order           Int       @unique @default(autoincrement())
+  ownerId         String    @map("owner_id") @db.Uuid
+  owner           User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  storageFullPath String    @map("storage_full_path")
+  storageId       String    @map("storage_id")
+  info            String    @default("")
+  alt             String    @default("")
+  src             String    @unique
   mimetype        String
   size            Int
   width           Int
   height          Int
-  xPos            Int      @default(0) @map("x_pos")
-  yPos            Int      @default(0) @map("y_pos")
-  scale           Float    @default(1.0)
+  xPos            Int       @default(0) @map("x_pos")
+  yPos            Int       @default(0) @map("y_pos")
+  scale           Float     @default(1.0)
   posts           Post[]
   avatars         Avatar[]
+  messages        Message[]
 
   @@map("images")
 }
