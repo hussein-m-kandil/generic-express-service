@@ -2,6 +2,7 @@ import * as Types from '@/types';
 import { afterAll, describe, expect, it } from 'vitest';
 import { PROFILES_URL, SIGNIN_URL } from './utils';
 import setup from '../setup';
+import db from '@/lib/db';
 
 const assertPublicProfile = (
   profile: Types.PublicProfile,
@@ -25,7 +26,9 @@ describe('Profile endpoints', async () => {
     api,
     deleteAllUsers,
     prepForAuthorizedTest,
+    assertNotFoundErrorRes,
     assertUnauthorizedErrorRes,
+    assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
   const resetDB = async () => {
@@ -62,6 +65,56 @@ describe('Profile endpoints', async () => {
     it('should respond with a profile, on an authenticated request', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
+      const profile = res.body as Types.PublicProfile;
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      assertPublicProfile(profile);
+    });
+  });
+
+  describe(`PATCH ${PROFILES_URL}`, () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
+      const res = await api.patch(PROFILES_URL);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 400 on an authenticated request with invalid data', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(PROFILES_URL).send({ tangible: '' });
+      assertResponseWithValidationError(res, 'tangible');
+    });
+
+    it('should respond with 404 on an authenticated request, for non-existent profile', async () => {
+      await db.profile.delete({ where: { userId: dbUserOne.id } });
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(PROFILES_URL).send({});
+      assertNotFoundErrorRes(res);
+      await db.profile.create({ data: { userId: dbUserOne.id, lastSeen: new Date() } });
+    });
+
+    it('should respond with a profile has updated tangibility, on an authenticated request', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(PROFILES_URL).send({ tangible: false });
+      const profile = res.body as Types.PublicProfile;
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      assertPublicProfile(profile, { tangible: false, visible: true });
+      await db.profile.update({ where: { userId: dbUserOne.id }, data: { tangible: true } });
+    });
+
+    it('should respond with a profile has updated visibility, on an authenticated request', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(PROFILES_URL).send({ visible: false });
+      const profile = res.body as Types.PublicProfile;
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      assertPublicProfile(profile, { tangible: true, visible: false });
+      await db.profile.update({ where: { userId: dbUserOne.id }, data: { visible: true } });
+    });
+
+    it('should respond with an unmodified profile, on an authenticated request', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(PROFILES_URL).send({});
       const profile = res.body as Types.PublicProfile;
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);

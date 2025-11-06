@@ -1,6 +1,7 @@
 import * as Utils from '@/lib/utils';
+import * as Schema from './profile.schema';
 import { AppNotFoundError } from '@/lib/app-error';
-import { Profile } from '@/../prisma/client';
+import { Profile, User } from '@/../prisma/client';
 import db from '@/lib/db';
 
 export const getAllProfiles = async () => {
@@ -13,4 +14,10 @@ export const getProfileById = async (id: Profile['id']) => {
   );
   if (profile) return profile;
   throw new AppNotFoundError('Profile not found');
+};
+
+export const updateProfileByUserId = async (userId: User['id'], data: Schema.ValidProfile) => {
+  return await Utils.handleDBKnownErrors(
+    db.profile.update({ ...Utils.profileAggregation, where: { userId }, data })
+  );
 };
