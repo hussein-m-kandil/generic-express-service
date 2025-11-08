@@ -18,3 +18,9 @@ profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
   const userId = (req.user as User).id;
   res.json(await Service.updateProfileByUserId(userId, Schema.profileSchema.parse(req.body)));
 });
+
+profilesRouter.post('/following', Validators.authValidator, async (req, res) => {
+  const userId = (req.user as User).id;
+  await Service.createFollowing(userId, Schema.followingSchema.parse(req.body));
+  res.status(201).json();
+});

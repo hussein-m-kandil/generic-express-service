@@ -23,10 +23,12 @@ describe('Profile endpoints', async () => {
   const {
     userOneData,
     dbUserOne,
+    dbUserTwo,
     api,
     deleteAllUsers,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
+    assertInvalidIdErrorRes,
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
@@ -89,7 +91,9 @@ describe('Profile endpoints', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.patch(PROFILES_URL).send({});
       assertNotFoundErrorRes(res);
-      await db.profile.create({ data: { userId: dbUserOne.id, lastSeen: new Date() } });
+      dbUserOne.profile = await db.profile.create({
+        data: { userId: dbUserOne.id, lastSeen: new Date() },
+      });
     });
 
     it('should respond with a profile has updated tangibility, on an authenticated request', async () => {
@@ -119,6 +123,63 @@ describe('Profile endpoints', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       assertPublicProfile(profile);
+    });
+  });
+
+  describe(`POST ${PROFILES_URL}/following`, () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
+      const res = await api.post(`${PROFILES_URL}/following`);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 400 on an authenticated request with empty object', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({});
+      assertResponseWithValidationError(res, 'profileId');
+    });
+
+    it('should respond with 400 on an authenticated request with invalid profile id', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(`${PROFILES_URL}/following`)
+        .send({ profileId: 'not_id' });
+      assertResponseWithValidationError(res, 'profileId');
+    });
+
+    it('should respond with 400 on an authenticated request, for non-existent profile id', async () => {
+      const profileId = crypto.randomUUID();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({ profileId });
+      assertInvalidIdErrorRes(res);
+    });
+
+    it('should respond with 201 and empty body, and create new follow', async () => {
+      const profileId = dbUserTwo.profile!.id;
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({ profileId });
+      const follows = await db.follows.findMany({});
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toBe('');
+      expect(follows).toHaveLength(1);
+      expect(follows[0].profileId).toBe(profileId);
+      expect(follows[0].followerId).toBe(dbUserOne.profile!.id);
+      await db.follows.deleteMany({});
+    });
+
+    it('should respond with 201 and empty body, and not create new follow if it exists', async () => {
+      const profileId = dbUserTwo.profile!.id;
+      await db.follows.create({ data: { profileId, followerId: dbUserOne.profile!.id } });
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({ profileId });
+      const follows = await db.follows.findMany({});
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toBe('');
+      expect(follows).toHaveLength(1);
+      expect(follows[0].profileId).toBe(profileId);
+      expect(follows[0].followerId).toBe(dbUserOne.profile!.id);
+      await db.follows.deleteMany({});
     });
   });
 });

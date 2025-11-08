@@ -8,3 +8,7 @@ export const profileSchema = z
   .partial();
 
 export type ValidProfile = z.output<typeof profileSchema>;
+
+export const followingSchema = z.object({ profileId: z.string().trim().uuid() });
+
+export type ValidFollowing = z.output<typeof followingSchema>;

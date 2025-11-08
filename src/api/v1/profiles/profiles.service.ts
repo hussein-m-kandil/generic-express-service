@@ -1,6 +1,6 @@
 import * as Utils from '@/lib/utils';
 import * as Schema from './profile.schema';
-import { AppNotFoundError } from '@/lib/app-error';
+import { AppNotFoundError, AppUniqueConstraintViolationError } from '@/lib/app-error';
 import { Profile, User } from '@/../prisma/client';
 import db from '@/lib/db';
 
@@ -20,4 +20,19 @@ export const updateProfileByUserId = async (userId: User['id'], data: Schema.Val
   return await Utils.handleDBKnownErrors(
     db.profile.update({ ...Utils.profileAggregation, where: { userId }, data })
   );
+};
+
+export const createFollowing = async (userId: User['id'], { profileId }: Schema.ValidFollowing) => {
+  try {
+    await Utils.handleDBKnownErrors(
+      db.profile.update({
+        ...Utils.profileAggregation,
+        where: { userId },
+        data: { following: { create: { profileId } } },
+      })
+    );
+  } catch (error) {
+    if (error instanceof AppUniqueConstraintViolationError) return;
+    throw error;
+  }
 };
