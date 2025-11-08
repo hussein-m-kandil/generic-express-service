@@ -24,3 +24,9 @@ profilesRouter.post('/following', Validators.authValidator, async (req, res) => 
   await Service.createFollowing(userId, Schema.followingSchema.parse(req.body));
   res.status(201).json();
 });
+
+profilesRouter.delete('/following', Validators.authValidator, async (req, res) => {
+  const userId = (req.user as User).id;
+  await Service.deleteFollowing(userId, Schema.followingSchema.parse(req.body));
+  res.status(204).send();
+});

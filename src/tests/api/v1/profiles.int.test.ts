@@ -182,4 +182,47 @@ describe('Profile endpoints', async () => {
       await db.follows.deleteMany({});
     });
   });
+
+  describe(`DELETE ${PROFILES_URL}/following`, () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
+      const res = await api.delete(`${PROFILES_URL}/following`);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 400 on an authenticated request with empty object', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.delete(`${PROFILES_URL}/following`).send({});
+      assertResponseWithValidationError(res, 'profileId');
+    });
+
+    it('should respond with 400 on an authenticated request with invalid profile id', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .delete(`${PROFILES_URL}/following`)
+        .send({ profileId: 'not_id' });
+      assertResponseWithValidationError(res, 'profileId');
+    });
+
+    it('should respond 404 if the following/profile not exists', async () => {
+      const ids = [crypto.randomUUID(), dbUserTwo.profile!.id];
+      for (const profileId of ids) {
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.delete(`${PROFILES_URL}/following`).send({ profileId });
+        assertNotFoundErrorRes(res);
+        expect(await db.follows.findMany({})).toHaveLength(0);
+      }
+    });
+
+    it('should respond 204 after deleting an existent following', async () => {
+      const profileId = dbUserTwo.profile!.id;
+      await db.follows.create({ data: { profileId, followerId: dbUserOne.profile!.id } });
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.delete(`${PROFILES_URL}/following`).send({ profileId });
+      const follows = await db.follows.findMany({});
+      expect(res.statusCode).toBe(204);
+      expect(res.type).toBe('');
+      expect(res.body).toStrictEqual({});
+      expect(follows).toHaveLength(0);
+    });
+  });
 });
