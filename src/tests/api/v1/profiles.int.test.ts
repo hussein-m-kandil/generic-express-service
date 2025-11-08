@@ -16,7 +16,11 @@ const assertPublicProfile = (
   expect(profile.id).toHaveLength(36);
   expect(profile.user.id).toHaveLength(36);
   expect(profile.user.id).toBeTypeOf('string');
-  expect(new Date(profile.lastSeen).getTime()).toBeLessThanOrEqual(Date.now());
+  if (profile.visible) {
+    expect(new Date(profile.lastSeen).getTime()).toBeLessThanOrEqual(Date.now());
+  } else {
+    expect(profile.lastSeen).toBe(profile.user.createdAt);
+  }
 };
 
 describe('Profile endpoints', async () => {
