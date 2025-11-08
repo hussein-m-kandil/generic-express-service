@@ -14,9 +14,26 @@ export const prepareProfileData = (data: Types.PublicProfile | Types.PublicProfi
   return arrayGiven ? profiles : profiles[0];
 };
 
-export const getAllProfiles = async () => {
+const getProfilePaginationArgs = (filters: Types.ProfileFilters, limit = 10) => {
+  return {
+    orderBy: { user: { username: filters.sort ?? 'asc' } },
+    ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+    take: filters.limit ?? limit,
+  };
+};
+
+export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
   return prepareProfileData(
-    await Utils.handleDBKnownErrors(db.profile.findMany({ ...Utils.profileAggregation }))
+    await Utils.handleDBKnownErrors(
+      db.profile.findMany({
+        where: {
+          NOT: { userId },
+          user: { username: { contains: filters.name ?? '', mode: 'insensitive' } },
+        },
+        ...Utils.profileAggregation,
+        ...getProfilePaginationArgs(filters),
+      })
+    )
   );
 };
 
@@ -68,25 +85,31 @@ export const deleteFollowing = async (userId: User['id'], { profileId }: Schema.
   }
 };
 
-export const getAllFollowing = async (userId: User['id']) => {
+export const getAllFollowing = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
-        where: { followers: { some: { follower: { userId } } } },
-        orderBy: { user: { username: 'asc' } },
+        where: {
+          followers: { some: { follower: { userId } } },
+          user: { username: { contains: filters.name ?? '', mode: 'insensitive' } },
+        },
         ...Utils.profileAggregation,
+        ...getProfilePaginationArgs(filters),
       })
     )
   );
 };
 
-export const getAllFollowers = async (userId: User['id']) => {
+export const getAllFollowers = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
-        where: { following: { some: { profile: { userId } } } },
-        orderBy: { user: { username: 'asc' } },
+        where: {
+          following: { some: { profile: { userId } } },
+          user: { username: { contains: filters.name ?? '', mode: 'insensitive' } },
+        },
         ...Utils.profileAggregation,
+        ...getProfilePaginationArgs(filters),
       })
     )
   );

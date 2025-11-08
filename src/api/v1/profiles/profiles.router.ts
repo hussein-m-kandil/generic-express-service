@@ -7,17 +7,21 @@ import { Router } from 'express';
 export const profilesRouter = Router();
 
 profilesRouter.get('/', Validators.authValidator, async (req, res) => {
-  res.json(await Service.getAllProfiles());
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  const filters = Utils.getProfileFiltersFromReqQuery(req);
+  res.json(await Service.getAllProfiles(userId, filters));
 });
 
 profilesRouter.get('/following', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  res.json(await Service.getAllFollowing(userId));
+  const filters = Utils.getProfileFiltersFromReqQuery(req);
+  res.json(await Service.getAllFollowing(userId, filters));
 });
 
 profilesRouter.get('/followers', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  res.json(await Service.getAllFollowers(userId));
+  const filters = Utils.getProfileFiltersFromReqQuery(req);
+  res.json(await Service.getAllFollowers(userId, filters));
 });
 
 profilesRouter.get('/:id', Validators.authValidator, async (req, res) => {

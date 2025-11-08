@@ -97,6 +97,14 @@ export const getPaginationFiltersFromReqQuery = (req: Request): Types.Pagination
   };
 };
 
+export const getProfileFiltersFromReqQuery = (req: Request): Types.ProfileFilters => {
+  return {
+    ...getPaginationFiltersFromReqQuery(req),
+    name: z.string().trim().safeParse(req.query.name).data,
+    cursor: z.string().trim().uuid().safeParse(req.query.cursor).data,
+  };
+};
+
 export const getCommonFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
   return {
     currentUserId: getCurrentUserIdFromReq(req),

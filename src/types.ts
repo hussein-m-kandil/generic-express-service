@@ -121,10 +121,18 @@ export interface BaseFilters {
   authorId?: string;
 }
 
-export interface PaginationFilters extends BaseFilters {
+export interface BasePaginationFilters {
   sort?: Prisma.SortOrder;
-  cursor?: number;
   limit?: number;
+}
+
+export interface ProfileFilters extends BasePaginationFilters {
+  cursor?: string;
+  name?: string;
+}
+
+export interface PaginationFilters extends BaseFilters, BasePaginationFilters {
+  cursor?: number;
 }
 
 export type TagsFilter = string[];
