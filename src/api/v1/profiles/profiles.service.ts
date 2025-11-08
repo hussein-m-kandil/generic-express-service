@@ -63,3 +63,13 @@ export const getAllFollowing = async (userId: User['id']) => {
     })
   );
 };
+
+export const getAllFollowers = async (userId: User['id']) => {
+  return await Utils.handleDBKnownErrors(
+    db.profile.findMany({
+      where: { following: { some: { profile: { userId } } } },
+      orderBy: { user: { username: 'asc' } },
+      ...Utils.profileAggregation,
+    })
+  );
+};

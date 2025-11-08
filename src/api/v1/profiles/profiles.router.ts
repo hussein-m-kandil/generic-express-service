@@ -15,6 +15,11 @@ profilesRouter.get('/following', Validators.authValidator, async (req, res) => {
   res.json(await Service.getAllFollowing(userId));
 });
 
+profilesRouter.get('/followers', Validators.authValidator, async (req, res) => {
+  const userId = (req.user as User).id;
+  res.json(await Service.getAllFollowers(userId));
+});
+
 profilesRouter.get('/:id', Validators.authValidator, async (req, res) => {
   res.json(await Service.getProfileById(req.params.id));
 });
