@@ -1,7 +1,7 @@
-import * as Validators from '@/middlewares/validators';
-import * as Service from './profiles.service';
+import * as Utils from '@/lib/utils';
 import * as Schema from './profile.schema';
-import { User } from '@/../prisma/client';
+import * as Service from './profiles.service';
+import * as Validators from '@/middlewares/validators';
 import { Router } from 'express';
 
 export const profilesRouter = Router();
@@ -11,12 +11,12 @@ profilesRouter.get('/', Validators.authValidator, async (req, res) => {
 });
 
 profilesRouter.get('/following', Validators.authValidator, async (req, res) => {
-  const userId = (req.user as User).id;
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
   res.json(await Service.getAllFollowing(userId));
 });
 
 profilesRouter.get('/followers', Validators.authValidator, async (req, res) => {
-  const userId = (req.user as User).id;
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
   res.json(await Service.getAllFollowers(userId));
 });
 
@@ -25,18 +25,18 @@ profilesRouter.get('/:id', Validators.authValidator, async (req, res) => {
 });
 
 profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
-  const userId = (req.user as User).id;
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
   res.json(await Service.updateProfileByUserId(userId, Schema.profileSchema.parse(req.body)));
 });
 
 profilesRouter.post('/following', Validators.authValidator, async (req, res) => {
-  const userId = (req.user as User).id;
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
   await Service.createFollowing(userId, Schema.followingSchema.parse(req.body));
   res.status(201).json();
 });
 
 profilesRouter.delete('/following', Validators.authValidator, async (req, res) => {
-  const userId = (req.user as User).id;
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
   await Service.deleteFollowing(userId, Schema.followingSchema.parse(req.body));
   res.status(204).send();
 });
