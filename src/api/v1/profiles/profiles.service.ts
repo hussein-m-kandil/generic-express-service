@@ -53,3 +53,13 @@ export const deleteFollowing = async (userId: User['id'], { profileId }: Schema.
     throw error;
   }
 };
+
+export const getAllFollowing = async (userId: User['id']) => {
+  return await Utils.handleDBKnownErrors(
+    db.profile.findMany({
+      where: { followers: { some: { follower: { userId } } } },
+      orderBy: { user: { username: 'asc' } },
+      ...Utils.profileAggregation,
+    })
+  );
+};

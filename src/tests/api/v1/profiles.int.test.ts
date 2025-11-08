@@ -24,6 +24,8 @@ describe('Profile endpoints', async () => {
     userOneData,
     dbUserOne,
     dbUserTwo,
+    dbXUser,
+    dbAdmin,
     api,
     deleteAllUsers,
     prepForAuthorizedTest,
@@ -71,6 +73,41 @@ describe('Profile endpoints', async () => {
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       assertPublicProfile(profile);
+    });
+  });
+
+  describe(`GET ${PROFILES_URL}/following`, () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
+      const res = await api.get(`${PROFILES_URL}/following`);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with an empty list of following profiles, on an authenticated request', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(`${PROFILES_URL}/following`);
+      const profiles = res.body as Types.PublicProfile[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(profiles.length).toBe(0);
+    });
+
+    it('should respond with following profiles list, on an authenticated request', async () => {
+      const followerId = dbUserOne.profile!.id;
+      const data = [
+        { profileId: dbUserTwo.profile!.id, followerId },
+        { profileId: dbXUser.profile!.id, followerId },
+        { profileId: dbAdmin.profile!.id, followerId },
+      ];
+      await db.follows.createMany({ data });
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(`${PROFILES_URL}/following`);
+      const profiles = res.body as Types.PublicProfile[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(profiles.length).toBe(data.length);
+      for (const p of profiles) {
+        assertPublicProfile(p);
+      }
     });
   });
 
