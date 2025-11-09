@@ -11,3 +11,9 @@ chatsRouter.post('/', Validators.authValidator, async (req, res) => {
   const chat = await Service.createChat(userId, Schema.chatSchema.parse(req.body));
   res.status(201).json(chat);
 });
+
+chatsRouter.delete('/:id', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  await Service.deleteChat(userId, req.params.id);
+  res.status(204).send();
+});

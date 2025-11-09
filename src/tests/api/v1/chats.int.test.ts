@@ -13,6 +13,7 @@ describe('Chats endpoints', async () => {
     dbUserOne,
     dbUserTwo,
     userOneData,
+    userTwoData,
     deleteAllUsers,
     deleteAllImages,
     prepForAuthorizedTest,
@@ -151,6 +152,60 @@ describe('Chats endpoints', async () => {
         expect(chat.id).toBe(dbChats[i].id);
         expect(dbMsgs[i].chatId).toBe(dbChats[i].id);
       }
+    });
+  });
+
+  describe(`DELETE ${CHATS_URL}/:id`, () => {
+    it('should respond with 401 on unauthorized request', async () => {
+      const chatId = (await createChat()).id;
+      const res = await api.delete(`${CHATS_URL}/${chatId}`);
+      await api.delete(`${CHATS_URL}/${chatId}`);
+      const dbMsgs = await db.message.findMany({});
+      const dbChats = await db.chat.findMany({});
+      assertUnauthorizedErrorRes(res);
+      expect(dbMsgs).toHaveLength(1);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+    });
+
+    it('should respond with 204, and do nothing, on request with a non-existent chat id', async () => {
+      await createChat();
+      const chatId = crypto.randomUUID();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.delete(`${CHATS_URL}/${chatId}`);
+      await authorizedApi.delete(`${CHATS_URL}/${chatId}`);
+      const dbMsgs = await db.message.findMany({});
+      const dbChats = await db.chat.findMany({});
+      expect(res.body).toStrictEqual({});
+      expect(res.statusCode).toBe(204);
+      expect(dbMsgs).toHaveLength(1);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+    });
+
+    it('should respond with 204 and delete the profile from chat, delete an empty chat, and be idempotent', async () => {
+      await createChat();
+      const usersData = [userOneData, userTwoData];
+      const users = [dbUserOne, dbUserTwo];
+      const chat = await createChat('Hi!', users);
+      for (let i = 0; i < users.length; i++) {
+        const { authorizedApi } = await prepForAuthorizedTest(usersData[i]);
+        const res = await authorizedApi.delete(`${CHATS_URL}/${chat.id}`);
+        await authorizedApi.delete(`${CHATS_URL}/${chat.id}`);
+        const dbMsgs = await db.message.findMany({});
+        const dbChats = await db.chat.findMany({});
+        expect(res.body).toStrictEqual({});
+        expect(res.statusCode).toBe(204);
+        if (i === users.length - 1) {
+          expect(dbMsgs).toHaveLength(1);
+          expect(dbChats).toHaveLength(1);
+        } else {
+          expect(dbMsgs).toHaveLength(2);
+          expect(dbChats).toHaveLength(2);
+        }
+      }
+      expect(await db.message.findMany({})).toHaveLength(1);
+      expect(await db.chat.findMany({})).toHaveLength(1);
     });
   });
 });

@@ -1,7 +1,7 @@
 import * as Utils from '@/lib/utils';
 import * as Schema from './chat.schema';
 import { AppNotFoundError } from '@/lib/app-error';
-import { User } from '@/../prisma/client';
+import { Chat, User } from '@/../prisma/client';
 import logger from '@/lib/logger';
 import db from '@/lib/db';
 
@@ -67,6 +67,28 @@ export const createChat = async (userId: User['id'], data: Schema.ValidChat) => 
           },
           include: chatAggregation,
         });
+      }
+    })
+  );
+};
+
+export const deleteChat = async (userId: User['id'], chatId: Chat['id']) => {
+  await Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const chat = await tx.chat.findUnique({
+        where: { id: chatId, profiles: { some: { profile: { userId } } } },
+        include: { profiles: { include: { profile: true } } },
+      });
+      if (chat) {
+        if (chat.profiles.length < 2) {
+          await tx.chat.delete({ where: { id: chatId } });
+        } else {
+          const profile = chat.profiles.find((p) => p.profile.userId === userId);
+          if (profile) {
+            const { profileId } = profile;
+            await tx.profilesChats.delete({ where: { profileId_chatId: { chatId, profileId } } });
+          }
+        }
       }
     })
   );
