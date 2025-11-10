@@ -1,16 +1,31 @@
+import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './chat.schema';
+import { Chat, Prisma, User } from '@/../prisma/client';
 import { AppNotFoundError } from '@/lib/app-error';
-import { Chat, User } from '@/../prisma/client';
 import logger from '@/lib/logger';
 import db from '@/lib/db';
 
-const generatePaginationArgs = (take = 10) => {
-  return { orderBy: { updatedAt: 'desc' as const }, take };
+const generatePaginationArgs = (
+  filters: Types.BasePaginationFilters & { orderBy: 'createdAt' | 'updatedAt' },
+  limit = 10
+) => {
+  return {
+    ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+    orderBy: { [filters.orderBy]: filters.sort ?? 'desc' },
+    take: filters.limit ?? limit,
+  };
 };
 
-const generateChatAggregation = () => {
-  return { messages: generatePaginationArgs() };
+const generateChatAggregation = (): Prisma.ChatInclude => {
+  return {
+    profiles: { include: { profile: Utils.profileAggregation } },
+    managers: { include: { profile: Utils.profileAggregation } },
+    messages: {
+      ...generatePaginationArgs({ orderBy: 'createdAt' }),
+      include: { profile: Utils.profileAggregation, image: true },
+    },
+  };
 };
 
 export const createChat = async (userId: User['id'], data: Schema.ValidChat) => {
@@ -90,6 +105,19 @@ export const deleteChat = async (userId: User['id'], chatId: Chat['id']) => {
           }
         }
       }
+    })
+  );
+};
+
+export const getUserChats = async (
+  userId: User['id'],
+  filters: Types.BasePaginationFilters = {}
+) => {
+  return await Utils.handleDBKnownErrors(
+    db.chat.findMany({
+      ...generatePaginationArgs({ ...filters, orderBy: 'updatedAt' }),
+      where: { profiles: { some: { profile: { userId } } } },
+      include: generateChatAggregation(),
     })
   );
 };

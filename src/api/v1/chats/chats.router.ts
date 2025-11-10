@@ -6,6 +6,13 @@ import { Router } from 'express';
 
 export const chatsRouter = Router();
 
+chatsRouter.get('/', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  const filters = Utils.getBasePaginationFiltersFromReqQuery(req);
+  const chats = await Service.getUserChats(userId, filters);
+  res.json(chats);
+});
+
 chatsRouter.post('/', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   const chat = await Service.createChat(userId, Schema.chatSchema.parse(req.body));

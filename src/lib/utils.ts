@@ -88,20 +88,25 @@ export const getTagsFilterFromReqQuery = (req: Request) => {
     .safeParse(req.query.tags).data;
 };
 
-export const getPaginationFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
-  const { cursor, sort, limit } = req.query;
+export const getBasePaginationFiltersFromReqQuery = (req: Request): Types.BasePaginationFilters => {
   return {
-    sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
-    cursor: z.coerce.number().int().min(0).safeParse(cursor).data,
-    limit: z.coerce.number().int().min(0).safeParse(limit).data,
+    sort: z.literal('asc').or(z.literal('desc')).safeParse(req.query.sort).data,
+    limit: z.coerce.number().int().min(0).safeParse(req.query.limit).data,
+    cursor: z.string().trim().uuid().safeParse(req.query.cursor).data,
+  };
+};
+
+export const getPaginationFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
+  return {
+    ...getBasePaginationFiltersFromReqQuery(req),
+    cursor: z.coerce.number().int().min(0).safeParse(req.query.cursor).data,
   };
 };
 
 export const getProfileFiltersFromReqQuery = (req: Request): Types.ProfileFilters => {
   return {
-    ...getPaginationFiltersFromReqQuery(req),
+    ...getBasePaginationFiltersFromReqQuery(req),
     name: z.string().trim().safeParse(req.query.name).data,
-    cursor: z.string().trim().uuid().safeParse(req.query.cursor).data,
   };
 };
 

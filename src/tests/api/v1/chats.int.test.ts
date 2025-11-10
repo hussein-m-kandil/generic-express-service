@@ -1,19 +1,59 @@
 /* eslint-disable security/detect-object-injection */
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Prisma, Chat } from '@/../prisma/client';
 import { CHATS_URL, SIGNIN_URL } from './utils';
-import { Chat } from '@/../prisma/client';
+import { faker } from '@faker-js/faker';
 import setup from '@/tests/api/setup';
 import db from '@/lib/db';
 
+type ChatFullData = Prisma.ChatGetPayload<{
+  include: {
+    messages: { include: { profile: { include: { user: true } }; image: true } };
+    profiles: { include: { profile: { include: { user: true } } } };
+    managers: { include: { profile: { include: { user: true } } } };
+  };
+}>;
+
+const PAGE_LEN = 10;
+const EXTRA_LEN = 3;
+const ITEMS_LEN = PAGE_LEN + EXTRA_LEN;
+
+const assertChat = (chat: ChatFullData, expectedChatId: Chat['id']) => {
+  expect(chat.id).toBe(expectedChatId);
+  expect(chat.managers).toBeInstanceOf(Array);
+  expect(chat.profiles).toBeInstanceOf(Array);
+  expect(chat.messages).toBeInstanceOf(Array);
+  expect(chat.managers).toHaveLength(1);
+  expect(chat.profiles).toHaveLength(2);
+  expect(chat.messages).toHaveLength(PAGE_LEN);
+  for (const manager of chat.managers) {
+    expect(manager.profile.user.password).toBeUndefined();
+    expect(manager.profile.user.username).toBeTruthy();
+  }
+  for (const member of chat.profiles) {
+    expect(member.profile.user.password).toBeUndefined();
+    expect(member.profile.user.username).toBeTruthy();
+  }
+  for (const msg of chat.messages) {
+    expect(msg.profile!.user.username).toBeTruthy();
+    expect(msg.profileName).toBeTruthy();
+    expect(msg.image).toBeTruthy();
+    expect(msg.image).not.toHaveProperty('owner');
+  }
+};
+
 describe('Chats endpoints', async () => {
   const {
-    api,
-    dbAdmin,
-    dbXUser,
-    dbUserOne,
-    dbUserTwo,
     userOneData,
     userTwoData,
+    dbUserOne,
+    dbUserTwo,
+    dbXUser,
+    dbAdmin,
+    imgData,
+    api,
+    createUser,
+    createImage,
     deleteAllUsers,
     deleteAllImages,
     prepForAuthorizedTest,
@@ -22,14 +62,21 @@ describe('Chats endpoints', async () => {
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
-  afterEach(async () => {
+  afterAll(async () => {
     await db.chat.deleteMany({});
+    await deleteAllImages();
+    await deleteAllUsers();
   });
 
-  afterAll(async () => {
-    await deleteAllUsers();
-    await deleteAllImages();
-  });
+  const createFakeUser = (usernameBlacklist: string[] = []) => {
+    const password = faker.internet.password();
+    const fullname = faker.person.fullName();
+    let username = faker.person.firstName();
+    do {
+      username = faker.person.firstName();
+    } while (usernameBlacklist.includes(username));
+    return createUser({ username, fullname, password });
+  };
 
   const createChat = async (msg = 'Hi!', users = [dbUserOne, dbUserTwo]) => {
     const profileName = users[0].username;
@@ -44,7 +91,103 @@ describe('Chats endpoints', async () => {
     });
   };
 
+  const createMessage = async (chatId: Chat['id'], dbUser: typeof dbUserOne, withImage = true) => {
+    return db.message.create({
+      data: {
+        imageId: withImage ? (await createImage(imgData)).id : undefined,
+        profileId: dbUser.profile!.id,
+        profileName: dbUser.username,
+        body: faker.lorem.sentence(),
+        chatId,
+      },
+    });
+  };
+
+  const dbUsers = [dbUserTwo, dbXUser, dbAdmin];
+  const usedUsernames: string[] = [];
+  for (let i = 0; i < ITEMS_LEN; i++) {
+    dbUsers[i] = dbUsers[i] ?? (await createFakeUser(usedUsernames));
+    usedUsernames.push(dbUsers[i].username);
+  }
+
+  describe(`GET ${CHATS_URL}`, () => {
+    // Isolate this test because it needs a clean Chat database
+    it(`should respond with 200 and an empty list`, async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(CHATS_URL);
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(res.body).toStrictEqual([]);
+    });
+  });
+
+  describe('GET', () => {
+    const chats: Chat[] = [];
+
+    beforeAll(async () => {
+      for (const dbUser of dbUsers) {
+        const chat = await createChat('Hi!', [dbUserOne, dbUser]);
+        for (let j = 0; j < ITEMS_LEN; j++) await createMessage(chat.id, dbUser);
+        chats.push(chat);
+      }
+    });
+
+    describe(CHATS_URL, () => {
+      it('should respond with 401 on unauthorized request', async () => {
+        const res = await api.get(CHATS_URL);
+        assertUnauthorizedErrorRes(res);
+      });
+
+      it('should respond desc-paginated chats with their profiles, managers, and 1st messages page', async () => {
+        const pages = [{ len: PAGE_LEN }, { len: EXTRA_LEN }];
+        let firstChat: ChatFullData | undefined;
+        let cursor: Chat['id'] | undefined;
+        for (const page of pages) {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${CHATS_URL}${cursor ? '?cursor=' + cursor : ''}`);
+          const resBody = res.body as ChatFullData[];
+          cursor = resBody.at(-1)!.id;
+          firstChat ??= resBody[0];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(resBody).toBeInstanceOf(Array);
+          expect(resBody).toHaveLength(page.len);
+          resBody.forEach((c) => assertChat(c, c.id));
+        }
+        expect(firstChat!.id).toBe(chats.at(-1)!.id);
+      });
+
+      it('should respond custom-asc-paginated chats with their profiles, managers, and 1st messages page', async () => {
+        let firstChat: ChatFullData | undefined;
+        let cursor: Chat['id'] | undefined;
+        const limit = 2;
+        const pages: { len: number }[] = Array.from({ length: Math.ceil(ITEMS_LEN / limit) }).map(
+          (_, i, arr) => ({ len: i < arr.length - 1 ? limit : ITEMS_LEN - i * limit })
+        );
+        for (const page of pages) {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(
+            `${CHATS_URL}?sort=asc&limit=${limit}${cursor ? '&cursor=' + cursor : ''}`
+          );
+          const resBody = res.body as ChatFullData[];
+          cursor = resBody.at(-1)!.id;
+          firstChat ??= resBody[0];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(resBody).toBeInstanceOf(Array);
+          expect(resBody).toHaveLength(page.len);
+          resBody.forEach((c) => assertChat(c, c.id));
+        }
+        expect(firstChat!.id).toBe(chats[0].id);
+      });
+    });
+  });
+
   describe(`POST ${CHATS_URL}`, () => {
+    afterEach(async () => {
+      await db.chat.deleteMany({});
+    });
+
     it('should respond with 401 on unauthorized request', async () => {
       const res = await api.post(CHATS_URL);
       assertUnauthorizedErrorRes(res);
@@ -156,6 +299,10 @@ describe('Chats endpoints', async () => {
   });
 
   describe(`DELETE ${CHATS_URL}/:id`, () => {
+    afterEach(async () => {
+      await db.chat.deleteMany({});
+    });
+
     it('should respond with 401 on unauthorized request', async () => {
       const chatId = (await createChat()).id;
       const res = await api.delete(`${CHATS_URL}/${chatId}`);
