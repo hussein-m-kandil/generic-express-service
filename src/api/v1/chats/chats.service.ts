@@ -121,3 +121,14 @@ export const getUserChats = async (
     })
   );
 };
+
+export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) => {
+  const chat = await Utils.handleDBKnownErrors(
+    db.chat.findUnique({
+      where: { id: chatId, profiles: { some: { profile: { userId } } } },
+      include: generateChatAggregation(),
+    })
+  );
+  if (!chat) throw new AppNotFoundError('Chat not found');
+  return chat;
+};

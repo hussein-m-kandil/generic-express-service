@@ -57,6 +57,7 @@ describe('Chats endpoints', async () => {
     deleteAllUsers,
     deleteAllImages,
     prepForAuthorizedTest,
+    assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
@@ -68,13 +69,17 @@ describe('Chats endpoints', async () => {
     await deleteAllUsers();
   });
 
-  const createFakeUser = (usernameBlacklist: string[] = []) => {
-    const password = faker.internet.password();
-    const fullname = faker.person.fullName();
-    let username = faker.person.firstName();
-    do {
+  const createFakeUser = (usernameBlacklist: string[] = [], data: Record<string, unknown> = {}) => {
+    const password = typeof data.password === 'string' ? data.password : faker.internet.password();
+    const fullname = typeof data.fullName === 'string' ? data.fullName : faker.person.fullName();
+    let username: string;
+    if (typeof data.username === 'string') username = data.username;
+    else {
       username = faker.person.firstName();
-    } while (usernameBlacklist.includes(username));
+      do {
+        username = faker.person.firstName();
+      } while (usernameBlacklist.includes(username));
+    }
     return createUser({ username, fullname, password });
   };
 
@@ -179,6 +184,39 @@ describe('Chats endpoints', async () => {
           resBody.forEach((c) => assertChat(c, c.id));
         }
         expect(firstChat!.id).toBe(chats[0].id);
+      });
+    });
+
+    describe(`${CHATS_URL}/:id`, () => {
+      it('should respond with 401 on unauthorized request', async () => {
+        const res = await api.get(`${CHATS_URL}/${chats[0].id}`);
+        assertUnauthorizedErrorRes(res);
+      });
+
+      it('should respond with 404 on unknown chat id', async () => {
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${crypto.randomUUID()}`);
+        assertNotFoundErrorRes(res);
+      });
+
+      it('should respond with 404 if the current user not a chat member', async () => {
+        const chat = chats[0];
+        const password = faker.internet.password();
+        const { id, username } = await createFakeUser(usedUsernames, { password });
+        const { authorizedApi } = await prepForAuthorizedTest({ username, password });
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}`);
+        assertNotFoundErrorRes(res);
+        await db.user.delete({ where: { id } });
+      });
+
+      it('should respond with 200 and the requested chat', async () => {
+        const chat = chats[0];
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}`);
+        const resBody = res.body as ChatFullData;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertChat(resBody, chat.id);
       });
     });
   });

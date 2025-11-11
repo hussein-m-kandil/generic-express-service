@@ -13,6 +13,12 @@ chatsRouter.get('/', Validators.authValidator, async (req, res) => {
   res.json(chats);
 });
 
+chatsRouter.get('/:id', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  const chat = await Service.getUserChatById(userId, req.params.id);
+  res.json(chat);
+});
+
 chatsRouter.post('/', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   const chat = await Service.createChat(userId, Schema.chatSchema.parse(req.body));
