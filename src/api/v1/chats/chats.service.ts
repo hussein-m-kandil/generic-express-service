@@ -17,13 +17,17 @@ const generatePaginationArgs = (
   };
 };
 
+const generateMessageAggregation = (): Prisma.MessageInclude => {
+  return { profile: Utils.profileAggregation, image: true };
+};
+
 const generateChatAggregation = (): Prisma.ChatInclude => {
   return {
     profiles: { include: { profile: Utils.profileAggregation } },
     managers: { include: { profile: Utils.profileAggregation } },
     messages: {
       ...generatePaginationArgs({ orderBy: 'createdAt' }),
-      include: { profile: Utils.profileAggregation, image: true },
+      include: generateMessageAggregation(),
     },
   };
 };
@@ -131,4 +135,18 @@ export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) =>
   );
   if (!chat) throw new AppNotFoundError('Chat not found');
   return chat;
+};
+
+export const getUserChatMessages = async (
+  userId: User['id'],
+  chatId: Chat['id'],
+  filters: Types.BasePaginationFilters = {}
+) => {
+  return await Utils.handleDBKnownErrors(
+    db.message.findMany({
+      ...generatePaginationArgs({ ...filters, orderBy: 'createdAt' }),
+      where: { chat: { id: chatId, profiles: { some: { profile: { userId } } } } },
+      include: generateMessageAggregation(),
+    })
+  );
 };

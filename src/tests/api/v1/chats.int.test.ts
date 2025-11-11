@@ -1,30 +1,45 @@
 /* eslint-disable security/detect-object-injection */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { Prisma, Chat } from '@/../prisma/client';
+import { Prisma, Chat, Message } from '@/../prisma/client';
 import { CHATS_URL, SIGNIN_URL } from './utils';
 import { faker } from '@faker-js/faker';
 import setup from '@/tests/api/setup';
 import db from '@/lib/db';
 
+interface MessageIncludeFields {
+  profile: { include: { user: true } };
+  image: true;
+}
+
 type ChatFullData = Prisma.ChatGetPayload<{
   include: {
-    messages: { include: { profile: { include: { user: true } }; image: true } };
+    messages: { include: MessageIncludeFields };
     profiles: { include: { profile: { include: { user: true } } } };
     managers: { include: { profile: { include: { user: true } } } };
   };
 }>;
 
+type MessageFullData = Prisma.MessageGetPayload<{ include: MessageIncludeFields }>;
+
 const PAGE_LEN = 10;
 const EXTRA_LEN = 3;
 const ITEMS_LEN = PAGE_LEN + EXTRA_LEN;
 
+const assertMessage = (msg: MessageFullData, expectedMsgId: Message['id']) => {
+  expect(msg.profile!.user.username).toBeTruthy();
+  expect(msg.profileName).toBeTruthy();
+  expect(msg.id).toBe(expectedMsgId);
+  expect(msg.image).toBeTruthy();
+  expect(msg.image).not.toHaveProperty('owner');
+};
+
 const assertChat = (chat: ChatFullData, expectedChatId: Chat['id']) => {
   expect(chat.id).toBe(expectedChatId);
   expect(chat.managers).toBeInstanceOf(Array);
-  expect(chat.profiles).toBeInstanceOf(Array);
-  expect(chat.messages).toBeInstanceOf(Array);
   expect(chat.managers).toHaveLength(1);
+  expect(chat.profiles).toBeInstanceOf(Array);
   expect(chat.profiles).toHaveLength(2);
+  expect(chat.messages).toBeInstanceOf(Array);
   expect(chat.messages).toHaveLength(PAGE_LEN);
   for (const manager of chat.managers) {
     expect(manager.profile.user.password).toBeUndefined();
@@ -34,12 +49,7 @@ const assertChat = (chat: ChatFullData, expectedChatId: Chat['id']) => {
     expect(member.profile.user.password).toBeUndefined();
     expect(member.profile.user.username).toBeTruthy();
   }
-  for (const msg of chat.messages) {
-    expect(msg.profile!.user.username).toBeTruthy();
-    expect(msg.profileName).toBeTruthy();
-    expect(msg.image).toBeTruthy();
-    expect(msg.image).not.toHaveProperty('owner');
-  }
+  for (const msg of chat.messages) assertMessage(msg, msg.id);
 };
 
 describe('Chats endpoints', async () => {
@@ -83,14 +93,15 @@ describe('Chats endpoints', async () => {
     return createUser({ username, fullname, password });
   };
 
-  const createChat = async (msg = 'Hi!', users = [dbUserOne, dbUserTwo]) => {
+  const createChat = async (msg = 'Hi!', users = [dbUserOne, dbUserTwo], withImage = true) => {
     const profileName = users[0].username;
     const profileId = users[0].profile!.id;
+    const imageId = msg && withImage ? (await createImage(imgData)).id : undefined;
     return await db.chat.create({
       data: {
         profiles: { createMany: { data: users.map((u) => ({ profileId: u.profile!.id })) } },
         managers: { create: { profileId: users[0].profile!.id, role: 'OWNER' } },
-        ...(msg ? { messages: { create: { body: msg, profileId, profileName } } } : {}),
+        ...(msg ? { messages: { create: { body: msg, profileId, profileName, imageId } } } : {}),
       },
       include: { profiles: true, managers: true, messages: true },
     });
@@ -127,13 +138,17 @@ describe('Chats endpoints', async () => {
   });
 
   describe('GET', () => {
-    const chats: Chat[] = [];
+    const dbChats: Awaited<ReturnType<typeof createChat>>[] = [];
+    const dbMsgs: Message[] = [];
 
     beforeAll(async () => {
+      await db.chat.deleteMany({});
       for (const dbUser of dbUsers) {
         const chat = await createChat('Hi!', [dbUserOne, dbUser]);
-        for (let j = 0; j < ITEMS_LEN; j++) await createMessage(chat.id, dbUser);
-        chats.push(chat);
+        dbMsgs.push(chat.messages[0]);
+        const msgsCount = ITEMS_LEN - 1; // Skip the initial, owner message (see prev 2 lines ^)
+        for (let j = 0; j < msgsCount; j++) dbMsgs.push(await createMessage(chat.id, dbUsers[j]));
+        dbChats.push(chat);
       }
     });
 
@@ -159,7 +174,7 @@ describe('Chats endpoints', async () => {
           expect(resBody).toHaveLength(page.len);
           resBody.forEach((c) => assertChat(c, c.id));
         }
-        expect(firstChat!.id).toBe(chats.at(-1)!.id);
+        expect(firstChat!.id).toBe(dbChats.at(-1)!.id);
       });
 
       it('should respond custom-asc-paginated chats with their profiles, managers, and 1st messages page', async () => {
@@ -183,13 +198,13 @@ describe('Chats endpoints', async () => {
           expect(resBody).toHaveLength(page.len);
           resBody.forEach((c) => assertChat(c, c.id));
         }
-        expect(firstChat!.id).toBe(chats[0].id);
+        expect(firstChat!.id).toBe(dbChats[0].id);
       });
     });
 
     describe(`${CHATS_URL}/:id`, () => {
       it('should respond with 401 on unauthorized request', async () => {
-        const res = await api.get(`${CHATS_URL}/${chats[0].id}`);
+        const res = await api.get(`${CHATS_URL}/${dbChats[0].id}`);
         assertUnauthorizedErrorRes(res);
       });
 
@@ -200,7 +215,7 @@ describe('Chats endpoints', async () => {
       });
 
       it('should respond with 404 if the current user not a chat member', async () => {
-        const chat = chats[0];
+        const chat = dbChats[0];
         const password = faker.internet.password();
         const { id, username } = await createFakeUser(usedUsernames, { password });
         const { authorizedApi } = await prepForAuthorizedTest({ username, password });
@@ -210,13 +225,89 @@ describe('Chats endpoints', async () => {
       });
 
       it('should respond with 200 and the requested chat', async () => {
-        const chat = chats[0];
+        const chat = dbChats[0];
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}`);
         const resBody = res.body as ChatFullData;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         assertChat(resBody, chat.id);
+      });
+    });
+
+    describe(`${CHATS_URL}/:id/messages`, () => {
+      it('should respond with 401 on unauthorized request', async () => {
+        const res = await api.get(`${CHATS_URL}/${dbChats[0].id}/messages`);
+        assertUnauthorizedErrorRes(res);
+      });
+
+      it('should respond with 200 and an empty array on unknown chat id', async () => {
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${crypto.randomUUID()}/messages`);
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(res.body).toStrictEqual([]);
+      });
+
+      it('should respond with 200 and an empty array if the current user not a chat member', async () => {
+        const chat = dbChats[0];
+        const password = faker.internet.password();
+        const { id, username } = await createFakeUser(usedUsernames, { password });
+        const { authorizedApi } = await prepForAuthorizedTest({ username, password });
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages`);
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(res.body).toStrictEqual([]);
+        await db.user.delete({ where: { id } });
+      });
+
+      it('should respond with 200 and a desc-paginated messages with their profiles, and images', async () => {
+        const pages = [{ len: PAGE_LEN }, { len: EXTRA_LEN }];
+        let firstMessage: MessageFullData | undefined;
+        let cursor: Message['id'] | undefined;
+        const chat = dbChats[0];
+        for (const page of pages) {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(
+            `${CHATS_URL}/${chat.id}/messages${cursor ? '?cursor=' + cursor : ''}`
+          );
+          const resBody = res.body as MessageFullData[];
+          cursor = resBody.at(-1)!.id;
+          firstMessage ??= resBody[0];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(resBody).toBeInstanceOf(Array);
+          expect(resBody).toHaveLength(page.len);
+          resBody.forEach((m) => assertMessage(m, m.id));
+        }
+        expect(firstMessage?.id).toBe(dbMsgs.at(ITEMS_LEN - 1)!.id);
+      });
+
+      it('should respond with 200 and a custom-asc-paginated messages with their profiles, and images', async () => {
+        let firstMessage: MessageFullData | undefined;
+        let cursor: Message['id'] | undefined;
+        const chat = dbChats[0];
+        const limit = 2;
+        const pages: { len: number }[] = Array.from({ length: Math.ceil(ITEMS_LEN / limit) }).map(
+          (_, i, arr) => ({ len: i < arr.length - 1 ? limit : ITEMS_LEN - i * limit })
+        );
+        for (const page of pages) {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(
+            `${CHATS_URL}/${chat.id}/messages?sort=asc&limit=${limit}${
+              cursor ? '&cursor=' + cursor : ''
+            }`
+          );
+          const resBody = res.body as MessageFullData[];
+          cursor = resBody.at(-1)!.id;
+          firstMessage ??= resBody[0];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(resBody).toBeInstanceOf(Array);
+          expect(resBody).toHaveLength(page.len);
+          resBody.forEach((m) => assertMessage(m, m.id));
+        }
+        expect(firstMessage!.id).toBe(dbMsgs[0].id);
       });
     });
   });
