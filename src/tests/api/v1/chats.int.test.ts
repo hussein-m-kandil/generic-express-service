@@ -380,6 +380,71 @@ describe('Chats endpoints', async () => {
     });
   });
 
+  describe(`POST ${CHATS_URL}/:id/messages/:msgId/seen`, () => {
+    let dbChat: Awaited<ReturnType<typeof createChat>>;
+    const dbMsgs: Message[] = [];
+
+    beforeAll(async () => {
+      await db.chat.deleteMany({});
+      dbChat = await createChat(faker.lorem.sentence(), [dbUserOne, dbUserTwo]);
+      dbMsgs.push(dbChat.messages[0]);
+      dbMsgs.push(await createMessage(dbChat.id, dbUserTwo));
+      dbMsgs.push(await createMessage(dbChat.id, dbUserOne));
+    });
+
+    it('should respond with 401 on unauthorized request', async () => {
+      const msg = dbMsgs[0];
+      const res = await api.post(`${CHATS_URL}/${dbChat.id}/messages/${msg.id}/seen`);
+      const seenMsgs = await db.profilesSeenMessages.findMany({
+        where: { profile: { userId: dbUserOne.id } },
+      });
+      assertUnauthorizedErrorRes(res);
+      expect(seenMsgs).toHaveLength(0);
+    });
+
+    it('should respond with 404 on non-existent message id', async () => {
+      const msg = { id: crypto.randomUUID() };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages/${msg.id}/seen`);
+      const seenMsgs = await db.profilesSeenMessages.findMany({
+        where: { profile: { userId: dbUserOne.id } },
+      });
+      assertNotFoundErrorRes(res);
+      expect(seenMsgs).toHaveLength(0);
+    });
+
+    it('should respond with 404 on non-existent chat id', async () => {
+      const msg = dbMsgs[0];
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(
+        `${CHATS_URL}/${crypto.randomUUID()}/messages/${msg.id}/seen`
+      );
+      const seenMsgs = await db.profilesSeenMessages.findMany({
+        where: { profile: { userId: dbUserOne.id } },
+      });
+      assertNotFoundErrorRes(res);
+      expect(seenMsgs).toHaveLength(0);
+    });
+
+    it('should set profile seen messages', async () => {
+      for (const userData of [userOneData, userTwoData]) {
+        const { authorizedApi, signedInUserData } = await prepForAuthorizedTest(userData);
+        for (let i = 0; i < dbMsgs.length; i++) {
+          const msg = dbMsgs[i];
+          const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages/${msg.id}/seen`);
+          const seenMsgs = await db.profilesSeenMessages.findMany({
+            where: { profile: { userId: signedInUserData.user.id } },
+          });
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(res.body).toBe('');
+          expect(seenMsgs).toHaveLength(i + 1);
+          expect(seenMsgs[i].messageId).toBe(msg.id);
+        }
+      }
+    });
+  });
+
   describe(`POST ${CHATS_URL}`, () => {
     afterEach(async () => {
       await db.chat.deleteMany({});

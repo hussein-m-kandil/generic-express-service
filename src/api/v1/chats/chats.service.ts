@@ -190,3 +190,25 @@ export const getUserChatMessageById = async (
     })
   );
 };
+
+export const setSeenMessage = async (
+  userId: User['id'],
+  chatId: Chat['id'],
+  messageId: Message['id']
+) => {
+  await Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const profile = await tx.profile.findUnique({ where: { userId } });
+      if (!profile) throw new AppNotFoundError('Profile not found');
+      if (!(await db.message.findUnique({ where: { id: messageId, chatId } }))) {
+        throw new AppNotFoundError('Message not found');
+      }
+      const profileId_messageId = { profileId: profile.id, messageId };
+      await tx.profilesSeenMessages.upsert({
+        where: { profileId_messageId },
+        create: profileId_messageId,
+        update: profileId_messageId,
+      });
+    })
+  );
+};

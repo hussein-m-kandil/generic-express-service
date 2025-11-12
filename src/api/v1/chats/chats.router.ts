@@ -32,6 +32,12 @@ chatsRouter.get('/:id/messages/:msgId', Validators.authValidator, async (req, re
   res.json(msg);
 });
 
+chatsRouter.post('/:id/messages/:msgId/seen', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  await Service.setSeenMessage(userId, req.params.id, req.params.msgId);
+  res.json();
+});
+
 chatsRouter.post('/', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   const chat = await Service.createChat(userId, Schema.chatSchema.parse(req.body));
