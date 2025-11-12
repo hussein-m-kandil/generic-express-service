@@ -310,6 +310,45 @@ describe('Chats endpoints', async () => {
         expect(firstMessage!.id).toBe(dbMsgs[0].id);
       });
     });
+
+    describe(`${CHATS_URL}/:id/messages/:msgId`, () => {
+      it('should respond with 401 on unauthorized request', async () => {
+        const chat = dbChats[0];
+        const msg = dbMsgs[0];
+        const res = await api.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        assertUnauthorizedErrorRes(res);
+      });
+
+      it('should respond with 404 on unknown message id', async () => {
+        const chat = dbChats[0];
+        const msg = { id: crypto.randomUUID() };
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        assertNotFoundErrorRes(res);
+      });
+
+      it('should respond with 404 if the current user not a chat member', async () => {
+        const chat = dbChats[0];
+        const msg = dbMsgs[0];
+        const password = faker.internet.password();
+        const { id, username } = await createFakeUser(usedUsernames, { password });
+        const { authorizedApi } = await prepForAuthorizedTest({ username, password });
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        assertNotFoundErrorRes(res);
+        await db.user.delete({ where: { id } });
+      });
+
+      it('should respond with 200 and the requested message', async () => {
+        const chat = dbChats[0];
+        const msg = dbMsgs[0];
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        const resBody = res.body as MessageFullData;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMessage(resBody, resBody.id);
+      });
+    });
   });
 
   describe(`POST ${CHATS_URL}`, () => {

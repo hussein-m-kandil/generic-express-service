@@ -1,7 +1,7 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './chat.schema';
-import { Chat, Prisma, User } from '@/../prisma/client';
+import { Chat, Message, Prisma, User } from '@/../prisma/client';
 import { AppNotFoundError } from '@/lib/app-error';
 import logger from '@/lib/logger';
 import db from '@/lib/db';
@@ -149,4 +149,19 @@ export const getUserChatMessages = async (
       include: generateMessageAggregation(),
     })
   );
+};
+
+export const getUserChatMessageById = async (
+  userId: User['id'],
+  chatId: Chat['id'],
+  msgId: Message['id']
+) => {
+  const msg = await Utils.handleDBKnownErrors(
+    db.message.findUnique({
+      where: { id: msgId, chat: { id: chatId, profiles: { some: { profile: { userId } } } } },
+      include: generateMessageAggregation(),
+    })
+  );
+  if (!msg) throw new AppNotFoundError('Message not found');
+  return msg;
 };
