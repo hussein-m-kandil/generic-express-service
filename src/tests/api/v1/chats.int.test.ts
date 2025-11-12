@@ -7,6 +7,7 @@ import setup from '@/tests/api/setup';
 import db from '@/lib/db';
 
 interface MessageIncludeFields {
+  seenBy: { include: { profile: { include: { user: true } } } };
   profile: { include: { user: true } };
   image: true;
 }
@@ -25,12 +26,27 @@ const PAGE_LEN = 10;
 const EXTRA_LEN = 3;
 const ITEMS_LEN = PAGE_LEN + EXTRA_LEN;
 
-const assertMessage = (msg: MessageFullData, expectedMsgId: Message['id']) => {
-  expect(msg.profile!.user.username).toBeTruthy();
-  expect(msg.profileName).toBeTruthy();
+const assertMessage = (
+  msg: MessageFullData,
+  expectedMsgId: Message['id'],
+  seenByCount?: number
+) => {
   expect(msg.id).toBe(expectedMsgId);
+  expect(msg.profileName).toBeTruthy();
+  expect(msg.profile!.user.username).toBeTruthy();
+  expect(msg.profileName).toBe(msg.profile!.user.username);
   expect(msg.image).toBeTruthy();
   expect(msg.image).not.toHaveProperty('owner');
+  expect(msg.seenBy).toBeInstanceOf(Array);
+  if (typeof seenByCount === 'number') {
+    expect(msg.seenBy).toHaveLength(seenByCount);
+    for (const { profile } of msg.seenBy) {
+      expect(profile.id).toBeTruthy();
+      expect(profile.id).toBeTypeOf('string');
+      expect(profile.user.id).toBeTypeOf('string');
+      expect(profile.user.id).toBeTruthy();
+    }
+  }
 };
 
 const assertChat = (chat: ChatFullData, expectedChatId: Chat['id']) => {
@@ -107,13 +123,23 @@ describe('Chats endpoints', async () => {
     });
   };
 
-  const createMessage = async (chatId: Chat['id'], dbUser: typeof dbUserOne, withImage = true) => {
+  const createMessage = async (
+    chatId: Chat['id'],
+    dbUser: typeof dbUserOne,
+    seenBy?: (typeof dbUserOne)[],
+    withImage = true
+  ) => {
+    const profileId = dbUser.profile!.id;
+    const seenByProfileIds = Array.from(
+      new Set([profileId, ...(seenBy ? seenBy.map((u) => u.profile!.id) : [])])
+    ).map((id) => ({ profileId: id }));
     return db.message.create({
       data: {
         imageId: withImage ? (await createImage(imgData)).id : undefined,
-        profileId: dbUser.profile!.id,
+        seenBy: { createMany: { data: seenByProfileIds } },
         profileName: dbUser.username,
         body: faker.lorem.sentence(),
+        profileId,
         chatId,
       },
     });
@@ -144,10 +170,11 @@ describe('Chats endpoints', async () => {
     beforeAll(async () => {
       await db.chat.deleteMany({});
       for (const dbUser of dbUsers) {
-        const chat = await createChat('Hi!', [dbUserOne, dbUser]);
-        dbMsgs.push(chat.messages[0]);
-        const msgsCount = ITEMS_LEN - 1; // Skip the initial, owner message (see prev 2 lines ^)
-        for (let j = 0; j < msgsCount; j++) dbMsgs.push(await createMessage(chat.id, dbUsers[j]));
+        // Ignore the initial, chat-owner message to be added with the other messages
+        const chat = await createChat('', [dbUserOne, dbUser]);
+        for (let j = 0; j < ITEMS_LEN; j++) {
+          dbMsgs.push(await createMessage(chat.id, dbUsers[j], dbUsers));
+        }
         dbChats.push(chat);
       }
     });
@@ -269,7 +296,7 @@ describe('Chats endpoints', async () => {
         await db.user.delete({ where: { id } });
       });
 
-      it('should respond with 200 and a desc-paginated messages with their profiles, and images', async () => {
+      it('should respond with 200 and a desc-paginated messages with their profiles, seen-by, and images', async () => {
         const pages = [{ len: PAGE_LEN }, { len: EXTRA_LEN }];
         let firstMessage: MessageFullData | undefined;
         let cursor: Message['id'] | undefined;
@@ -286,13 +313,13 @@ describe('Chats endpoints', async () => {
           expect(res.type).toMatch(/json/);
           expect(resBody).toBeInstanceOf(Array);
           expect(resBody).toHaveLength(page.len);
-          resBody.forEach((m) => assertMessage(m, m.id));
+          resBody.forEach((m) => assertMessage(m, m.id, ITEMS_LEN));
         }
         expect(firstMessage?.id).toBe(dbMsgs.at(ITEMS_LEN - 1)!.id);
         await assertMessagesMarkedAsReceived();
       });
 
-      it('should respond with 200 and a custom-asc-paginated messages with their profiles, and images', async () => {
+      it('should respond with 200 and a custom-asc-paginated messages with their profiles, seen-by and images', async () => {
         let firstMessage: MessageFullData | undefined;
         let cursor: Message['id'] | undefined;
         const chat = dbChats[0];
@@ -314,7 +341,7 @@ describe('Chats endpoints', async () => {
           expect(res.type).toMatch(/json/);
           expect(resBody).toBeInstanceOf(Array);
           expect(resBody).toHaveLength(page.len);
-          resBody.forEach((m) => assertMessage(m, m.id));
+          resBody.forEach((m) => assertMessage(m, m.id, ITEMS_LEN));
         }
         expect(firstMessage!.id).toBe(dbMsgs[0].id);
         await assertMessagesMarkedAsReceived();
@@ -373,7 +400,7 @@ describe('Chats endpoints', async () => {
         });
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        assertMessage(resBody, resBody.id);
+        assertMessage(resBody, resBody.id, ITEMS_LEN);
         expect(receivedMsgs).toHaveLength(1);
         expect(receivedMsgs[0].messageId).toBe(resBody.id);
       });
@@ -386,8 +413,8 @@ describe('Chats endpoints', async () => {
 
     beforeAll(async () => {
       await db.chat.deleteMany({});
-      dbChat = await createChat(faker.lorem.sentence(), [dbUserOne, dbUserTwo]);
-      dbMsgs.push(dbChat.messages[0]);
+      dbChat = await createChat('', [dbUserOne, dbUserTwo]);
+      dbMsgs.push(await createMessage(dbChat.id, dbUserOne));
       dbMsgs.push(await createMessage(dbChat.id, dbUserTwo));
       dbMsgs.push(await createMessage(dbChat.id, dbUserOne));
     });
@@ -399,7 +426,7 @@ describe('Chats endpoints', async () => {
         where: { profile: { userId: dbUserOne.id } },
       });
       assertUnauthorizedErrorRes(res);
-      expect(seenMsgs).toHaveLength(0);
+      expect(seenMsgs).toHaveLength(2);
     });
 
     it('should respond with 404 on non-existent message id', async () => {
@@ -410,7 +437,7 @@ describe('Chats endpoints', async () => {
         where: { profile: { userId: dbUserOne.id } },
       });
       assertNotFoundErrorRes(res);
-      expect(seenMsgs).toHaveLength(0);
+      expect(seenMsgs).toHaveLength(2);
     });
 
     it('should respond with 404 on non-existent chat id', async () => {
@@ -423,24 +450,21 @@ describe('Chats endpoints', async () => {
         where: { profile: { userId: dbUserOne.id } },
       });
       assertNotFoundErrorRes(res);
-      expect(seenMsgs).toHaveLength(0);
+      expect(seenMsgs).toHaveLength(2);
     });
 
     it('should set profile seen messages', async () => {
-      for (const userData of [userOneData, userTwoData]) {
-        const { authorizedApi, signedInUserData } = await prepForAuthorizedTest(userData);
-        for (let i = 0; i < dbMsgs.length; i++) {
-          const msg = dbMsgs[i];
-          const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages/${msg.id}/seen`);
-          const seenMsgs = await db.profilesSeenMessages.findMany({
-            where: { profile: { userId: signedInUserData.user.id } },
-          });
-          expect(res.statusCode).toBe(200);
-          expect(res.type).toMatch(/json/);
-          expect(res.body).toBe('');
-          expect(seenMsgs).toHaveLength(i + 1);
-          expect(seenMsgs[i].messageId).toBe(msg.id);
-        }
+      for (let i = 0; i < dbMsgs.length; i++) {
+        const userData = i % 2 === 0 ? userTwoData : userOneData;
+        const { authorizedApi } = await prepForAuthorizedTest(userData);
+        const msg = dbMsgs[i];
+        const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages/${msg.id}/seen`);
+        const seenMsgs = await db.profilesSeenMessages.findMany({ orderBy: { seenAt: 'desc' } });
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(res.body).toBe('');
+        expect(seenMsgs).toHaveLength(i + 4);
+        expect(seenMsgs[0].messageId).toBe(msg.id);
       }
     });
   });

@@ -18,7 +18,11 @@ const generatePaginationArgs = (
 };
 
 const generateMessageAggregation = (): Prisma.MessageInclude => {
-  return { profile: Utils.profileAggregation, image: true };
+  return {
+    seenBy: { include: { profile: Utils.profileAggregation } },
+    profile: Utils.profileAggregation,
+    image: true,
+  };
 };
 
 const generateChatAggregation = (): Prisma.ChatInclude => {
