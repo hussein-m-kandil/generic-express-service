@@ -236,6 +236,14 @@ describe('Chats endpoints', async () => {
     });
 
     describe(`${CHATS_URL}/:id/messages`, () => {
+      const assertMessagesMarkedAsReceived = async () => {
+        expect(
+          await db.profilesReceivedMessages.findMany({
+            where: { profile: { userId: dbUserOne.id } },
+          })
+        ).toHaveLength(ITEMS_LEN);
+      };
+
       it('should respond with 401 on unauthorized request', async () => {
         const res = await api.get(`${CHATS_URL}/${dbChats[0].id}/messages`);
         assertUnauthorizedErrorRes(res);
@@ -281,6 +289,7 @@ describe('Chats endpoints', async () => {
           resBody.forEach((m) => assertMessage(m, m.id));
         }
         expect(firstMessage?.id).toBe(dbMsgs.at(ITEMS_LEN - 1)!.id);
+        await assertMessagesMarkedAsReceived();
       });
 
       it('should respond with 200 and a custom-asc-paginated messages with their profiles, and images', async () => {
@@ -308,6 +317,12 @@ describe('Chats endpoints', async () => {
           resBody.forEach((m) => assertMessage(m, m.id));
         }
         expect(firstMessage!.id).toBe(dbMsgs[0].id);
+        await assertMessagesMarkedAsReceived();
+      });
+
+      it('should mark all returned messages as received by the receiver profile', async () => {
+        // This test must placed after tests that retrieve all messages
+        await assertMessagesMarkedAsReceived();
       });
     });
 
@@ -317,6 +332,14 @@ describe('Chats endpoints', async () => {
         const msg = dbMsgs[0];
         const res = await api.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
         assertUnauthorizedErrorRes(res);
+      });
+
+      it('should respond with 404 on unknown chat id', async () => {
+        const chat = { id: crypto.randomUUID() };
+        const msg = dbMsgs[0];
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        assertNotFoundErrorRes(res);
       });
 
       it('should respond with 404 on unknown message id', async () => {
@@ -338,15 +361,21 @@ describe('Chats endpoints', async () => {
         await db.user.delete({ where: { id } });
       });
 
-      it('should respond with 200 and the requested message', async () => {
+      it('should respond with 200 and the requested message, and mark it as received by the current user', async () => {
+        await db.profilesReceivedMessages.deleteMany({});
         const chat = dbChats[0];
         const msg = dbMsgs[0];
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
         const resBody = res.body as MessageFullData;
+        const receivedMsgs = await db.profilesReceivedMessages.findMany({
+          where: { profile: { userId: dbUserOne.id } },
+        });
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         assertMessage(resBody, resBody.id);
+        expect(receivedMsgs).toHaveLength(1);
+        expect(receivedMsgs[0].messageId).toBe(resBody.id);
       });
     });
   });

@@ -143,10 +143,24 @@ export const getUserChatMessages = async (
   filters: Types.BasePaginationFilters = {}
 ) => {
   return await Utils.handleDBKnownErrors(
-    db.message.findMany({
-      ...generatePaginationArgs({ ...filters, orderBy: 'createdAt' }),
-      where: { chat: { id: chatId, profiles: { some: { profile: { userId } } } } },
-      include: generateMessageAggregation(),
+    db.$transaction(async (tx) => {
+      const profile = await tx.profile.findUnique({ where: { userId } });
+      if (!profile) throw new AppNotFoundError('Profile not found');
+      const profileId = profile.id;
+      const messages = await tx.message.findMany({
+        ...generatePaginationArgs({ ...filters, orderBy: 'createdAt' }),
+        where: { chat: { id: chatId, profiles: { some: { profileId } } } },
+        include: generateMessageAggregation(),
+      });
+      for (const { id } of messages) {
+        const profileId_messageId = { messageId: id, profileId };
+        await tx.profilesReceivedMessages.upsert({
+          where: { profileId_messageId },
+          create: profileId_messageId,
+          update: profileId_messageId,
+        });
+      }
+      return messages;
     })
   );
 };
@@ -156,12 +170,23 @@ export const getUserChatMessageById = async (
   chatId: Chat['id'],
   msgId: Message['id']
 ) => {
-  const msg = await Utils.handleDBKnownErrors(
-    db.message.findUnique({
-      where: { id: msgId, chat: { id: chatId, profiles: { some: { profile: { userId } } } } },
-      include: generateMessageAggregation(),
+  return await Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const profile = await tx.profile.findUnique({ where: { userId } });
+      if (!profile) throw new AppNotFoundError('Profile not found');
+      const profileId = profile.id;
+      const msg = await tx.message.findUnique({
+        where: { id: msgId, chat: { id: chatId, profiles: { some: { profileId } } } },
+        include: generateMessageAggregation(),
+      });
+      if (!msg) throw new AppNotFoundError('Message not found');
+      const profileId_messageId = { messageId: msg.id, profileId };
+      await tx.profilesReceivedMessages.upsert({
+        where: { profileId_messageId },
+        create: profileId_messageId,
+        update: profileId_messageId,
+      });
+      return msg;
     })
   );
-  if (!msg) throw new AppNotFoundError('Message not found');
-  return msg;
 };
