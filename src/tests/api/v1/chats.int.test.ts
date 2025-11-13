@@ -35,8 +35,7 @@ const assertMessage = (
   expect(msg.profileName).toBeTruthy();
   expect(msg.profile!.user.username).toBeTruthy();
   expect(msg.profileName).toBe(msg.profile!.user.username);
-  expect(msg.image).toBeTruthy();
-  expect(msg.image).not.toHaveProperty('owner');
+  if (msg.image) expect(msg.image).not.toHaveProperty('owner');
   expect(msg.seenBy).toBeInstanceOf(Array);
   if (typeof seenByCount === 'number') {
     expect(msg.seenBy).toHaveLength(seenByCount);
@@ -49,14 +48,14 @@ const assertMessage = (
   }
 };
 
-const assertChat = (chat: ChatFullData, expectedChatId: Chat['id']) => {
+const assertChat = (chat: ChatFullData, expectedChatId: Chat['id'], msgCount = PAGE_LEN) => {
   expect(chat.id).toBe(expectedChatId);
   expect(chat.managers).toBeInstanceOf(Array);
   expect(chat.managers).toHaveLength(1);
   expect(chat.profiles).toBeInstanceOf(Array);
   expect(chat.profiles).toHaveLength(2);
   expect(chat.messages).toBeInstanceOf(Array);
-  expect(chat.messages).toHaveLength(PAGE_LEN);
+  expect(chat.messages).toHaveLength(msgCount);
   for (const manager of chat.managers) {
     expect(manager.profile.user.password).toBeUndefined();
     expect(manager.profile.user.username).toBeTruthy();
@@ -515,20 +514,24 @@ describe('Chats endpoints', async () => {
       expect(dbChats).toHaveLength(0);
     });
 
-    it('should create new chat', async () => {
+    it('should create new chat with a message that have seen by the its sender', async () => {
       const profileId = dbUserTwo.profile!.id;
       const data = { profiles: [profileId], message: 'Hello!' };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.post(CHATS_URL).send(data);
       const dbMsgs = await db.message.findMany({});
       const dbChats = await db.chat.findMany({});
-      const chat = res.body as Chat;
+      const chat = res.body as ChatFullData;
       expect(res.statusCode).toBe(201);
       expect(res.type).toMatch(/json/);
       expect(dbChats).toHaveLength(1);
       expect(dbMsgs).toHaveLength(1);
-      expect(chat.id).toBe(dbChats[0].id);
+      assertChat(chat, dbChats[0].id, 1);
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.messages).toBeInstanceOf(Array);
+      expect(chat.messages[0].id).toBe(dbMsgs[0].id);
+      expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
+      expect(chat.messages[0].seenBy).toHaveLength(1);
     });
 
     it('should use an already exist chat', async () => {
@@ -539,12 +542,12 @@ describe('Chats endpoints', async () => {
       const res = await authorizedApi.post(CHATS_URL).send(data);
       const dbMsgs = await db.message.findMany({});
       const dbChats = await db.chat.findMany({});
-      const chat = res.body as Chat;
+      const chat = res.body as ChatFullData;
       expect(res.statusCode).toBe(201);
       expect(res.type).toMatch(/json/);
       expect(dbChats).toHaveLength(1);
       expect(dbMsgs).toHaveLength(2);
-      expect(chat.id).toBe(dbChats[0].id);
+      assertChat(chat, dbChats[0].id, 2);
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
     });
 
@@ -555,16 +558,16 @@ describe('Chats endpoints', async () => {
       const res = await authorizedApi.post(CHATS_URL).send(data);
       const dbMsgs = await db.message.findMany({});
       const dbChats = await db.chat.findMany({});
-      const chat = res.body as Chat;
+      const chat = res.body as ChatFullData;
       expect(res.statusCode).toBe(201);
       expect(res.type).toMatch(/json/);
       expect(dbChats).toHaveLength(1);
       expect(dbMsgs).toHaveLength(2);
-      expect(chat.id).toBe(dbChats[0].id);
+      assertChat(chat, dbChats[0].id, 2);
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
     });
 
-    it('should create multiple chats sequentially', async () => {
+    it('should create multiple chats sequentially, each of which with a message that have seen by the its sender', async () => {
       const profileIds = [dbUserTwo.profile!.id, dbXUser.profile!.id, dbAdmin.profile!.id];
       for (let i = 0; i < profileIds.length; i++) {
         const iterNum = i + 1;
@@ -573,13 +576,17 @@ describe('Chats endpoints', async () => {
         const res = await authorizedApi.post(CHATS_URL).send(data);
         const dbMsgs = await db.message.findMany({});
         const dbChats = await db.chat.findMany({});
-        const chat = res.body as Chat;
+        const chat = res.body as ChatFullData;
         expect(res.statusCode).toBe(201);
         expect(res.type).toMatch(/json/);
         expect(dbChats).toHaveLength(iterNum);
         expect(dbMsgs).toHaveLength(iterNum);
-        expect(chat.id).toBe(dbChats[i].id);
+        assertChat(chat, dbChats[i].id, 1);
         expect(dbMsgs[i].chatId).toBe(dbChats[i].id);
+        expect(chat.messages).toBeInstanceOf(Array);
+        expect(chat.messages[0].id).toBe(dbMsgs[i].id);
+        expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
+        expect(chat.messages[0].seenBy).toHaveLength(1);
       }
     });
   });

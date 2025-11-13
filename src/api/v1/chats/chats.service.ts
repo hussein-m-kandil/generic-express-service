@@ -45,11 +45,13 @@ export const createChat = async (userId: User['id'], data: Schema.ValidChat) => 
         include: { user: true },
       });
       if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const profileId = currentProfile.id;
       const chatAggregation = generateChatAggregation();
       const messageArgs = {
         profileName: currentProfile.user.username,
-        profileId: currentProfile.id,
+        seenBy: { create: { profileId } },
         body: data.message,
+        profileId,
       };
       // Combine all IDs, including the current user's one
       const profileIds = [currentProfile.id, ...data.profiles];
