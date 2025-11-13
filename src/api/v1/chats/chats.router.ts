@@ -32,16 +32,23 @@ chatsRouter.get('/:id/messages/:msgId', Validators.authValidator, async (req, re
   res.json(msg);
 });
 
-chatsRouter.post('/:id/messages/:msgId/seen', Validators.authValidator, async (req, res) => {
-  const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.setSeenMessage(userId, req.params.id, req.params.msgId);
-  res.json();
-});
-
 chatsRouter.post('/', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   const chat = await Service.createChat(userId, Schema.chatSchema.parse(req.body));
   res.status(201).json(chat);
+});
+
+chatsRouter.post('/:id/messages', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  const data = Schema.messageSchema.parse(req.body);
+  const msg = await Service.createUserChatMessage(userId, req.params.id, data);
+  res.status(201).json(msg);
+});
+
+chatsRouter.post('/:id/messages/:msgId/seen', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  await Service.setSeenMessage(userId, req.params.id, req.params.msgId);
+  res.json();
 });
 
 chatsRouter.delete('/:id', Validators.authValidator, async (req, res) => {

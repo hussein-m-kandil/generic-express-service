@@ -555,6 +555,61 @@ describe('Chats endpoints', async () => {
     });
   });
 
+  describe(`POST ${CHATS_URL}/:id/messages`, () => {
+    let dbChat: Awaited<ReturnType<typeof createChat>>;
+    const data = { body: "What's up?" };
+
+    beforeAll(async () => {
+      await db.chat.deleteMany({});
+      dbChat = await createChat('', [dbUserOne, dbUserTwo]);
+    });
+
+    afterAll(async () => {
+      await db.chat.deleteMany({});
+    });
+
+    it('should respond with 401 on unauthorized request', async () => {
+      const res = await api.post(`${CHATS_URL}/${dbChat.id}/messages`).send(data);
+      assertUnauthorizedErrorRes(res);
+      expect(await db.message.findMany({})).toHaveLength(0);
+    });
+
+    it('should respond with 400 on request without message data', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages`);
+      expect(await db.message.findMany({})).toHaveLength(0);
+      assertResponseWithValidationError(res);
+    });
+
+    it('should respond with 400 on request without message body', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages`).send({});
+      assertResponseWithValidationError(res, 'body');
+      expect(await db.message.findMany({})).toHaveLength(0);
+    });
+
+    it('should respond with 400 and "invalid id" on non-existent chat id', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(`${CHATS_URL}/${crypto.randomUUID()}/messages`)
+        .send(data);
+      assertInvalidIdErrorRes(res);
+      expect(await db.message.findMany({})).toHaveLength(0);
+    });
+
+    it('should respond with 201 and the created message seen by the current profile (sender)', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages`).send(data);
+      const dbMsgs = await db.message.findMany({});
+      const resBody = res.body as MessageFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbMsgs).toHaveLength(1);
+      expect(resBody.id).toBe(dbMsgs[0].id);
+      assertMessageAndSeenBy(resBody, [dbUserOne.profile!.id]);
+    });
+  });
+
   describe(`POST ${CHATS_URL}/:id/messages/:msgId/seen`, () => {
     let dbChat: Awaited<ReturnType<typeof createChat>>;
     const dbMsgs: Message[] = [];

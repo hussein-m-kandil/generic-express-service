@@ -230,6 +230,34 @@ export const getUserChatMessageById = async (
   );
 };
 
+export const createUserChatMessage = async (
+  userId: User['id'],
+  chatId: Chat['id'],
+  { body }: Schema.ValidMessage
+) => {
+  return await Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const currentProfile = await tx.profile.findUnique({
+        where: { userId },
+        include: { user: true },
+      });
+      if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const profileId = currentProfile.id;
+      const msg = await tx.message.create({
+        data: {
+          profileName: currentProfile.user.username,
+          seenBy: { create: { profileId } },
+          profileId,
+          chatId,
+          body,
+        },
+        include: generateMessageAggregation(),
+      });
+      return prepareMessage(msg, currentProfile);
+    })
+  );
+};
+
 export const setSeenMessage = async (
   userId: User['id'],
   chatId: Chat['id'],
