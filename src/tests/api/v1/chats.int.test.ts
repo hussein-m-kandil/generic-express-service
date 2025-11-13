@@ -1,6 +1,6 @@
 /* eslint-disable security/detect-object-injection */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { Prisma, Chat, Message } from '@/../prisma/client';
+import { Prisma, Chat, Message, Profile } from '@/../prisma/client';
 import { CHATS_URL, SIGNIN_URL } from './utils';
 import { faker } from '@faker-js/faker';
 import setup from '@/tests/api/setup';
@@ -48,12 +48,22 @@ const assertMessage = (
   }
 };
 
-const assertChat = (chat: ChatFullData, expectedChatId: Chat['id'], msgCount = PAGE_LEN) => {
+const assertMessageAndSeenBy = (msg: MessageFullData, seenByProfileIds: Profile['id'][]) => {
+  assertMessage(msg, msg.id, seenByProfileIds.length);
+  expect(msg.seenBy.every((sb) => seenByProfileIds.includes(sb.profileId))).toBe(true);
+};
+
+const assertChat = (
+  chat: ChatFullData,
+  expectedChatId: Chat['id'],
+  msgCount = PAGE_LEN,
+  profilesCount = 2
+) => {
   expect(chat.id).toBe(expectedChatId);
   expect(chat.managers).toBeInstanceOf(Array);
   expect(chat.managers).toHaveLength(1);
   expect(chat.profiles).toBeInstanceOf(Array);
-  expect(chat.profiles).toHaveLength(2);
+  expect(chat.profiles).toHaveLength(profilesCount);
   expect(chat.messages).toBeInstanceOf(Array);
   expect(chat.messages).toHaveLength(msgCount);
   for (const manager of chat.managers) {
@@ -151,14 +161,153 @@ describe('Chats endpoints', async () => {
     usedUsernames.push(dbUsers[i].username);
   }
 
-  describe(`GET ${CHATS_URL}`, () => {
-    // Isolate this test because it needs a clean Chat database
-    it(`should respond with 200 and an empty list`, async () => {
-      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.get(CHATS_URL);
-      expect(res.statusCode).toBe(200);
-      expect(res.type).toMatch(/json/);
-      expect(res.body).toStrictEqual([]);
+  const intangibleUserData = {
+    password: faker.internet.password(),
+    fullname: 'Intangible User',
+    username: 'intangible_user',
+  };
+  const setupChatWithIntangibleProfile = async () => {
+    const intangibleUser = await createUser(intangibleUserData);
+    const intangibleProfileId = intangibleUser.profile!.id;
+    await db.profile.update({ where: { id: intangibleProfileId }, data: { tangible: false } });
+    const chatMembers = [intangibleUser, dbUserOne, dbUserTwo];
+    const chat = await createChat('', chatMembers);
+    const msg = await createMessage(chat.id, dbUserOne, chatMembers);
+    return { intangibleUserData, intangibleUser, chatMembers, chat, msg };
+  };
+
+  describe('GET (applying profile tangibility)', () => {
+    /* Isolate these tests because it needs a clean Chat database */
+
+    afterEach(async () => {
+      await db.chat.deleteMany({});
+      await db.user.deleteMany({ where: { username: intangibleUserData.username } });
+    });
+
+    const assertMsgsSeenByTangibility = (
+      msgs: MessageFullData[],
+      seenByProfileIds: Profile['id'][]
+    ) => {
+      expect(msgs).toBeInstanceOf(Array);
+      expect(msgs).toHaveLength(1);
+      assertMessageAndSeenBy(msgs[0], seenByProfileIds);
+    };
+
+    describe(CHATS_URL, () => {
+      it('should respond with 200 and an empty list', async () => {
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(CHATS_URL);
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(res.body).toStrictEqual([]);
+      });
+
+      it('should not include an intangible profile in the messages seen-by profiles-list', async () => {
+        await setupChatWithIntangibleProfile();
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(CHATS_URL);
+        const seenByProfileIds = [dbUserOne.profile!.id, dbUserTwo.profile!.id];
+        const resBody = res.body as ChatFullData[];
+        const resChat = resBody[0];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resBody).toBeInstanceOf(Array);
+        expect(resBody).toHaveLength(1);
+        assertMsgsSeenByTangibility(resChat.messages, seenByProfileIds);
+      });
+
+      it('should include the current intangible-profile only in the messages seen-by profiles-list', async () => {
+        const { intangibleUserData, intangibleUser } = await setupChatWithIntangibleProfile();
+        const intangibleProfileId = intangibleUser.profile!.id;
+        const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
+        const res = await authorizedApi.get(CHATS_URL);
+        const seenByProfileIds = [intangibleProfileId];
+        const resBody = res.body as ChatFullData[];
+        const resChat = resBody[0];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resBody).toBeInstanceOf(Array);
+        expect(resBody).toHaveLength(1);
+        expect(resChat.messages).toBeInstanceOf(Array);
+        expect(resChat.messages).toHaveLength(1);
+        assertMessageAndSeenBy(resChat.messages[0], seenByProfileIds);
+      });
+    });
+
+    describe(`${CHATS_URL}/:id`, () => {
+      it('should not include an intangible profile in the messages seen-by profiles-list', async () => {
+        const { chat } = await setupChatWithIntangibleProfile();
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}`);
+        const seenByProfileIds = [dbUserOne.profile!.id, dbUserTwo.profile!.id];
+        const resBody = res.body as ChatFullData;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMsgsSeenByTangibility(resBody.messages, seenByProfileIds);
+      });
+
+      it('should include the current intangible-profile only in the messages seen-by profiles-list', async () => {
+        const { intangibleUserData, intangibleUser, chat } = await setupChatWithIntangibleProfile();
+        const intangibleProfileId = intangibleUser.profile!.id;
+        const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}`);
+        const seenByProfileIds = [intangibleProfileId];
+        const resBody = res.body as ChatFullData;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMsgsSeenByTangibility(resBody.messages, seenByProfileIds);
+      });
+    });
+
+    describe(`${CHATS_URL}/:id/messages`, () => {
+      it('should not include an intangible profile in the messages seen-by profiles-list', async () => {
+        const { chat } = await setupChatWithIntangibleProfile();
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/`);
+        const seenByProfileIds = [dbUserOne.profile!.id, dbUserTwo.profile!.id];
+        const resBody = res.body as MessageFullData[];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMsgsSeenByTangibility(resBody, seenByProfileIds);
+      });
+
+      it('should include the current intangible-profile only in the messages seen-by profiles-list', async () => {
+        const { intangibleUserData, intangibleUser, chat } = await setupChatWithIntangibleProfile();
+        const intangibleProfileId = intangibleUser.profile!.id;
+        const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/`);
+        const seenByProfileIds = [intangibleProfileId];
+        const resBody = res.body as MessageFullData[];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMsgsSeenByTangibility(resBody, seenByProfileIds);
+      });
+    });
+
+    describe(`${CHATS_URL}/:id/messages/:msgId`, () => {
+      it('should not include an intangible profile in the messages seen-by profiles-list', async () => {
+        const { chat, msg } = await setupChatWithIntangibleProfile();
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        const seenByProfileIds = [dbUserOne.profile!.id, dbUserTwo.profile!.id];
+        const resBody = res.body as MessageFullData;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMsgsSeenByTangibility([resBody], seenByProfileIds);
+      });
+
+      it('should include the current intangible-profile only in the messages seen-by profiles-list', async () => {
+        const { intangibleUserData, intangibleUser, chat, msg } =
+          await setupChatWithIntangibleProfile();
+        const intangibleProfileId = intangibleUser.profile!.id;
+        const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
+        const res = await authorizedApi.get(`${CHATS_URL}/${chat.id}/messages/${msg.id}`);
+        const seenByProfileIds = [intangibleProfileId];
+        const resBody = res.body as MessageFullData;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        assertMsgsSeenByTangibility([resBody], seenByProfileIds);
+      });
     });
   });
 
@@ -471,6 +620,7 @@ describe('Chats endpoints', async () => {
   describe(`POST ${CHATS_URL}`, () => {
     afterEach(async () => {
       await db.chat.deleteMany({});
+      await db.user.deleteMany({ where: { username: intangibleUserData.username } });
     });
 
     it('should respond with 401 on unauthorized request', async () => {
@@ -534,21 +684,62 @@ describe('Chats endpoints', async () => {
       expect(chat.messages[0].seenBy).toHaveLength(1);
     });
 
-    it('should use an already exist chat', async () => {
-      const profileId = dbUserTwo.profile!.id;
-      const data = { profiles: [profileId], message: 'Hello!' };
+    it('should use an already exist chat, and eliminate any intangible profiles from message seen-by list', async () => {
+      const intangibleUser = await createUser(intangibleUserData);
+      const intangibleProfileId = intangibleUser.profile!.id;
+      await db.profile.update({ where: { id: intangibleProfileId }, data: { tangible: false } });
+      const chatMembers = [dbUserOne, intangibleUser, dbUserTwo];
+      const oldChat = await createChat('', chatMembers);
+      await createMessage(oldChat.id, dbUserOne, chatMembers);
+      const data = { profiles: chatMembers.map((u) => u.profile!.id), message: 'Whats up?' };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      await authorizedApi.post(CHATS_URL).send(data);
       const res = await authorizedApi.post(CHATS_URL).send(data);
-      const dbMsgs = await db.message.findMany({});
+      const dbMsgs = await db.message.findMany({ orderBy: { createdAt: 'desc' } });
       const dbChats = await db.chat.findMany({});
       const chat = res.body as ChatFullData;
       expect(res.statusCode).toBe(201);
       expect(res.type).toMatch(/json/);
       expect(dbChats).toHaveLength(1);
       expect(dbMsgs).toHaveLength(2);
-      assertChat(chat, dbChats[0].id, 2);
+      assertChat(chat, dbChats[0].id, 2, 3);
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.messages).toBeInstanceOf(Array);
+      expect(chat.messages).toHaveLength(2);
+      assertMessage(chat.messages[0], dbMsgs[0].id, 1);
+      expect(chat.messages[0].seenBy[0].profileId).toBe(dbUserOne.profile!.id);
+      assertMessage(chat.messages[1], dbMsgs[1].id, 2);
+      expect(
+        chat.messages[1].seenBy.every(({ profileId }) => {
+          return profileId === dbUserOne.profile!.id || profileId === dbUserTwo.profile!.id;
+        })
+      ).toBe(true);
+    });
+
+    it('should use an already exist chat, and include the current, intangible profile only in message seen-by list', async () => {
+      const intangibleUser = await createUser(intangibleUserData);
+      const intangibleProfileId = intangibleUser.profile!.id;
+      await db.profile.update({ where: { id: intangibleProfileId }, data: { tangible: false } });
+      const chatMembers = [intangibleUser, dbUserOne, dbUserTwo];
+      const oldChat = await createChat('', chatMembers);
+      await createMessage(oldChat.id, dbUserOne, chatMembers);
+      const data = { profiles: chatMembers.map((u) => u.profile!.id), message: 'Whats up?' };
+      const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
+      const res = await authorizedApi.post(CHATS_URL).send(data);
+      const dbMsgs = await db.message.findMany({ orderBy: { createdAt: 'desc' } });
+      const dbChats = await db.chat.findMany({});
+      const chat = res.body as ChatFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs).toHaveLength(2);
+      assertChat(chat, dbChats[0].id, 2, 3);
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.messages).toBeInstanceOf(Array);
+      expect(chat.messages).toHaveLength(2);
+      for (let i = 0; i < chat.messages.length; i++) {
+        assertMessage(chat.messages[i], dbMsgs[i].id, 1);
+        expect(chat.messages[i].seenBy[0].profileId).toBe(intangibleProfileId);
+      }
     });
 
     it('should use an already exist chat that has a message and delete the any other duplications', async () => {
@@ -584,9 +775,7 @@ describe('Chats endpoints', async () => {
         assertChat(chat, dbChats[i].id, 1);
         expect(dbMsgs[i].chatId).toBe(dbChats[i].id);
         expect(chat.messages).toBeInstanceOf(Array);
-        expect(chat.messages[0].id).toBe(dbMsgs[i].id);
-        expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
-        expect(chat.messages[0].seenBy).toHaveLength(1);
+        assertMessage(chat.messages[0], dbMsgs[i].id, 1);
       }
     });
   });

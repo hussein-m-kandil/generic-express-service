@@ -1,7 +1,7 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './chat.schema';
-import { Chat, Message, Prisma, User } from '@/../prisma/client';
+import { Chat, Message, Prisma, Profile, User } from '@/../prisma/client';
 import { AppNotFoundError } from '@/lib/app-error';
 import logger from '@/lib/logger';
 import db from '@/lib/db';
@@ -17,7 +17,7 @@ const generatePaginationArgs = (
   };
 };
 
-const generateMessageAggregation = (): Prisma.MessageInclude => {
+const generateMessageAggregation = () => {
   return {
     seenBy: { include: { profile: Utils.profileAggregation } },
     profile: Utils.profileAggregation,
@@ -25,7 +25,7 @@ const generateMessageAggregation = (): Prisma.MessageInclude => {
   };
 };
 
-const generateChatAggregation = (): Prisma.ChatInclude => {
+const generateChatAggregation = () => {
   return {
     profiles: { include: { profile: Utils.profileAggregation } },
     managers: { include: { profile: Utils.profileAggregation } },
@@ -34,6 +34,20 @@ const generateChatAggregation = (): Prisma.ChatInclude => {
       include: generateMessageAggregation(),
     },
   };
+};
+
+const prepareMessage = (
+  message: Prisma.MessageGetPayload<{
+    include: { seenBy: { include: { profile: true } }; profile: true; image: true };
+  }>,
+  currentProfile: Profile
+) => {
+  if (currentProfile.tangible) {
+    message.seenBy = message.seenBy.filter((sb) => sb.profile.tangible);
+  } else {
+    message.seenBy = message.seenBy.filter((sb) => sb.profile.id === currentProfile.id);
+  }
+  return message;
 };
 
 export const createChat = async (userId: User['id'], data: Schema.ValidChat) => {
@@ -63,6 +77,8 @@ export const createChat = async (userId: User['id'], data: Schema.ValidChat) => 
         },
         include: chatAggregation,
       });
+      // Upsert a chat
+      let chat: Prisma.ChatGetPayload<{ include: typeof chatAggregation }>;
       if (existentChats.length > 0) {
         // Return the 1st found chat, and, if there are more than one chat found, delete the rest
         const selectedChatIndex = existentChats.findIndex((c) => c.messages.length > 0);
@@ -72,14 +88,14 @@ export const createChat = async (userId: User['id'], data: Schema.ValidChat) => 
           existentChats.forEach(({ id }, i) => i !== selectedChatIndex && chatIdsToDel.push(id));
           tx.chat.deleteMany({ where: { id: { in: chatIdsToDel } } }).catch(logger.error);
         }
-        return tx.chat.update({
+        chat = await tx.chat.update({
           where: { id: selectedChat.id },
           data: { messages: { create: messageArgs } },
           include: chatAggregation,
         });
       } else {
         // Create new chat, because there are no chats for this group of profiles
-        return await tx.chat.create({
+        chat = await tx.chat.create({
           data: {
             managers: { create: { profileId: currentProfile.id, role: 'OWNER' } },
             profiles: {
@@ -88,11 +104,13 @@ export const createChat = async (userId: User['id'], data: Schema.ValidChat) => 
                 skipDuplicates: true,
               },
             },
-            messages: { create: messageArgs },
+            messages: { create: { ...messageArgs, seenBy: { create: { profileId } } } },
           },
           include: chatAggregation,
         });
       }
+      chat.messages = chat.messages.map((m) => prepareMessage(m, currentProfile));
+      return chat;
     })
   );
 };
@@ -124,23 +142,38 @@ export const getUserChats = async (
   filters: Types.BasePaginationFilters = {}
 ) => {
   return await Utils.handleDBKnownErrors(
-    db.chat.findMany({
-      ...generatePaginationArgs({ ...filters, orderBy: 'updatedAt' }),
-      where: { profiles: { some: { profile: { userId } } } },
-      include: generateChatAggregation(),
+    db.$transaction(async (tx) => {
+      const currentProfile = await tx.profile.findUnique({ where: { userId } });
+      if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const profileId = currentProfile.id;
+      const chats = await tx.chat.findMany({
+        ...generatePaginationArgs({ ...filters, orderBy: 'updatedAt' }),
+        where: { profiles: { some: { profileId } } },
+        include: generateChatAggregation(),
+      });
+      return chats.map((c) => {
+        c.messages = c.messages.map((m) => prepareMessage(m, currentProfile));
+        return c;
+      });
     })
   );
 };
 
 export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) => {
-  const chat = await Utils.handleDBKnownErrors(
-    db.chat.findUnique({
-      where: { id: chatId, profiles: { some: { profile: { userId } } } },
-      include: generateChatAggregation(),
+  return await Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const currentProfile = await tx.profile.findUnique({ where: { userId } });
+      if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const profileId = currentProfile.id;
+      const chat = await tx.chat.findUnique({
+        where: { id: chatId, profiles: { some: { profileId } } },
+        include: generateChatAggregation(),
+      });
+      if (!chat) throw new AppNotFoundError('Chat not found');
+      chat.messages = chat.messages.map((m) => prepareMessage(m, currentProfile));
+      return chat;
     })
   );
-  if (!chat) throw new AppNotFoundError('Chat not found');
-  return chat;
 };
 
 export const getUserChatMessages = async (
@@ -150,9 +183,9 @@ export const getUserChatMessages = async (
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
-      const profile = await tx.profile.findUnique({ where: { userId } });
-      if (!profile) throw new AppNotFoundError('Profile not found');
-      const profileId = profile.id;
+      const currentProfile = await tx.profile.findUnique({ where: { userId } });
+      if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const profileId = currentProfile.id;
       const messages = await tx.message.findMany({
         ...generatePaginationArgs({ ...filters, orderBy: 'createdAt' }),
         where: { chat: { id: chatId, profiles: { some: { profileId } } } },
@@ -166,7 +199,7 @@ export const getUserChatMessages = async (
           update: profileId_messageId,
         });
       }
-      return messages;
+      return messages.map((m) => prepareMessage(m, currentProfile));
     })
   );
 };
@@ -178,9 +211,9 @@ export const getUserChatMessageById = async (
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
-      const profile = await tx.profile.findUnique({ where: { userId } });
-      if (!profile) throw new AppNotFoundError('Profile not found');
-      const profileId = profile.id;
+      const currentProfile = await tx.profile.findUnique({ where: { userId } });
+      if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const profileId = currentProfile.id;
       const msg = await tx.message.findUnique({
         where: { id: msgId, chat: { id: chatId, profiles: { some: { profileId } } } },
         include: generateMessageAggregation(),
@@ -192,7 +225,7 @@ export const getUserChatMessageById = async (
         create: profileId_messageId,
         update: profileId_messageId,
       });
-      return msg;
+      return prepareMessage(msg, currentProfile);
     })
   );
 };
