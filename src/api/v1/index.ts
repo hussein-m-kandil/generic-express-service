@@ -1,5 +1,5 @@
+import { profilesRouter, lastSeenUpdater } from './profiles';
 import { charactersRouter } from './characters';
-import { profilesRouter } from './profiles';
 import { imagesRouter } from './images';
 import { statsRouter } from './stats';
 import { usersRouter } from './users';
@@ -9,6 +9,8 @@ import { authRouter } from './auth';
 import { Router } from 'express';
 
 export const apiRouter = Router();
+
+apiRouter.use(lastSeenUpdater);
 
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', usersRouter);
