@@ -58,8 +58,12 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
+export const getCurrentUserFromReq = (req: Request) => {
+  return req.user as Types.PublicUser | undefined;
+};
+
 export const getCurrentUserIdFromReq = (req: Request) => {
-  return (req.user as Types.PublicUser | undefined)?.id;
+  return getCurrentUserFromReq(req)?.id;
 };
 
 export const getTextFilterFromReqQuery = (req: Request) => {

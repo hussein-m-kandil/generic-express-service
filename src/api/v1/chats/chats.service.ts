@@ -1,7 +1,9 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
+import * as Image from '@/lib/image';
 import * as Schema from './chat.schema';
-import { Chat, Message, Prisma, Profile, User } from '@/../prisma/client';
+import * as Storage from '@/lib/storage';
+import { Chat, Image as ImageType, Message, Prisma, Profile, User } from '@/../prisma/client';
 import { AppNotFoundError } from '@/lib/app-error';
 import logger from '@/lib/logger';
 import db from '@/lib/db';
@@ -50,12 +52,17 @@ const prepareMessage = (
   return message;
 };
 
-export const createChat = async (userId: User['id'], data: Schema.ValidChat) => {
+export const createChat = async (
+  user: Types.PublicUser,
+  data: Schema.ValidChat,
+  imageData?: Types.ImageFullData,
+  uploadedImage?: Storage.UploadedImageData
+) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
       // Get current user's profile ID
       const currentProfile = await tx.profile.findUnique({
-        where: { userId },
+        where: { userId: user.id },
         include: { user: true },
       });
       if (!currentProfile) throw new AppNotFoundError('Profile not found');
@@ -64,7 +71,15 @@ export const createChat = async (userId: User['id'], data: Schema.ValidChat) => 
       const messageArgs = {
         profileName: currentProfile.user.username,
         seenBy: { create: { profileId } },
-        body: data.message,
+        body: data.message.body,
+        imageId:
+          imageData && uploadedImage
+            ? (
+                await tx.image.create({
+                  data: Image.getImageUpsertData(uploadedImage, imageData, user),
+                })
+              ).id
+            : undefined,
         profileId,
       };
       // Combine all IDs, including the current user's one
@@ -231,23 +246,33 @@ export const getUserChatMessageById = async (
 };
 
 export const createUserChatMessage = async (
-  userId: User['id'],
+  user: Types.PublicUser,
   chatId: Chat['id'],
-  { body }: Schema.ValidMessage
+  { body }: Schema.ValidMessage,
+  imageData?: Types.ImageFullData,
+  uploadedImage?: Storage.UploadedImageData
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
       const currentProfile = await tx.profile.findUnique({
-        where: { userId },
+        where: { userId: user.id },
         include: { user: true },
       });
       if (!currentProfile) throw new AppNotFoundError('Profile not found');
       const profileId = currentProfile.id;
+      let imageId: ImageType['id'] | undefined;
+      if (imageData && uploadedImage) {
+        const image = await tx.image.create({
+          data: Image.getImageUpsertData(uploadedImage, imageData, user),
+        });
+        imageId = image.id;
+      }
       const msg = await tx.message.create({
         data: {
           profileName: currentProfile.user.username,
           seenBy: { create: { profileId } },
           profileId,
+          imageId,
           chatId,
           body,
         },

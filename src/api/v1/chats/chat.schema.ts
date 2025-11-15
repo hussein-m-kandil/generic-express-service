@@ -1,14 +1,16 @@
+import * as Image from '@/lib/image';
 import { z } from 'zod';
 
-export const messageBodySchema = z.string().trim().nonempty();
-
-export const messageSchema = z.object({ body: messageBodySchema });
+export const messageSchema = z.object({
+  imagedata: Image.imageSchema.optional(),
+  body: z.string().trim().nonempty(),
+});
 
 export type ValidMessage = z.output<typeof messageSchema>;
 
 export const chatSchema = z.object({
   profiles: z.array(z.string().trim().uuid()).nonempty(),
-  message: messageBodySchema,
+  message: messageSchema,
 });
 
 export type ValidChat = z.output<typeof chatSchema>;

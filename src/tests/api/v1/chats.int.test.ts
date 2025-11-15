@@ -1,10 +1,12 @@
 /* eslint-disable security/detect-object-injection */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import * as Types from '@/types';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Prisma, Chat, Message, Profile } from '@/../prisma/client';
 import { CHATS_URL, SIGNIN_URL } from './utils';
 import { faker } from '@faker-js/faker';
 import setup from '@/tests/api/setup';
 import db from '@/lib/db';
+import fs from 'node:fs';
 
 interface MessageIncludeFields {
   seenBy: { include: { profile: { include: { user: true } } } };
@@ -81,6 +83,8 @@ describe('Chats endpoints', async () => {
   const {
     userOneData,
     userTwoData,
+    storageData,
+    imagedata,
     dbUserOne,
     dbUserTwo,
     dbXUser,
@@ -91,12 +95,17 @@ describe('Chats endpoints', async () => {
     createImage,
     deleteAllUsers,
     deleteAllImages,
+    assertImageData,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
+
+  const { storage } = storageData;
+
+  afterEach(vi.clearAllMocks);
 
   afterAll(async () => {
     await db.chat.deleteMany({});
@@ -557,7 +566,7 @@ describe('Chats endpoints', async () => {
 
   describe(`POST ${CHATS_URL}/:id/messages`, () => {
     let dbChat: Awaited<ReturnType<typeof createChat>>;
-    const data = { body: "What's up?" };
+    const msgData = { body: "What's up?" };
 
     beforeAll(async () => {
       await db.chat.deleteMany({});
@@ -568,8 +577,13 @@ describe('Chats endpoints', async () => {
       await db.chat.deleteMany({});
     });
 
+    afterEach(async () => {
+      await db.message.deleteMany({});
+      await deleteAllImages();
+    });
+
     it('should respond with 401 on unauthorized request', async () => {
-      const res = await api.post(`${CHATS_URL}/${dbChat.id}/messages`).send(data);
+      const res = await api.post(`${CHATS_URL}/${dbChat.id}/messages`).send(msgData);
       assertUnauthorizedErrorRes(res);
       expect(await db.message.findMany({})).toHaveLength(0);
     });
@@ -592,14 +606,50 @@ describe('Chats endpoints', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
         .post(`${CHATS_URL}/${crypto.randomUUID()}/messages`)
-        .send(data);
+        .send(msgData);
       assertInvalidIdErrorRes(res);
       expect(await db.message.findMany({})).toHaveLength(0);
     });
 
-    it('should respond with 201 and the created message seen by the current profile (sender)', async () => {
+    it('should respond with 400 on request with invalid image type', async () => {
+      const stream = fs.createReadStream('src/tests/files/ugly.txt');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+      );
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages`).send(data);
+      const res = await authorizedApi
+        .post(`${CHATS_URL}/${dbChat.id}/messages`)
+        .field(msgData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const resBody = res.body as Types.AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/invalid image/i);
+      expect(storage.upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should respond with 400 on request with too large image file', async () => {
+      const stream = fs.createReadStream('src/tests/files/bad.jpg');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+      );
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(`${CHATS_URL}/${dbChat.id}/messages`)
+        .field(msgData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const resBody = res.body as Types.AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/too large/i);
+      expect(storage.upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should respond with 201 and create message seen by the current profile (sender)', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(`${CHATS_URL}/${dbChat.id}/messages`).send(msgData);
       const dbMsgs = await db.message.findMany({});
       const resBody = res.body as MessageFullData;
       expect(res.statusCode).toBe(201);
@@ -607,6 +657,47 @@ describe('Chats endpoints', async () => {
       expect(dbMsgs).toHaveLength(1);
       expect(resBody.id).toBe(dbMsgs[0].id);
       assertMessageAndSeenBy(resBody, [dbUserOne.profile!.id]);
+    });
+
+    it('should respond with 201, create message without image, and ignore `imagedata` field without an image file', async () => {
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(`${CHATS_URL}/${dbChat.id}/messages`)
+        .send({ ...msgData, imagedata });
+      const dbMsgs = await db.message.findMany({ include: { image: true } });
+      const resBody = res.body as MessageFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbMsgs).toHaveLength(1);
+      expect(resBody.image).toBeNull();
+      expect(resBody.imageId).toBeNull();
+      expect(resBody.id).toBe(dbMsgs[0].id);
+      expect(storage.upload).not.toHaveBeenCalled();
+      assertMessageAndSeenBy(resBody, [dbUserOne.profile!.id]);
+    });
+
+    it('should respond with 201 and create message with image', async () => {
+      const stream = fs.createReadStream('src/tests/files/good.jpg');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+      );
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(`${CHATS_URL}/${dbChat.id}/messages`)
+        .field(msgData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const dbMsgs = await db.message.findMany({ include: { image: true } });
+      const resBody = res.body as MessageFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbMsgs).toHaveLength(1);
+      expect(resBody.id).toBe(dbMsgs[0].id);
+      expect(resBody.imageId).toBe(dbMsgs[0].imageId);
+      assertMessageAndSeenBy(resBody, [dbUserOne.profile!.id]);
+      assertImageData(Object.assign(res, { body: resBody.image }), { ...imgData, ...imagedata });
+      expect(storage.upload).toHaveBeenCalledOnce();
+      expect(storage.upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
     });
   });
 
@@ -690,16 +781,17 @@ describe('Chats endpoints', async () => {
     });
 
     it('should respond with 400 on request with invalid profiles data', async () => {
+      const message = { body: 'Hello!' };
       const invalidData = [{ profiles: null }, { profiles: [] }, { profiles: [7] }];
       for (const data of invalidData) {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(CHATS_URL).send({ ...data, message: 'Hello!' });
+        const res = await authorizedApi.post(CHATS_URL).send({ ...data, message });
         assertResponseWithValidationError(res, 'profiles', 1);
       }
     });
 
     it('should respond with 400 on request with an invalid message', async () => {
-      const invalidData = [{ message: '' }, { message: true }, { message: 7 }];
+      const invalidData = [{ message: 'Hello!' }, { message: true }, { message: 7 }];
       for (const data of invalidData) {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi
@@ -711,7 +803,7 @@ describe('Chats endpoints', async () => {
 
     it('should respond with 400 on unknown (invalid) profile id', async () => {
       const profileId = crypto.randomUUID();
-      const data = { profiles: [profileId], message: 'Hello!' };
+      const data = { profiles: [profileId], message: { body: 'Hello!' } };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.post(CHATS_URL).send(data);
       const dbChats = await db.chat.findMany({});
@@ -719,11 +811,48 @@ describe('Chats endpoints', async () => {
       expect(dbChats).toHaveLength(0);
     });
 
-    it('should create new chat with a message that have seen by the its sender', async () => {
-      const profileId = dbUserTwo.profile!.id;
-      const data = { profiles: [profileId], message: 'Hello!' };
+    it('should respond with 400 on request with invalid image type', async () => {
+      const stream = fs.createReadStream('src/tests/files/ugly.txt');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+      );
+      const chatData = { 'profiles[0]': dbUserTwo.profile!.id, 'message[body]': 'Hello!' };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.post(CHATS_URL).send(data);
+      const res = await authorizedApi
+        .post(CHATS_URL)
+        .field(chatData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const resBody = res.body as Types.AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/invalid image/i);
+      expect(storage.upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should respond with 400 on request with too large image file', async () => {
+      const stream = fs.createReadStream('src/tests/files/bad.jpg');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+      );
+      const chatData = { 'profiles[0]': dbUserTwo.profile!.id, 'message[body]': 'Hello!' };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(CHATS_URL)
+        .field(chatData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const resBody = res.body as Types.AppErrorResponse;
+      expect(res.type).toMatch(/json/);
+      expect(res.statusCode).toBe(400);
+      expect(resBody.error.message).toMatch(/too large/i);
+      expect(storage.upload).not.toHaveBeenCalledOnce();
+    });
+
+    it('should create new chat with a message that have seen by the its sender', async () => {
+      const chatData = { profiles: [dbUserTwo.profile!.id], message: { body: 'Hello!' } };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(CHATS_URL).send(chatData);
       const dbMsgs = await db.message.findMany({});
       const dbChats = await db.chat.findMany({});
       const chat = res.body as ChatFullData;
@@ -746,9 +875,12 @@ describe('Chats endpoints', async () => {
       const chatMembers = [dbUserOne, intangibleUser, dbUserTwo];
       const oldChat = await createChat('', chatMembers);
       await createMessage(oldChat.id, dbUserOne, chatMembers);
-      const data = { profiles: chatMembers.map((u) => u.profile!.id), message: 'Whats up?' };
+      const chatData = {
+        profiles: chatMembers.map((u) => u.profile!.id),
+        message: { body: 'Whats up?' },
+      };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.post(CHATS_URL).send(data);
+      const res = await authorizedApi.post(CHATS_URL).send(chatData);
       const dbMsgs = await db.message.findMany({ orderBy: { createdAt: 'desc' } });
       const dbChats = await db.chat.findMany({});
       const chat = res.body as ChatFullData;
@@ -777,9 +909,12 @@ describe('Chats endpoints', async () => {
       const chatMembers = [intangibleUser, dbUserOne, dbUserTwo];
       const oldChat = await createChat('', chatMembers);
       await createMessage(oldChat.id, dbUserOne, chatMembers);
-      const data = { profiles: chatMembers.map((u) => u.profile!.id), message: 'Whats up?' };
+      const chatData = {
+        profiles: chatMembers.map((u) => u.profile!.id),
+        message: { body: 'Whats up?' },
+      };
       const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
-      const res = await authorizedApi.post(CHATS_URL).send(data);
+      const res = await authorizedApi.post(CHATS_URL).send(chatData);
       const dbMsgs = await db.message.findMany({ orderBy: { createdAt: 'desc' } });
       const dbChats = await db.chat.findMany({});
       const chat = res.body as ChatFullData;
@@ -799,9 +934,9 @@ describe('Chats endpoints', async () => {
 
     it('should use an already exist chat that has a message and delete the any other duplications', async () => {
       for (let i = 0; i < 3; i++) await createChat(i % 2 > 0 ? 'Hi!' : '');
-      const data = { profiles: [dbUserTwo.profile!.id], message: 'Hello!' };
+      const chatData = { profiles: [dbUserTwo.profile!.id], message: { body: 'Hello!' } };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.post(CHATS_URL).send(data);
+      const res = await authorizedApi.post(CHATS_URL).send(chatData);
       const dbMsgs = await db.message.findMany({});
       const dbChats = await db.chat.findMany({});
       const chat = res.body as ChatFullData;
@@ -813,13 +948,60 @@ describe('Chats endpoints', async () => {
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
     });
 
+    it('should create new chat with a non-image message, and ignore `imagedata` field without an image file', async () => {
+      const profileId = dbUserTwo.profile!.id;
+      const chatData = { profiles: [profileId], message: { body: 'Hello!' }, imagedata };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(CHATS_URL).send(chatData);
+      const dbMsgs = await db.message.findMany({});
+      const dbChats = await db.chat.findMany({});
+      const chat = res.body as ChatFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs).toHaveLength(1);
+      assertChat(chat, dbChats[0].id, 1);
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.messages).toBeInstanceOf(Array);
+      assertMessage(chat.messages[0], dbMsgs[0].id, 1);
+    });
+
+    it('should create new chat with an image', async () => {
+      const stream = fs.createReadStream('src/tests/files/good.jpg');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+      );
+      const chatData = { 'profiles[0]': dbUserTwo.profile!.id, 'message[body]': 'Hello!' };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(CHATS_URL)
+        .field(chatData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const dbMsgs = await db.message.findMany({ include: { image: true } });
+      const dbChats = await db.chat.findMany({});
+      const chat = res.body as ChatFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs).toHaveLength(1);
+      assertChat(chat, dbChats[0].id, 1);
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.messages).toBeInstanceOf(Array);
+      expect(chat.messages[0].image).toBeTruthy();
+      assertMessage(chat.messages[0], dbMsgs[0].id, 1);
+      expect(chat.messages[0].imageId).toBe(dbMsgs[0].imageId);
+      expect(storage.upload).toHaveBeenCalledOnce();
+      expect(storage.upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+
     it('should create multiple chats sequentially, each of which with a message that have seen by the its sender', async () => {
       const profileIds = [dbUserTwo.profile!.id, dbXUser.profile!.id, dbAdmin.profile!.id];
       for (let i = 0; i < profileIds.length; i++) {
         const iterNum = i + 1;
-        const data = { profiles: [profileIds[i]], message: 'Hello!' };
+        const chatData = { profiles: [profileIds[i]], message: { body: 'Hello!' } };
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(CHATS_URL).send(data);
+        const res = await authorizedApi.post(CHATS_URL).send(chatData);
         const dbMsgs = await db.message.findMany({});
         const dbChats = await db.chat.findMany({});
         const chat = res.body as ChatFullData;
