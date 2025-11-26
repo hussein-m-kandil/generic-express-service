@@ -16,6 +16,7 @@ passport.use(
     (username, password, done) => {
       db.user
         .findUnique({
+          ...Utils.userAggregation,
           where: { username: username },
           omit: { password: false },
         })
