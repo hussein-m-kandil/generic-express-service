@@ -48,6 +48,7 @@ async function main() {
           await transClient.user.create({
             data: {
               password: await bcrypt.hash(AUTHOR_PASSWORD, 10),
+              profile: { create: { lastSeen: new Date() } },
               updatedAt: createdAt,
               isAdmin: true,
               createdAt,
