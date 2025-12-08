@@ -386,6 +386,32 @@ describe('Chats endpoints', async () => {
       });
     });
 
+    describe(`${CHATS_URL}/members/:profileId`, () => {
+      it('should respond with 401 on unauthorized request', async () => {
+        const res = await api.get(`${CHATS_URL}/members/${crypto.randomUUID()}`);
+        assertUnauthorizedErrorRes(res);
+      });
+
+      it('should respond all the current user chats that include the given member`s profile id', async () => {
+        const memberProfileId = dbUserTwo.profile!.id;
+        const dbChat1 = dbChats.find((c) =>
+          c.profiles.some((p) => p.profileId === memberProfileId)
+        )!;
+        const dbChat2 = await createChat('Hello #2', [dbUserOne, dbUserTwo, dbXUser]);
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/members/${memberProfileId}`);
+        const resBody = res.body as ChatFullData[];
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resBody).toBeInstanceOf(Array);
+        expect(resBody).toHaveLength(2);
+        expect(resBody.every((c) => c.id === dbChat1.id || c.id === dbChat2.id)).toBe(true);
+        resBody.forEach((c) =>
+          c.id === dbChat2.id ? assertChat(c, c.id, 1, 3) : assertChat(c, c.id)
+        );
+      });
+    });
+
     describe(`${CHATS_URL}/:id`, () => {
       it('should respond with 401 on unauthorized request', async () => {
         const res = await api.get(`${CHATS_URL}/${dbChats[0].id}`);

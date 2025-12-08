@@ -191,6 +191,27 @@ export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) =>
   );
 };
 
+export const getUserChatsByMemberProfileId = async (
+  userId: User['id'],
+  profileId: Profile['id']
+) => {
+  return await Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const currentProfileWithChats = await tx.profile.findUnique({
+        where: { userId },
+        include: {
+          chats: {
+            where: { chat: { profiles: { some: { profileId } } } },
+            include: { chat: { include: generateChatAggregation() } },
+          },
+        },
+      });
+      if (!currentProfileWithChats) throw new AppNotFoundError('Profile not found');
+      return currentProfileWithChats.chats.map((c) => c.chat);
+    })
+  );
+};
+
 export const getUserChatMessages = async (
   userId: User['id'],
   chatId: Chat['id'],
