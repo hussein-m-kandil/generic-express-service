@@ -812,7 +812,7 @@ describe('Chats endpoints', async () => {
 
     it('should respond with 400 on request with invalid profiles data', async () => {
       const message = { body: 'Hello!' };
-      const invalidData = [{ profiles: null }, { profiles: [] }, { profiles: [7] }];
+      const invalidData = [{ profiles: null }, { profiles: ['blah'] }, { profiles: [7] }];
       for (const data of invalidData) {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.post(CHATS_URL).send({ ...data, message });
@@ -891,26 +891,30 @@ describe('Chats endpoints', async () => {
       expect(chat.messages[0].seenBy).toHaveLength(1);
     });
 
-    it('should create a self-chat if the given an unknown profile id', async () => {
-      const profileId = crypto.randomUUID();
-      const data = { profiles: [profileId], message: { body: 'Hello!' } };
+    it('should create a self-chat if the given profiles array is empty or has an unknown profile id', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.post(CHATS_URL).send(data);
-      const dbChats = await db.chat.findMany({ include: { profiles: true } });
-      const dbMsgs = await db.message.findMany({});
-      const chat = res.body as ChatFullData;
-      expect(res.statusCode).toBe(201);
-      expect(res.type).toMatch(/json/);
-      expect(dbChats).toHaveLength(1);
-      expect(dbMsgs).toHaveLength(1);
-      assertChat(chat, dbChats[0].id, 1, 1);
-      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
-      expect(chat.profiles[0].profileName).toBe(dbUserOne.username);
-      expect(chat.messages).toBeInstanceOf(Array);
-      expect(chat.messages[0].id).toBe(dbMsgs[0].id);
-      expect(chat.messages[0].body).toBe(data.message.body);
-      expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
-      expect(chat.messages[0].seenBy).toHaveLength(1);
+      const profilesData = [[], [crypto.randomUUID()]];
+      for (const profiles of profilesData) {
+        const data = { profiles, message: { body: 'Hello!' } };
+        const res = await authorizedApi.post(CHATS_URL).send(data);
+        const dbChats = await db.chat.findMany({ include: { profiles: true } });
+        const dbMsgs = await db.message.findMany({});
+        await db.chat.deleteMany({});
+        await db.message.deleteMany({});
+        const chat = res.body as ChatFullData;
+        expect(res.statusCode).toBe(201);
+        expect(res.type).toMatch(/json/);
+        expect(dbChats).toHaveLength(1);
+        expect(dbMsgs).toHaveLength(1);
+        assertChat(chat, dbChats[0].id, 1, 1);
+        expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+        expect(chat.profiles[0].profileName).toBe(dbUserOne.username);
+        expect(chat.messages).toBeInstanceOf(Array);
+        expect(chat.messages[0].id).toBe(dbMsgs[0].id);
+        expect(chat.messages[0].body).toBe(data.message.body);
+        expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
+        expect(chat.messages[0].seenBy).toHaveLength(1);
+      }
     });
 
     it('should use an already exist chat, and eliminate any intangible profiles from message seen-by list', async () => {

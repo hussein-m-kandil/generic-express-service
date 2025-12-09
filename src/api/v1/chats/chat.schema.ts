@@ -9,7 +9,7 @@ export const messageSchema = z.object({
 export type ValidMessage = z.output<typeof messageSchema>;
 
 export const chatSchema = z.object({
-  profiles: z.array(z.string().trim().uuid()).nonempty(),
+  profiles: z.array(z.string().trim().uuid()),
   message: messageSchema,
 });
 
