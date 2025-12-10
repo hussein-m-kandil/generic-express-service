@@ -60,13 +60,19 @@ export const createChat = async (
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
-      // Get current user's profile ID
+      // Get current user's profile
       const currentProfile = await tx.profile.findUnique({
         where: { userId: user.id },
         include: { user: true },
       });
       if (!currentProfile) throw new AppNotFoundError('Profile not found');
       const profileId = currentProfile.id;
+      // Get all the other profiles
+      const otherProfiles = await tx.profile.findMany({
+        where: { id: { in: data.profiles } },
+        include: { user: true },
+        distinct: 'id',
+      });
       const chatAggregation = generateChatAggregation();
       const messageArgs = {
         profileName: currentProfile.user.username,
@@ -82,13 +88,17 @@ export const createChat = async (
             : undefined,
         profileId,
       };
-      // Combine all IDs, including the current user's one
-      const profileIds = [currentProfile.id, ...data.profiles];
       // Find chats with the same owner and same group of profiles (there should be at most one)
       const existentChats = await tx.chat.findMany({
         where: {
           managers: { some: { profileId: currentProfile.id, role: 'OWNER' } },
-          profiles: { every: { profileId: { in: profileIds } } },
+          profiles: {
+            every: {
+              profileName: {
+                in: [currentProfile.user.username, ...otherProfiles.map((p) => p.user.username)],
+              },
+            },
+          },
         },
         include: chatAggregation,
       });
@@ -115,7 +125,10 @@ export const createChat = async (
             managers: { create: { profileId: currentProfile.id, role: 'OWNER' } },
             profiles: {
               createMany: {
-                data: profileIds.map((profileId) => ({ profileId })),
+                data: [currentProfile, ...otherProfiles].map((p) => ({
+                  profileName: p.user.username,
+                  profileId: p.id,
+                })),
                 skipDuplicates: true,
               },
             },
@@ -141,10 +154,12 @@ export const deleteChat = async (userId: User['id'], chatId: Chat['id']) => {
         if (chat.profiles.length < 2) {
           await tx.chat.delete({ where: { id: chatId } });
         } else {
-          const profile = chat.profiles.find((p) => p.profile.userId === userId);
+          const profile = chat.profiles.find((p) => p.profile && p.profile.userId === userId);
           if (profile) {
-            const { profileId } = profile;
-            await tx.profilesChats.delete({ where: { profileId_chatId: { chatId, profileId } } });
+            const { profileName } = profile;
+            await tx.profilesChats.delete({
+              where: { profileName_chatId: { chatId, profileName } },
+            });
           }
         }
       }

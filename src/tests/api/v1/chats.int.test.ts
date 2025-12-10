@@ -73,8 +73,8 @@ const assertChat = (
     expect(manager.profile.user.username).toBeTruthy();
   }
   for (const member of chat.profiles) {
-    expect(member.profile.user.password).toBeUndefined();
-    expect(member.profile.user.username).toBeTruthy();
+    expect(member.profile!.user.password).toBeUndefined();
+    expect(member.profile!.user.username).toBeTruthy();
   }
   for (const msg of chat.messages) assertMessage(msg, msg.id);
 };
@@ -133,7 +133,11 @@ describe('Chats endpoints', async () => {
     const imageId = msg && withImage ? (await createImage(imgData)).id : undefined;
     return await db.chat.create({
       data: {
-        profiles: { createMany: { data: users.map((u) => ({ profileId: u.profile!.id })) } },
+        profiles: {
+          createMany: {
+            data: users.map((u) => ({ profileId: u.profile!.id, profileName: u.username })),
+          },
+        },
         managers: { create: { profileId: users[0].profile!.id, role: 'OWNER' } },
         ...(msg ? { messages: { create: { body: msg, profileId, profileName, imageId } } } : {}),
       },
@@ -827,16 +831,6 @@ describe('Chats endpoints', async () => {
       }
     });
 
-    it('should respond with 400 on unknown (invalid) profile id', async () => {
-      const profileId = crypto.randomUUID();
-      const data = { profiles: [profileId], message: { body: 'Hello!' } };
-      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-      const res = await authorizedApi.post(CHATS_URL).send(data);
-      const dbChats = await db.chat.findMany({});
-      assertInvalidIdErrorRes(res);
-      expect(dbChats).toHaveLength(0);
-    });
-
     it('should respond with 400 on request with invalid image type', async () => {
       const stream = fs.createReadStream('src/tests/files/ugly.txt');
       const preparedImgData = Object.fromEntries(
@@ -875,8 +869,11 @@ describe('Chats endpoints', async () => {
       expect(storage.upload).not.toHaveBeenCalledOnce();
     });
 
-    it('should create new chat with a message that have seen by the its sender', async () => {
-      const chatData = { profiles: [dbUserTwo.profile!.id], message: { body: 'Hello!' } };
+    it('should create new chat with a message that have seen by the its sender, ignoring any unknown IDs', async () => {
+      const chatData = {
+        profiles: [dbUserTwo.profile!.id, crypto.randomUUID()],
+        message: { body: 'Hello!' },
+      };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.post(CHATS_URL).send(chatData);
       const dbMsgs = await db.message.findMany({});
@@ -890,6 +887,28 @@ describe('Chats endpoints', async () => {
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
       expect(chat.messages).toBeInstanceOf(Array);
       expect(chat.messages[0].id).toBe(dbMsgs[0].id);
+      expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
+      expect(chat.messages[0].seenBy).toHaveLength(1);
+    });
+
+    it('should create a self-chat if the given an unknown profile id', async () => {
+      const profileId = crypto.randomUUID();
+      const data = { profiles: [profileId], message: { body: 'Hello!' } };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(CHATS_URL).send(data);
+      const dbChats = await db.chat.findMany({ include: { profiles: true } });
+      const dbMsgs = await db.message.findMany({});
+      const chat = res.body as ChatFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs).toHaveLength(1);
+      assertChat(chat, dbChats[0].id, 1, 1);
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.profiles[0].profileName).toBe(dbUserOne.username);
+      expect(chat.messages).toBeInstanceOf(Array);
+      expect(chat.messages[0].id).toBe(dbMsgs[0].id);
+      expect(chat.messages[0].body).toBe(data.message.body);
       expect(chat.messages[0].seenBy).toBeInstanceOf(Array);
       expect(chat.messages[0].seenBy).toHaveLength(1);
     });

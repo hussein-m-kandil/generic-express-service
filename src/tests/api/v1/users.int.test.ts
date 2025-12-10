@@ -1,7 +1,7 @@
 import { it, expect, describe, afterAll, afterEach, beforeEach, TestFunction } from 'vitest';
 import { AppErrorResponse, AuthResponse, PublicUser } from '@/types';
-import { Image, Prisma, Profile, User } from '@/../prisma/client';
 import { SIGNIN_URL, USERS_URL, ADMIN_SECRET } from './utils';
+import { Image, Prisma, User } from '@/../prisma/client';
 import { z } from 'zod';
 import db from '@/lib/db';
 import setup from '../setup';
@@ -228,7 +228,7 @@ describe('User endpoints', async () => {
     for (let i = 0; i < 1000; i++) longString += 'x';
 
     let dbXImg: Omit<Image, 'storageId' | 'storageFullPath'>;
-    let dbUser: User;
+    let dbUser: Awaited<ReturnType<typeof createUser>>;
 
     const getAllFields = () => {
       return Object.entries({
@@ -261,6 +261,14 @@ describe('User endpoints', async () => {
       credentials: { username: string; password: string }
     ) => {
       return async () => {
+        const profileId = dbUser.profile!.id;
+        const profileName = dbUser.username;
+        const dbChat = await db.chat.create({
+          data: {
+            profiles: { create: { profileId, profileName } },
+            messages: { create: { body: 'Hello!', profileId, profileName } },
+          },
+        });
         const {
           authorizedApi,
           signedInUserData: { token },
@@ -272,7 +280,11 @@ describe('User endpoints', async () => {
           where: { id: dbUser.id },
           omit: { password: false },
           include: { avatar: { select: { image: true } }, profile: true },
-        })) as User & { avatar: { image: Image } | null } & { profile: Profile | null };
+        }))!;
+        const updatedDBChat = (await db.chat.findUnique({
+          where: { id: dbChat.id },
+          include: { messages: true, profiles: true },
+        }))!;
         expect(res.statusCode).toBe(200);
         expect(JSON.stringify((res.body as AuthResponse).user)).toBe(
           JSON.stringify({
@@ -286,8 +298,12 @@ describe('User endpoints', async () => {
         const updatedFields = Object.keys(data);
         if (updatedFields.includes('username')) {
           expect(updatedDBUser.username).toBe(data.username);
+          expect(updatedDBChat.profiles[0].profileName).toBe(data.username);
+          expect(updatedDBChat.profiles[0].profileId).toBe(dbUser.profile!.id);
         } else {
           expect(updatedDBUser.username).toBe(dbUser.username);
+          expect(updatedDBChat.profiles[0].profileName).toBe(dbUser.username);
+          expect(updatedDBChat.profiles[0].profileId).toBe(dbUser.profile!.id);
         }
         if (updatedFields.includes('fullname')) {
           expect(updatedDBUser.fullname).toBe(data.fullname);

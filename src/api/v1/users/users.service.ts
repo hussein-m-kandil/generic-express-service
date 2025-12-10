@@ -70,35 +70,44 @@ export const findUserByIdOrByUsernameOrThrow = async (idOrUsername: string) => {
   return user;
 };
 
-export const updateUser = async (
-  id: string,
-  { avatarId, password, ...data }: Types.UpdateUserOutput
-) => {
-  const dbQuery = db.user.update({
-    where: { id },
-    data: {
-      ...data,
-      ...(password && typeof password === 'string'
-        ? { password: await hashPassword(password) }
-        : {}),
-      ...(avatarId
-        ? {
-            avatar: {
-              connectOrCreate: {
-                where: { userId: id },
-                create: { imageId: avatarId },
-              },
-            },
-          }
-        : {}),
-    },
-    ...Utils.userAggregation,
-  });
-  const handlerOptions = {
-    notFoundErrMsg: 'User not found',
-    uniqueFieldName: 'username',
-  };
-  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+export const updateUser = (id: string, { avatarId, password, ...data }: Types.UpdateUserOutput) => {
+  return Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data: {
+          ...data,
+          ...(password && typeof password === 'string'
+            ? { password: await hashPassword(password) }
+            : {}),
+          ...(avatarId
+            ? {
+                avatar: {
+                  connectOrCreate: {
+                    where: { userId: id },
+                    create: { imageId: avatarId },
+                  },
+                },
+              }
+            : {}),
+        },
+        ...Utils.userAggregation,
+      });
+      if (data.username) {
+        const profileNameUpdateArgs = {
+          where: { profile: { userId: id } },
+          data: { profileName: data.username },
+        };
+        await tx.profilesChats.updateMany(profileNameUpdateArgs);
+        await tx.message.updateMany(profileNameUpdateArgs);
+      }
+      return updatedUser;
+    }),
+    {
+      notFoundErrMsg: 'User not found',
+      uniqueFieldName: 'username',
+    }
+  );
 };
 
 export const deleteUser = async (id: string): Promise<void> => {

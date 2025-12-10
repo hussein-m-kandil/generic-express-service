@@ -76,13 +76,14 @@ model ProfilesManagedChats {
 }
 
 model ProfilesChats {
-  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  profileId String   @map("profile_id") @db.Uuid
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  chatId    String   @map("chat_id") @db.Uuid
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  profile     Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  profileId   String?  @map("profile_id") @db.Uuid
+  profileName String   @map("profile_name")
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chatId      String   @map("chat_id") @db.Uuid
+  joinedAt    DateTime @default(now()) @map("joined_at")
 
-  @@unique([profileId, chatId])
+  @@unique([profileName, chatId])
   @@map("profiles_chats")
 }
 
@@ -123,11 +124,11 @@ model Message {
   id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chat        Chat                       @relation(fields: [chatId], references: [id], onDelete: Cascade)
   chatId      String                     @db.Uuid
-  profile     Profile?                   @relation(fields: [profileId], references: [id])
+  profile     Profile?                   @relation(fields: [profileId], references: [id], onDelete: SetNull)
   profileId   String?                    @map("profile_id") @db.Uuid
   profileName String                     @map("profile_name")
   body        String
-  image       Image?                     @relation(fields: [imageId], references: [id])
+  image       Image?                     @relation(fields: [imageId], references: [id], onDelete: SetNull)
   imageId     String?                    @map("image_id") @db.Uuid
   receivedBy  ProfilesReceivedMessages[]
   seenBy      ProfilesSeenMessages[]
