@@ -195,11 +195,16 @@ export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) =>
       const currentProfile = await tx.profile.findUnique({ where: { userId } });
       if (!currentProfile) throw new AppNotFoundError('Profile not found');
       const profileId = currentProfile.id;
-      const chat = await tx.chat.findUnique({
-        where: { id: chatId, profiles: { some: { profileId } } },
-        include: generateChatAggregation(),
-      });
-      if (!chat) throw new AppNotFoundError('Chat not found');
+      let chat;
+      try {
+        chat = await tx.chat.findUnique({
+          where: { id: chatId, profiles: { some: { profileId } } },
+          include: generateChatAggregation(),
+        });
+        if (!chat) throw new AppNotFoundError('Chat not found');
+      } catch {
+        throw new AppNotFoundError('Chat not found');
+      }
       chat.messages = chat.messages.map((m) => prepareMessage(m, currentProfile));
       return chat;
     })
@@ -237,6 +242,13 @@ export const getUserChatMessages = async (
       const currentProfile = await tx.profile.findUnique({ where: { userId } });
       if (!currentProfile) throw new AppNotFoundError('Profile not found');
       const profileId = currentProfile.id;
+      let chat;
+      try {
+        chat = await tx.chat.findUnique({ where: { id: chatId } });
+        if (!chat) throw new AppNotFoundError('Chat not found');
+      } catch {
+        throw new AppNotFoundError('Chat not found');
+      }
       const messages = await tx.message.findMany({
         ...generatePaginationArgs({ ...filters, orderBy: 'createdAt' }),
         where: { chat: { id: chatId, profiles: { some: { profileId } } } },

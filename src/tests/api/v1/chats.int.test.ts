@@ -463,12 +463,10 @@ describe('Chats endpoints', async () => {
         assertUnauthorizedErrorRes(res);
       });
 
-      it('should respond with 200 and an empty array on unknown chat id', async () => {
+      it('should respond with 404 and an empty array on unknown chat id', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${CHATS_URL}/${crypto.randomUUID()}/messages`);
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(res.body).toStrictEqual([]);
+        assertNotFoundErrorRes(res);
       });
 
       it('should respond with 200 and an empty array if the current user not a chat member', async () => {
