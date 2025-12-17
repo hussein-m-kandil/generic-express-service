@@ -217,6 +217,12 @@ export const getUserChatsByMemberProfileId = async (
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
+      try {
+        const memberProfile = await tx.profile.findUnique({ where: { id: profileId } });
+        if (!memberProfile) throw new AppNotFoundError('Chat member profile not found');
+      } catch {
+        throw new AppNotFoundError('Chat member profile not found');
+      }
       const currentProfileWithChats = await tx.profile.findUnique({
         where: { userId },
         include: {

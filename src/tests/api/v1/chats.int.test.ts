@@ -396,6 +396,12 @@ describe('Chats endpoints', async () => {
         assertUnauthorizedErrorRes(res);
       });
 
+      it('should respond with 404 if the given member id is not exist', async () => {
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/members/${crypto.randomUUID()}`);
+        assertNotFoundErrorRes(res);
+      });
+
       it('should respond all the current user chats that include the given member`s profile id', async () => {
         const memberProfileId = dbUserTwo.profile!.id;
         const dbChat1 = dbChats.find((c) =>
