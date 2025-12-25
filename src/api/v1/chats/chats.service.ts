@@ -154,7 +154,7 @@ export const deleteChat = async (userId: User['id'], chatId: Chat['id']) => {
         if (chat.profiles.length < 2) {
           await tx.chat.delete({ where: { id: chatId } });
         } else {
-          const profile = chat.profiles.find((p) => p.profile && p.profile.userId === userId);
+          const profile = chat.profiles.find((p) => p.profile?.userId === userId);
           if (profile) {
             const { profileName } = profile;
             await tx.profilesChats.delete({
