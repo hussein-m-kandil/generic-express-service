@@ -69,6 +69,11 @@ chatsRouter.post(
   }
 );
 
+chatsRouter.patch('/:id/seen', Middlewares.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  res.json(await Service.updateProfileChatLastSeenDate(userId, req.params.id));
+});
+
 chatsRouter.post(
   '/:id/messages',
   Middlewares.authValidator,
@@ -82,12 +87,6 @@ chatsRouter.post(
     res.status(201).json(createdMessage);
   }
 );
-
-chatsRouter.post('/:id/messages/:msgId/seen', Middlewares.authValidator, async (req, res) => {
-  const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.setSeenMessage(userId, req.params.id, req.params.msgId);
-  res.json();
-});
 
 chatsRouter.delete('/:id', Middlewares.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;

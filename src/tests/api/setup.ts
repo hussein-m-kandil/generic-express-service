@@ -52,7 +52,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     return await db.user.create({
       omit: { password: false, isAdmin: false },
       include: { avatar: true, images: true, profile: true },
-      data: { ...data, password, profile: { create: { lastSeen: new Date() } } },
+      data: { ...data, password, profile: data.profile ?? { create: { lastSeen: new Date() } } },
     });
   };
 
