@@ -42,7 +42,7 @@ const assertChat = (
   chat: ChatFullData,
   expectedChatId: Chat['id'],
   msgCount = PAGE_LEN,
-  profilesCount = 2
+  profilesCount = 2,
 ) => {
   expect(chat.id).toBe(expectedChatId);
   expect(chat.managers).toBeInstanceOf(Array);
@@ -76,19 +76,19 @@ const assertChatMembersTangibility = (chat: ChatFullData) => {
 const assertReceivedDateUpdated = (
   newChat: ChatWithProfiles,
   oldChat: ChatWithProfiles,
-  receiverName: string
+  receiverName: string,
 ) => {
   for (const newChatMember of newChat.profiles) {
     const oldChatMember = oldChat.profiles.find(
-      (p) => p.profileName === newChatMember.profileName
+      (p) => p.profileName === newChatMember.profileName,
     )!;
     if (newChatMember.profileName === receiverName) {
       expect(new Date(oldChatMember.lastReceivedAt!).getTime()).toBeLessThan(
-        new Date(newChatMember.lastReceivedAt!).getTime()
+        new Date(newChatMember.lastReceivedAt!).getTime(),
       );
     } else {
       expect(new Date(oldChatMember.lastReceivedAt!).getTime()).toBe(
-        new Date(newChatMember.lastReceivedAt!).getTime()
+        new Date(newChatMember.lastReceivedAt!).getTime(),
       );
     }
   }
@@ -101,7 +101,7 @@ const assertSeenDateUpdated = async (chat: ChatWithProfiles, receiverName: strin
     }))!;
     if (member.profileName === receiverName) {
       expect(dbMember.lastSeenAt!.getTime()).toBeGreaterThan(
-        new Date(member.lastSeenAt!).getTime()
+        new Date(member.lastSeenAt!).getTime(),
       );
     } else {
       expect(dbMember.lastSeenAt!.getTime()).toBe(new Date(member.lastSeenAt!).getTime());
@@ -258,12 +258,12 @@ describe('Chats endpoints', async () => {
         let cursor: Chat['id'] | undefined;
         const limit = 2;
         const pages: { len: number }[] = Array.from({ length: Math.ceil(ITEMS_LEN / limit) }).map(
-          (_, i, arr) => ({ len: i < arr.length - 1 ? limit : ITEMS_LEN - i * limit })
+          (_, i, arr) => ({ len: i < arr.length - 1 ? limit : ITEMS_LEN - i * limit }),
         );
         for (const page of pages) {
           const { authorizedApi } = await prepForAuthorizedTest(userOneData);
           const res = await authorizedApi.get(
-            `${CHATS_URL}?sort=asc&limit=${limit}${cursor ? '&cursor=' + cursor : ''}`
+            `${CHATS_URL}?sort=asc&limit=${limit}${cursor ? '&cursor=' + cursor : ''}`,
           );
           const resBody = res.body as ChatFullData[];
           cursor = resBody.at(-1)!.id;
@@ -298,7 +298,7 @@ describe('Chats endpoints', async () => {
       it('should respond all the current user chats that include the given member`s profile id', async () => {
         const memberProfileId = dbUserTwo.profile!.id;
         const dbChatId1 = dbChats.find((c) =>
-          c.profiles.some((p) => p.profileId === memberProfileId)
+          c.profiles.some((p) => p.profileId === memberProfileId),
         )!.id;
         const dbChat1 = (await db.chat.findUnique({
           where: { id: dbChatId1 },
@@ -391,7 +391,7 @@ describe('Chats endpoints', async () => {
         for (const page of pages) {
           const { authorizedApi } = await prepForAuthorizedTest(userOneData);
           const res = await authorizedApi.get(
-            `${CHATS_URL}/${chat.id}/messages${cursor ? '?cursor=' + cursor : ''}`
+            `${CHATS_URL}/${chat.id}/messages${cursor ? '?cursor=' + cursor : ''}`,
           );
           const resBody = res.body as MessageFullData[];
           cursor = resBody.at(-1)!.id;
@@ -416,14 +416,14 @@ describe('Chats endpoints', async () => {
         const chat = dbChats[0];
         const limit = 2;
         const pages: { len: number }[] = Array.from({ length: Math.ceil(ITEMS_LEN / limit) }).map(
-          (_, i, arr) => ({ len: i < arr.length - 1 ? limit : ITEMS_LEN - i * limit })
+          (_, i, arr) => ({ len: i < arr.length - 1 ? limit : ITEMS_LEN - i * limit }),
         );
         for (const page of pages) {
           const { authorizedApi } = await prepForAuthorizedTest(userOneData);
           const res = await authorizedApi.get(
             `${CHATS_URL}/${chat.id}/messages?sort=asc&limit=${limit}${
               cursor ? '&cursor=' + cursor : ''
-            }`
+            }`,
           );
           const resBody = res.body as MessageFullData[];
           cursor = resBody.at(-1)!.id;
@@ -545,7 +545,7 @@ describe('Chats endpoints', async () => {
     it('should respond with 400 on request with invalid image type', async () => {
       const stream = fs.createReadStream('src/tests/files/ugly.txt');
       const preparedImgData = Object.fromEntries(
-        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
       );
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
@@ -563,7 +563,7 @@ describe('Chats endpoints', async () => {
     it('should respond with 400 on request with too large image file', async () => {
       const stream = fs.createReadStream('src/tests/files/bad.jpg');
       const preparedImgData = Object.fromEntries(
-        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
       );
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
@@ -611,10 +611,10 @@ describe('Chats endpoints', async () => {
       expect(storage.upload).not.toHaveBeenCalled();
     });
 
-    it('should respond with 201 and create message with image', async () => {
+    it('should respond with 201 and create a message with an image', async () => {
       const stream = fs.createReadStream('src/tests/files/good.jpg');
       const preparedImgData = Object.fromEntries(
-        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
       );
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi
@@ -633,11 +633,36 @@ describe('Chats endpoints', async () => {
       expect(storage.upload).toHaveBeenCalledOnce();
       expect(storage.upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
     });
+
+    it('should respond with 201 and create an empty message with an image', async () => {
+      const stream = fs.createReadStream('src/tests/files/good.jpg');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
+      );
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(`${CHATS_URL}/${dbChat.id}/messages`)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const dbMsgs = await db.message.findMany({ include: { image: true } });
+      const resBody = res.body as MessageFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(resBody.body).toBe('');
+      expect(dbMsgs).toHaveLength(1);
+      expect(resBody.id).toBe(dbMsgs[0].id);
+      expect(resBody.body).toBe(dbMsgs[0].body);
+      expect(resBody.imageId).toBe(dbMsgs[0].imageId);
+      assertImageData(Object.assign(res, { body: resBody.image }), { ...imgData, ...imagedata });
+      expect(storage.upload).toHaveBeenCalledOnce();
+      expect(storage.upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
   });
 
   describe(`POST ${CHATS_URL}`, () => {
     afterEach(async () => {
       await db.chat.deleteMany({});
+      await db.image.deleteMany({});
       await db.user.deleteMany({ where: { username: intangibleUserData.username } });
     });
 
@@ -662,6 +687,13 @@ describe('Chats endpoints', async () => {
       }
     });
 
+    it('should respond with 400 on request with an empty message', async () => {
+      const testData = { profiles: [crypto.randomUUID()], message: { body: '' } };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(CHATS_URL).send(testData);
+      assertResponseWithValidationError(res, 'body', 1);
+    });
+
     it('should respond with 400 on request with an invalid message', async () => {
       const invalidData = [{ message: 'Hello!' }, { message: true }, { message: 7 }];
       for (const data of invalidData) {
@@ -676,7 +708,7 @@ describe('Chats endpoints', async () => {
     it('should respond with 400 on request with invalid image type', async () => {
       const stream = fs.createReadStream('src/tests/files/ugly.txt');
       const preparedImgData = Object.fromEntries(
-        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
       );
       const chatData = { 'profiles[0]': dbUserTwo.profile!.id, 'message[body]': 'Hello!' };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
@@ -695,7 +727,7 @@ describe('Chats endpoints', async () => {
     it('should respond with 400 on request with too large image file', async () => {
       const stream = fs.createReadStream('src/tests/files/bad.jpg');
       const preparedImgData = Object.fromEntries(
-        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
       );
       const chatData = { 'profiles[0]': dbUserTwo.profile!.id, 'message[body]': 'Hello!' };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
@@ -852,10 +884,10 @@ describe('Chats endpoints', async () => {
       assertMessage(chat.messages[0], dbMsgs[0].id);
     });
 
-    it('should create new chat with an image', async () => {
+    it('should create new chat with an image a non-empty message', async () => {
       const stream = fs.createReadStream('src/tests/files/good.jpg');
       const preparedImgData = Object.fromEntries(
-        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v])
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
       );
       const chatData = { 'profiles[0]': dbUserTwo.profile!.id, 'message[body]': 'Hello!' };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
@@ -877,6 +909,38 @@ describe('Chats endpoints', async () => {
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
       expect(chat.messages).toBeInstanceOf(Array);
       expect(chat.messages[0].image).toBeTruthy();
+      assertMessage(chat.messages[0], dbMsgs[0].id);
+      expect(chat.messages[0].imageId).toBe(dbMsgs[0].imageId);
+      expect(storage.upload).toHaveBeenCalledOnce();
+      expect(storage.upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
+    });
+
+    it('should create new chat with an image and an empty message', async () => {
+      const stream = fs.createReadStream('src/tests/files/good.jpg');
+      const preparedImgData = Object.fromEntries(
+        Object.entries(imagedata).map(([k, v]) => [`imagedata[${k}]`, v]),
+      );
+      const chatData = { 'profiles[0]': dbUserTwo.profile!.id };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi
+        .post(CHATS_URL)
+        .field(chatData)
+        .field(preparedImgData)
+        .attach('image', stream);
+      const dbMsgs = await db.message.findMany({ include: { image: true } });
+      const dbChats = await db.chat.findMany({});
+      const chat = res.body as ChatFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbChats).toHaveLength(1);
+      expect(dbMsgs).toHaveLength(1);
+      assertChat(chat, dbChats[0].id, 1);
+      expect(chat.profiles[0].lastSeenAt).toBeTruthy();
+      expect(chat.profiles[0].lastReceivedAt).toBeTruthy();
+      expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+      expect(chat.messages).toBeInstanceOf(Array);
+      expect(chat.messages[0].image).toBeTruthy();
+      expect(chat.messages[0].body).toBe('');
       assertMessage(chat.messages[0], dbMsgs[0].id);
       expect(chat.messages[0].imageId).toBe(dbMsgs[0].imageId);
       expect(storage.upload).toHaveBeenCalledOnce();
@@ -916,13 +980,13 @@ describe('Chats endpoints', async () => {
         include: { profiles: true },
       }))!;
       expect(dbChatNow.profiles.map((p) => [p.lastSeenAt, p.lastReceivedAt])).toStrictEqual(
-        dbChat.profiles.map((p) => [p.lastSeenAt, p.lastReceivedAt])
+        dbChat.profiles.map((p) => [p.lastSeenAt, p.lastReceivedAt]),
       );
     };
 
     const assertProfileChatSeenDateUpdated = async (
       updatedProfileId: Types.PublicProfile['id'],
-      updatedDate: string
+      updatedDate: string,
     ) => {
       const dbChatNow = (await db.chat.findUnique({
         where: { id: dbChat.id },
@@ -932,7 +996,7 @@ describe('Chats endpoints', async () => {
       const chatProfileNow = dbChatNow.profiles.find((p) => p.profileId === updatedProfileId)!;
       expect(chatProfileNow.lastReceivedAt!.getTime()).toBe(chatProfile.lastReceivedAt!.getTime());
       expect(chatProfileNow.lastSeenAt!.getTime()).toBeGreaterThan(
-        chatProfile.lastSeenAt!.getTime()
+        chatProfile.lastSeenAt!.getTime(),
       );
       expect(chatProfileNow.lastSeenAt!.toISOString()).toBe(updatedDate);
     };

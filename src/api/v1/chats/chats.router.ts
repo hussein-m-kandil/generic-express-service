@@ -12,7 +12,7 @@ export const chatsRouter = Router();
 const prepareImageData = async (
   req: Request & { file?: Express.Multer.File },
   imagedata: Schema.ValidMessage['imagedata'],
-  user: Types.PublicUser
+  user: Types.PublicUser,
 ) => {
   let uploadedImage: Storage.UploadedImageData | undefined;
   let imageData: Types.ImageFullData | undefined;
@@ -62,11 +62,13 @@ chatsRouter.post(
   Middlewares.createFileProcessor('image'),
   async (req: Request, res: Response) => {
     const user = Utils.getCurrentUserFromReq(req)!;
-    const chatData = Schema.chatSchema.parse(req.body);
+    const chatData = (req.file ? Schema.chatWithOptionalMessageSchema : Schema.chatSchema).parse(
+      req.body,
+    );
     const preparedImageData = await prepareImageData(req, chatData.message.imagedata, user);
     const createdChat = await Service.createChat(user, chatData, ...preparedImageData);
     res.status(201).json(createdChat);
-  }
+  },
 );
 
 chatsRouter.patch('/:id/seen', Middlewares.authValidator, async (req, res) => {
@@ -80,12 +82,14 @@ chatsRouter.post(
   Middlewares.createFileProcessor('image'),
   async (req: Request, res: Response) => {
     const user = Utils.getCurrentUserFromReq(req)!;
-    const { imagedata, ...msgData } = Schema.messageSchema.parse(req.body);
+    const { imagedata, ...msgData } = (
+      req.file ? Schema.optionalMessageSchema : Schema.messageSchema
+    ).parse(req.body);
     const preparedImageData = await prepareImageData(req, imagedata, user);
     const msgArgs = [user, req.params.id, msgData, ...preparedImageData] as const;
     const createdMessage = await Service.createUserChatMessage(...msgArgs);
     res.status(201).json(createdMessage);
-  }
+  },
 );
 
 chatsRouter.delete('/:id', Middlewares.authValidator, async (req, res) => {
