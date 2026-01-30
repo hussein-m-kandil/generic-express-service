@@ -57,227 +57,234 @@ describe('Profile', async () => {
     compareString(a.username, b.username),
   );
 
-  beforeAll(async () => {
-    const dbUserOneProfileId = dbUserOne.profile!.id;
-    const data = [
-      { profileId: dbUserTwo.profile!.id, followerId: dbUserOneProfileId },
-      { profileId: dbXUser.profile!.id, followerId: dbUserOneProfileId },
-      { profileId: dbAdmin.profile!.id, followerId: dbUserOneProfileId },
-      { profileId: dbUserOneProfileId, followerId: dbUserTwo.profile!.id },
-      { profileId: dbUserOneProfileId, followerId: dbXUser.profile!.id },
-      { profileId: dbUserOneProfileId, followerId: dbAdmin.profile!.id },
-    ];
-    await db.follows.createMany({ data });
-  });
-
   afterAll(async () => {
-    await db.follows.deleteMany({});
     await deleteAllUsers();
   });
 
   describe('endpoints', () => {
-    describe(`GET ${PROFILES_URL}`, () => {
-      it('should respond with 401 on an unauthenticated request', async () => {
-        const res = await api.get(PROFILES_URL);
-        assertUnauthorizedErrorRes(res);
+    describe('GET', () => {
+      beforeAll(async () => {
+        const dbUserOneProfileId = dbUserOne.profile!.id;
+        const data = [
+          { profileId: dbUserTwo.profile!.id, followerId: dbUserOneProfileId },
+          { profileId: dbXUser.profile!.id, followerId: dbUserOneProfileId },
+          { profileId: dbAdmin.profile!.id, followerId: dbUserOneProfileId },
+          { profileId: dbUserOneProfileId, followerId: dbUserTwo.profile!.id },
+          { profileId: dbUserOneProfileId, followerId: dbXUser.profile!.id },
+          { profileId: dbUserOneProfileId, followerId: dbAdmin.profile!.id },
+        ];
+        await db.follows.createMany({ data });
       });
 
-      it('should respond with profiles list in ascending order, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(PROFILES_URL);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(dbAllUsersSorted.length);
-        for (let i = 0; i < profiles.length; i++) {
-          const followedByCurrentUser = profiles[i].id !== dbUserOne.profile!.id;
-          assertPublicProfile(profiles[i], { followedByCurrentUser });
-          expect(profiles[i].id).toBe(dbAllUsersSorted[i].profile!.id);
-        }
+      afterAll(async () => {
+        await db.follows.deleteMany({});
       });
 
-      it('should respond with profiles list in descending order, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}?sort=desc`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBeGreaterThan(1);
-        for (let i = 0; i < profiles.length; i++) {
-          const followedByCurrentUser = profiles[i].id !== dbUserOne.profile!.id;
-          assertPublicProfile(profiles[i], { followedByCurrentUser });
-          expect(profiles[i].id).toBe(
-            dbAllUsersSorted[dbAllUsersSorted.length - 1 - i].profile!.id,
-          );
-        }
-      });
+      describe(PROFILES_URL, () => {
+        it('should respond with 401 on an unauthenticated request', async () => {
+          const res = await api.get(PROFILES_URL);
+          assertUnauthorizedErrorRes(res);
+        });
 
-      it('should respond with a list of the last profile only, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(
-          `${PROFILES_URL}?limit=1&cursor=${dbAllUsersSorted.at(-2)!.profile!.id}`,
-        );
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(1);
-        assertPublicProfile(profiles[0], { followedByCurrentUser: true });
-        expect(profiles[0].id).toBe(dbAllUsersSorted.at(-1)!.profile!.id);
-      });
-
-      it('should respond with a list of profiles that matches the query name, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
-          const res = await authorizedApi.get(`${PROFILES_URL}?name=${user.username.slice(0, -2)}`);
+        it('should respond with profiles list in ascending order, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(PROFILES_URL);
           const profiles = res.body as Types.PublicProfile[];
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
-          expect(profiles.length).toBe(1);
-          assertPublicProfile(profiles[0], { followedByCurrentUser: true });
-          expect(profiles[0].id).toBe(user.profile!.id);
-        }
-      });
-    });
+          expect(profiles.length).toBe(dbAllUsersSorted.length);
+          for (let i = 0; i < profiles.length; i++) {
+            const followedByCurrentUser = profiles[i].id !== dbUserOne.profile!.id;
+            assertPublicProfile(profiles[i], { followedByCurrentUser });
+            expect(profiles[i].id).toBe(dbAllUsersSorted[i].profile!.id);
+          }
+        });
 
-    describe(`GET ${PROFILES_URL}/:id`, () => {
-      it('should respond with 401 on an unauthenticated request', async () => {
-        const res = await api.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
-        assertUnauthorizedErrorRes(res);
-      });
+        it('should respond with profiles list in descending order, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${PROFILES_URL}?sort=desc`);
+          const profiles = res.body as Types.PublicProfile[];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(profiles.length).toBeGreaterThan(1);
+          for (let i = 0; i < profiles.length; i++) {
+            const followedByCurrentUser = profiles[i].id !== dbUserOne.profile!.id;
+            assertPublicProfile(profiles[i], { followedByCurrentUser });
+            expect(profiles[i].id).toBe(
+              dbAllUsersSorted[dbAllUsersSorted.length - 1 - i].profile!.id,
+            );
+          }
+        });
 
-      it('should respond with a profile, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
-        const profile = res.body as Types.PublicProfile;
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        assertPublicProfile(profile);
-      });
-    });
-
-    describe(`GET ${PROFILES_URL}/following`, () => {
-      const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);
-
-      it('should respond with 401 on an unauthenticated request', async () => {
-        const res = await api.get(`${PROFILES_URL}/following`);
-        assertUnauthorizedErrorRes(res);
-      });
-
-      it('should respond with following profiles list in ascending order, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/following`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(3);
-        for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
-          expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
-        }
-      });
-
-      it('should respond with following profiles list in descending order, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/following?sort=desc`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(3);
-        for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
-          expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
-        }
-      });
-
-      it('should respond with a list of the last following profile only, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(
-          `${PROFILES_URL}/following?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
-        );
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(1);
-        assertPublicProfile(profiles[0], { followedByCurrentUser: true });
-        expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
-      });
-
-      it('should respond with a list of the following profiles that matches the name query, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
+        it('should respond with a list of the last profile only, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
           const res = await authorizedApi.get(
-            `${PROFILES_URL}/following?name=${user.username.slice(0, -2)}`,
+            `${PROFILES_URL}?limit=1&cursor=${dbAllUsersSorted.at(-2)!.profile!.id}`,
           );
           const profiles = res.body as Types.PublicProfile[];
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(profiles.length).toBe(1);
           assertPublicProfile(profiles[0], { followedByCurrentUser: true });
-          expect(profiles[0].id).toBe(user.profile!.id);
-        }
-      });
-    });
+          expect(profiles[0].id).toBe(dbAllUsersSorted.at(-1)!.profile!.id);
+        });
 
-    describe(`GET ${PROFILES_URL}/followers`, () => {
-      const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);
-
-      it('should respond with 401 on an unauthenticated request', async () => {
-        const res = await api.get(`${PROFILES_URL}/followers`);
-        assertUnauthorizedErrorRes(res);
-      });
-
-      it('should respond with followers profiles list in ascending order, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/followers`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(3);
-        for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
-          expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
-        }
+        it('should respond with a list of profiles that matches the query name, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
+            const res = await authorizedApi.get(
+              `${PROFILES_URL}?name=${user.username.slice(0, -2)}`,
+            );
+            const profiles = res.body as Types.PublicProfile[];
+            expect(res.statusCode).toBe(200);
+            expect(res.type).toMatch(/json/);
+            expect(profiles.length).toBe(1);
+            assertPublicProfile(profiles[0], { followedByCurrentUser: true });
+            expect(profiles[0].id).toBe(user.profile!.id);
+          }
+        });
       });
 
-      it('should respond with followers profiles list in descending order, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/followers?sort=desc`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(3);
-        for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
-          expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
-        }
+      describe(`${PROFILES_URL}/:id`, () => {
+        it('should respond with 401 on an unauthenticated request', async () => {
+          const res = await api.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
+          assertUnauthorizedErrorRes(res);
+        });
+
+        it('should respond with a profile, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
+          const profile = res.body as Types.PublicProfile;
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          assertPublicProfile(profile);
+        });
       });
 
-      it('should respond with a list of the last followers profile only, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(
-          `${PROFILES_URL}/followers?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
-        );
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(1);
-        assertPublicProfile(profiles[0], { followedByCurrentUser: true });
-        expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
-      });
+      describe(`${PROFILES_URL}/following`, () => {
+        const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);
 
-      it('should respond with a list of the followers profiles that matches the name query, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
+        it('should respond with 401 on an unauthenticated request', async () => {
+          const res = await api.get(`${PROFILES_URL}/following`);
+          assertUnauthorizedErrorRes(res);
+        });
+
+        it('should respond with following profiles list in ascending order, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${PROFILES_URL}/following`);
+          const profiles = res.body as Types.PublicProfile[];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(profiles.length).toBe(3);
+          for (let i = 0; i < profiles.length; i++) {
+            assertPublicProfile(profiles[i], { followedByCurrentUser: true });
+            expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
+          }
+        });
+
+        it('should respond with following profiles list in descending order, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${PROFILES_URL}/following?sort=desc`);
+          const profiles = res.body as Types.PublicProfile[];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(profiles.length).toBe(3);
+          for (let i = 0; i < profiles.length; i++) {
+            assertPublicProfile(profiles[i], { followedByCurrentUser: true });
+            expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
+          }
+        });
+
+        it('should respond with a list of the last following profile only, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
           const res = await authorizedApi.get(
-            `${PROFILES_URL}/followers?name=${user.username.slice(0, -2)}`,
+            `${PROFILES_URL}/following?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
           );
           const profiles = res.body as Types.PublicProfile[];
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(profiles.length).toBe(1);
           assertPublicProfile(profiles[0], { followedByCurrentUser: true });
-          expect(profiles[0].id).toBe(user.profile!.id);
-        }
+          expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
+        });
+
+        it('should respond with a list of the following profiles that matches the name query, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
+            const res = await authorizedApi.get(
+              `${PROFILES_URL}/following?name=${user.username.slice(0, -2)}`,
+            );
+            const profiles = res.body as Types.PublicProfile[];
+            expect(res.statusCode).toBe(200);
+            expect(res.type).toMatch(/json/);
+            expect(profiles.length).toBe(1);
+            assertPublicProfile(profiles[0], { followedByCurrentUser: true });
+            expect(profiles[0].id).toBe(user.profile!.id);
+          }
+        });
+      });
+
+      describe(`${PROFILES_URL}/followers`, () => {
+        const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);
+
+        it('should respond with 401 on an unauthenticated request', async () => {
+          const res = await api.get(`${PROFILES_URL}/followers`);
+          assertUnauthorizedErrorRes(res);
+        });
+
+        it('should respond with followers profiles list in ascending order, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${PROFILES_URL}/followers`);
+          const profiles = res.body as Types.PublicProfile[];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(profiles.length).toBe(3);
+          for (let i = 0; i < profiles.length; i++) {
+            assertPublicProfile(profiles[i], { followedByCurrentUser: true });
+            expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
+          }
+        });
+
+        it('should respond with followers profiles list in descending order, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(`${PROFILES_URL}/followers?sort=desc`);
+          const profiles = res.body as Types.PublicProfile[];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(profiles.length).toBe(3);
+          for (let i = 0; i < profiles.length; i++) {
+            assertPublicProfile(profiles[i], { followedByCurrentUser: true });
+            expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
+          }
+        });
+
+        it('should respond with a list of the last followers profile only, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          const res = await authorizedApi.get(
+            `${PROFILES_URL}/followers?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
+          );
+          const profiles = res.body as Types.PublicProfile[];
+          expect(res.statusCode).toBe(200);
+          expect(res.type).toMatch(/json/);
+          expect(profiles.length).toBe(1);
+          assertPublicProfile(profiles[0], { followedByCurrentUser: true });
+          expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
+        });
+
+        it('should respond with a list of the followers profiles that matches the name query, on an authenticated request', async () => {
+          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+          for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
+            const res = await authorizedApi.get(
+              `${PROFILES_URL}/followers?name=${user.username.slice(0, -2)}`,
+            );
+            const profiles = res.body as Types.PublicProfile[];
+            expect(res.statusCode).toBe(200);
+            expect(res.type).toMatch(/json/);
+            expect(profiles.length).toBe(1);
+            assertPublicProfile(profiles[0], { followedByCurrentUser: true });
+            expect(profiles[0].id).toBe(user.profile!.id);
+          }
+        });
       });
     });
 
@@ -335,35 +342,27 @@ describe('Profile', async () => {
 
     describe(`POST ${PROFILES_URL}/following`, () => {
       it('should respond with 401 on an unauthenticated request', async () => {
-        const res = await api.post(`${PROFILES_URL}/following`);
+        const res = await api.post(`${PROFILES_URL}/following/${crypto.randomUUID()}`);
         assertUnauthorizedErrorRes(res);
-      });
-
-      it('should respond with 400 on an authenticated request with empty object', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({});
-        assertResponseWithValidationError(res, 'profileId');
       });
 
       it('should respond with 400 on an authenticated request with invalid profile id', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi
-          .post(`${PROFILES_URL}/following`)
-          .send({ profileId: 'not_id' });
+        const res = await authorizedApi.post(`${PROFILES_URL}/following/123`);
         assertResponseWithValidationError(res, 'profileId');
       });
 
       it('should respond with 400 on an authenticated request, for non-existent profile id', async () => {
         const profileId = crypto.randomUUID();
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({ profileId });
+        const res = await authorizedApi.post(`${PROFILES_URL}/following/${profileId}`);
         assertInvalidIdErrorRes(res);
       });
 
       it('should respond with 201 and empty body, and create new follow', async () => {
         const profileId = dbUserTwo.profile!.id;
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({ profileId });
+        const res = await authorizedApi.post(`${PROFILES_URL}/following/${profileId}`);
         const follows = await db.follows.findMany({});
         expect(res.statusCode).toBe(201);
         expect(res.type).toMatch(/json/);
@@ -378,7 +377,7 @@ describe('Profile', async () => {
         const profileId = dbUserTwo.profile!.id;
         await db.follows.create({ data: { profileId, followerId: dbUserOne.profile!.id } });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(`${PROFILES_URL}/following`).send({ profileId });
+        const res = await authorizedApi.post(`${PROFILES_URL}/following/${profileId}`);
         const follows = await db.follows.findMany({});
         expect(res.statusCode).toBe(201);
         expect(res.type).toMatch(/json/);
@@ -392,21 +391,13 @@ describe('Profile', async () => {
 
     describe(`DELETE ${PROFILES_URL}/following`, () => {
       it('should respond with 401 on an unauthenticated request', async () => {
-        const res = await api.delete(`${PROFILES_URL}/following`);
+        const res = await api.delete(`${PROFILES_URL}/following/${crypto.randomUUID()}`);
         assertUnauthorizedErrorRes(res);
-      });
-
-      it('should respond with 400 on an authenticated request with empty object', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.delete(`${PROFILES_URL}/following`).send({});
-        assertResponseWithValidationError(res, 'profileId');
       });
 
       it('should respond with 400 on an authenticated request with invalid profile id', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi
-          .delete(`${PROFILES_URL}/following`)
-          .send({ profileId: 'not_id' });
+        const res = await authorizedApi.delete(`${PROFILES_URL}/following/not_id`);
         assertResponseWithValidationError(res, 'profileId');
       });
 
@@ -414,7 +405,7 @@ describe('Profile', async () => {
         const ids = [crypto.randomUUID(), dbUserTwo.profile!.id];
         for (const profileId of ids) {
           const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-          const res = await authorizedApi.delete(`${PROFILES_URL}/following`).send({ profileId });
+          const res = await authorizedApi.delete(`${PROFILES_URL}/following/${profileId}`);
           assertNotFoundErrorRes(res);
           expect(await db.follows.findMany({})).toHaveLength(0);
         }
@@ -424,7 +415,7 @@ describe('Profile', async () => {
         const profileId = dbUserTwo.profile!.id;
         await db.follows.create({ data: { profileId, followerId: dbUserOne.profile!.id } });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.delete(`${PROFILES_URL}/following`).send({ profileId });
+        const res = await authorizedApi.delete(`${PROFILES_URL}/following/${profileId}`);
         const follows = await db.follows.findMany({});
         expect(res.statusCode).toBe(204);
         expect(res.type).toBe('');

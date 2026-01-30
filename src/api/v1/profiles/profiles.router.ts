@@ -34,14 +34,14 @@ profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
   res.json(await Service.updateProfileByUserId(userId, Schema.profileSchema.parse(req.body)));
 });
 
-profilesRouter.post('/following', Validators.authValidator, async (req, res) => {
+profilesRouter.post('/following/:profileId', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.createFollowing(userId, Schema.followingSchema.parse(req.body));
+  await Service.createFollowing(userId, Schema.followingSchema.parse(req.params));
   res.status(201).json();
 });
 
-profilesRouter.delete('/following', Validators.authValidator, async (req, res) => {
+profilesRouter.delete('/following/:profileId', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.deleteFollowing(userId, Schema.followingSchema.parse(req.body));
+  await Service.deleteFollowing(userId, Schema.followingSchema.parse(req.params));
   res.status(204).send();
 });
