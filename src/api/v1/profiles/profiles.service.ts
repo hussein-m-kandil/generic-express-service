@@ -34,7 +34,7 @@ export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileF
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
-        where: { NOT: { userId }, user: getNameFilterArgs(filters.name) },
+        where: { user: getNameFilterArgs(filters.name) },
         ...Utils.profileAggregation,
         ...getProfilePaginationArgs(filters),
       }),

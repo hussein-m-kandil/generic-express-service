@@ -8,7 +8,7 @@ import db from '@/lib/db';
 
 const assertPublicProfile = (
   profile: Types.PublicProfile,
-  props = { tangible: true, visible: true }
+  props = { tangible: true, visible: true },
 ) => {
   expect(profile.tangible).toBe(props.tangible);
   expect(profile.visible).toBe(props.visible);
@@ -49,8 +49,8 @@ describe('Profile', async () => {
     return a.length - b.length;
   };
 
-  const sortedUsers = [dbUserTwo, dbXUser, dbAdmin].sort((a, b) =>
-    compareString(a.username, b.username)
+  const dbAllUsersSorted = [dbUserOne, dbUserTwo, dbXUser, dbAdmin].sort((a, b) =>
+    compareString(a.username, b.username),
   );
 
   afterAll(async () => {
@@ -70,10 +70,10 @@ describe('Profile', async () => {
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBeGreaterThan(1);
+        expect(profiles.length).toBe(dbAllUsersSorted.length);
         for (let i = 0; i < profiles.length; i++) {
           assertPublicProfile(profiles[i]);
-          expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
+          expect(profiles[i].id).toBe(dbAllUsersSorted[i].profile!.id);
         }
       });
 
@@ -86,21 +86,23 @@ describe('Profile', async () => {
         expect(profiles.length).toBeGreaterThan(1);
         for (let i = 0; i < profiles.length; i++) {
           assertPublicProfile(profiles[i]);
-          expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
+          expect(profiles[i].id).toBe(
+            dbAllUsersSorted[dbAllUsersSorted.length - 1 - i].profile!.id,
+          );
         }
       });
 
       it('should respond with a list of the last profile only, on an authenticated request', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(
-          `${PROFILES_URL}?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`
+          `${PROFILES_URL}?limit=1&cursor=${dbAllUsersSorted.at(-2)!.profile!.id}`,
         );
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(profiles.length).toBe(1);
         assertPublicProfile(profiles[0]);
-        expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
+        expect(profiles[0].id).toBe(dbAllUsersSorted.at(-1)!.profile!.id);
       });
 
       it('should respond with a list of profiles that matches the query name, on an authenticated request', async () => {
@@ -134,6 +136,8 @@ describe('Profile', async () => {
     });
 
     describe(`GET ${PROFILES_URL}/following`, () => {
+      const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);
+
       it('should respond with 401 on an unauthenticated request', async () => {
         const res = await api.get(`${PROFILES_URL}/following`);
         assertUnauthorizedErrorRes(res);
@@ -200,7 +204,7 @@ describe('Profile', async () => {
         await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(
-          `${PROFILES_URL}/following?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`
+          `${PROFILES_URL}/following?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
         );
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
@@ -222,7 +226,7 @@ describe('Profile', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
           const res = await authorizedApi.get(
-            `${PROFILES_URL}/following?name=${user.username.slice(0, -2)}`
+            `${PROFILES_URL}/following?name=${user.username.slice(0, -2)}`,
           );
           const profiles = res.body as Types.PublicProfile[];
           expect(res.statusCode).toBe(200);
@@ -236,6 +240,8 @@ describe('Profile', async () => {
     });
 
     describe(`GET ${PROFILES_URL}/followers`, () => {
+      const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);
+
       it('should respond with 401 on an unauthenticated request', async () => {
         const res = await api.get(`${PROFILES_URL}/followers`);
         assertUnauthorizedErrorRes(res);
@@ -302,7 +308,7 @@ describe('Profile', async () => {
         await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(
-          `${PROFILES_URL}/followers?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`
+          `${PROFILES_URL}/followers?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
         );
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
@@ -324,7 +330,7 @@ describe('Profile', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
           const res = await authorizedApi.get(
-            `${PROFILES_URL}/followers?name=${user.username.slice(0, -2)}`
+            `${PROFILES_URL}/followers?name=${user.username.slice(0, -2)}`,
           );
           const profiles = res.body as Types.PublicProfile[];
           expect(res.statusCode).toBe(200);
