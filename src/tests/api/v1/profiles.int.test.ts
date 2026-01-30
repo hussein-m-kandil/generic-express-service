@@ -1,15 +1,19 @@
 /* eslint-disable security/detect-object-injection */
 import * as Types from '@/types';
 import { BASE_URL, PROFILES_URL, SIGNIN_URL } from './utils';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { faker } from '@faker-js/faker';
 import setup from '../setup';
 import db from '@/lib/db';
 
 const assertPublicProfile = (
   profile: Types.PublicProfile,
-  props = { tangible: true, visible: true },
+  props: Partial<{ tangible: boolean; visible: boolean; followedByCurrentUser: boolean }> = {},
 ) => {
+  props.visible ??= true;
+  props.tangible ??= true;
+  props.followedByCurrentUser ??= false;
+  expect(profile.followedByCurrentUser).toBe(props.followedByCurrentUser);
   expect(profile.tangible).toBe(props.tangible);
   expect(profile.visible).toBe(props.visible);
   expect(profile.userId).toBeTypeOf('string');
@@ -53,7 +57,21 @@ describe('Profile', async () => {
     compareString(a.username, b.username),
   );
 
+  beforeAll(async () => {
+    const dbUserOneProfileId = dbUserOne.profile!.id;
+    const data = [
+      { profileId: dbUserTwo.profile!.id, followerId: dbUserOneProfileId },
+      { profileId: dbXUser.profile!.id, followerId: dbUserOneProfileId },
+      { profileId: dbAdmin.profile!.id, followerId: dbUserOneProfileId },
+      { profileId: dbUserOneProfileId, followerId: dbUserTwo.profile!.id },
+      { profileId: dbUserOneProfileId, followerId: dbXUser.profile!.id },
+      { profileId: dbUserOneProfileId, followerId: dbAdmin.profile!.id },
+    ];
+    await db.follows.createMany({ data });
+  });
+
   afterAll(async () => {
+    await db.follows.deleteMany({});
     await deleteAllUsers();
   });
 
@@ -72,7 +90,8 @@ describe('Profile', async () => {
         expect(res.type).toMatch(/json/);
         expect(profiles.length).toBe(dbAllUsersSorted.length);
         for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i]);
+          const followedByCurrentUser = profiles[i].id !== dbUserOne.profile!.id;
+          assertPublicProfile(profiles[i], { followedByCurrentUser });
           expect(profiles[i].id).toBe(dbAllUsersSorted[i].profile!.id);
         }
       });
@@ -85,7 +104,8 @@ describe('Profile', async () => {
         expect(res.type).toMatch(/json/);
         expect(profiles.length).toBeGreaterThan(1);
         for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i]);
+          const followedByCurrentUser = profiles[i].id !== dbUserOne.profile!.id;
+          assertPublicProfile(profiles[i], { followedByCurrentUser });
           expect(profiles[i].id).toBe(
             dbAllUsersSorted[dbAllUsersSorted.length - 1 - i].profile!.id,
           );
@@ -101,7 +121,7 @@ describe('Profile', async () => {
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(profiles.length).toBe(1);
-        assertPublicProfile(profiles[0]);
+        assertPublicProfile(profiles[0], { followedByCurrentUser: true });
         expect(profiles[0].id).toBe(dbAllUsersSorted.at(-1)!.profile!.id);
       });
 
@@ -113,7 +133,7 @@ describe('Profile', async () => {
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(profiles.length).toBe(1);
-          assertPublicProfile(profiles[0]);
+          assertPublicProfile(profiles[0], { followedByCurrentUser: true });
           expect(profiles[0].id).toBe(user.profile!.id);
         }
       });
@@ -143,65 +163,33 @@ describe('Profile', async () => {
         assertUnauthorizedErrorRes(res);
       });
 
-      it('should respond with an empty list of following profiles, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/following`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(0);
-      });
-
       it('should respond with following profiles list in ascending order, on an authenticated request', async () => {
-        const followerId = dbUserOne.profile!.id;
-        const data = [
-          { profileId: dbUserTwo.profile!.id, followerId },
-          { profileId: dbXUser.profile!.id, followerId },
-          { profileId: dbAdmin.profile!.id, followerId },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${PROFILES_URL}/following`);
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(data.length);
+        expect(profiles.length).toBe(3);
         for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i]);
+          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
           expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
         }
-        await db.follows.deleteMany({});
       });
 
       it('should respond with following profiles list in descending order, on an authenticated request', async () => {
-        const followerId = dbUserOne.profile!.id;
-        const data = [
-          { profileId: dbUserTwo.profile!.id, followerId },
-          { profileId: dbXUser.profile!.id, followerId },
-          { profileId: dbAdmin.profile!.id, followerId },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${PROFILES_URL}/following?sort=desc`);
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(data.length);
+        expect(profiles.length).toBe(3);
         for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i]);
+          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
           expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
         }
-        await db.follows.deleteMany({});
       });
 
       it('should respond with a list of the last following profile only, on an authenticated request', async () => {
-        const followerId = dbUserOne.profile!.id;
-        const data = [
-          { profileId: dbUserTwo.profile!.id, followerId },
-          { profileId: dbXUser.profile!.id, followerId },
-          { profileId: dbAdmin.profile!.id, followerId },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(
           `${PROFILES_URL}/following?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
@@ -210,19 +198,11 @@ describe('Profile', async () => {
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(profiles.length).toBe(1);
-        assertPublicProfile(profiles[0]);
+        assertPublicProfile(profiles[0], { followedByCurrentUser: true });
         expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
-        await db.follows.deleteMany({});
       });
 
       it('should respond with a list of the following profiles that matches the name query, on an authenticated request', async () => {
-        const followerId = dbUserOne.profile!.id;
-        const data = [
-          { profileId: dbUserTwo.profile!.id, followerId },
-          { profileId: dbXUser.profile!.id, followerId },
-          { profileId: dbAdmin.profile!.id, followerId },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
           const res = await authorizedApi.get(
@@ -232,10 +212,9 @@ describe('Profile', async () => {
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(profiles.length).toBe(1);
-          assertPublicProfile(profiles[0]);
+          assertPublicProfile(profiles[0], { followedByCurrentUser: true });
           expect(profiles[0].id).toBe(user.profile!.id);
         }
-        await db.follows.deleteMany({});
       });
     });
 
@@ -247,65 +226,33 @@ describe('Profile', async () => {
         assertUnauthorizedErrorRes(res);
       });
 
-      it('should respond with an empty list of followers profiles, on an authenticated request', async () => {
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.get(`${PROFILES_URL}/followers`);
-        const profiles = res.body as Types.PublicProfile[];
-        expect(res.statusCode).toBe(200);
-        expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(0);
-      });
-
       it('should respond with followers profiles list in ascending order, on an authenticated request', async () => {
-        const profileId = dbUserOne.profile!.id;
-        const data = [
-          { profileId, followerId: dbUserTwo.profile!.id },
-          { profileId, followerId: dbXUser.profile!.id },
-          { profileId, followerId: dbAdmin.profile!.id },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${PROFILES_URL}/followers`);
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(data.length);
+        expect(profiles.length).toBe(3);
         for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i]);
+          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
           expect(profiles[i].id).toBe(sortedUsers[i].profile!.id);
         }
-        await db.follows.deleteMany({});
       });
 
       it('should respond with followers profiles list in descending order, on an authenticated request', async () => {
-        const profileId = dbUserOne.profile!.id;
-        const data = [
-          { profileId, followerId: dbUserTwo.profile!.id },
-          { profileId, followerId: dbXUser.profile!.id },
-          { profileId, followerId: dbAdmin.profile!.id },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${PROFILES_URL}/followers?sort=desc`);
         const profiles = res.body as Types.PublicProfile[];
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
-        expect(profiles.length).toBe(data.length);
+        expect(profiles.length).toBe(3);
         for (let i = 0; i < profiles.length; i++) {
-          assertPublicProfile(profiles[i]);
+          assertPublicProfile(profiles[i], { followedByCurrentUser: true });
           expect(profiles[i].id).toBe(sortedUsers[sortedUsers.length - 1 - i].profile!.id);
         }
-        await db.follows.deleteMany({});
       });
 
       it('should respond with a list of the last followers profile only, on an authenticated request', async () => {
-        const profileId = dbUserOne.profile!.id;
-        const data = [
-          { profileId, followerId: dbUserTwo.profile!.id },
-          { profileId, followerId: dbXUser.profile!.id },
-          { profileId, followerId: dbAdmin.profile!.id },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(
           `${PROFILES_URL}/followers?limit=1&cursor=${sortedUsers.at(-2)!.profile!.id}`,
@@ -314,19 +261,11 @@ describe('Profile', async () => {
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(profiles.length).toBe(1);
-        assertPublicProfile(profiles[0]);
+        assertPublicProfile(profiles[0], { followedByCurrentUser: true });
         expect(profiles[0].id).toBe(sortedUsers.at(-1)!.profile!.id);
-        await db.follows.deleteMany({});
       });
 
       it('should respond with a list of the followers profiles that matches the name query, on an authenticated request', async () => {
-        const profileId = dbUserOne.profile!.id;
-        const data = [
-          { profileId, followerId: dbUserTwo.profile!.id },
-          { profileId, followerId: dbXUser.profile!.id },
-          { profileId, followerId: dbAdmin.profile!.id },
-        ];
-        await db.follows.createMany({ data });
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         for (const user of [dbUserTwo, dbXUser, dbAdmin]) {
           const res = await authorizedApi.get(
@@ -336,10 +275,9 @@ describe('Profile', async () => {
           expect(res.statusCode).toBe(200);
           expect(res.type).toMatch(/json/);
           expect(profiles.length).toBe(1);
-          assertPublicProfile(profiles[0]);
+          assertPublicProfile(profiles[0], { followedByCurrentUser: true });
           expect(profiles[0].id).toBe(user.profile!.id);
         }
-        await db.follows.deleteMany({});
       });
     });
 

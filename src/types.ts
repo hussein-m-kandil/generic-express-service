@@ -35,7 +35,7 @@ export interface ProfileAggregation {
 
 export type PublicProfile = Prisma.ProfileGetPayload<{
   include: ProfileAggregation['include'];
-}>;
+}> & { followedByCurrentUser: boolean };
 
 export interface ImageSensitiveDataToOmit {
   storageId: true;

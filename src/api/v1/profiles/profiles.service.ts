@@ -5,13 +5,26 @@ import { AppNotFoundError, AppUniqueConstraintViolationError } from '@/lib/app-e
 import { Prisma, Profile, User } from '@/../prisma/client';
 import db from '@/lib/db';
 
-export const prepareProfileData = (data: Types.PublicProfile | Types.PublicProfile[]) => {
+type ProfilePayload = Prisma.ProfileGetPayload<{
+  include: typeof Utils.profileAggregation.include & {
+    followers: { include: { follower: typeof Utils.profileAggregation } };
+  };
+}>;
+
+export const prepareProfileData = (
+  data: ProfilePayload | ProfilePayload[],
+  userId: User['id'],
+): Types.PublicProfile | Types.PublicProfile[] => {
   const arrayGiven = Array.isArray(data);
   const profiles = arrayGiven ? data : [data];
-  for (const p of profiles) {
-    if (!p.visible) p.lastSeen = p.user.createdAt;
-  }
-  return arrayGiven ? profiles : profiles[0];
+  const preparedProfiles = profiles.map(({ followers, ...profile }) => {
+    if (!profile.visible) profile.lastSeen = profile.user.createdAt;
+    return {
+      ...profile,
+      followedByCurrentUser: followers.some((f) => f.follower.userId === userId),
+    };
+  });
+  return arrayGiven ? preparedProfiles : preparedProfiles[0];
 };
 
 const getProfilePaginationArgs = (filters: Types.ProfileFilters, limit = 10) => {
@@ -19,6 +32,18 @@ const getProfilePaginationArgs = (filters: Types.ProfileFilters, limit = 10) => 
     orderBy: { user: { username: filters.sort ?? 'asc' } },
     ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
     take: filters.limit ?? limit,
+  };
+};
+
+const getExtendedProfileAggregationArgs = (userId: User['id']) => {
+  return {
+    include: {
+      ...Utils.profileAggregation.include,
+      followers: {
+        where: { follower: { userId } },
+        include: { follower: Utils.profileAggregation },
+      },
+    },
   };
 };
 
@@ -34,27 +59,36 @@ export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileF
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
-        where: { user: getNameFilterArgs(filters.name) },
-        ...Utils.profileAggregation,
         ...getProfilePaginationArgs(filters),
+        ...getExtendedProfileAggregationArgs(userId),
+        where: { user: getNameFilterArgs(filters.name) },
       }),
     ),
+    userId,
   );
 };
 
-export const getProfileById = async (id: Profile['id']) => {
+export const getProfileById = async (profileId: Profile['id'], userId: User['id']) => {
   const profile = await Utils.handleDBKnownErrors(
-    db.profile.findUnique({ ...Utils.profileAggregation, where: { id } }),
+    db.profile.findUnique({
+      ...getExtendedProfileAggregationArgs(userId),
+      where: { id: profileId },
+    }),
   );
-  if (profile) return prepareProfileData(profile);
+  if (profile) return prepareProfileData(profile, userId);
   throw new AppNotFoundError('Profile not found');
 };
 
 export const updateProfileByUserId = async (userId: User['id'], data: Schema.ValidProfile) => {
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
-      db.profile.update({ ...Utils.profileAggregation, where: { userId }, data }),
+      db.profile.update({
+        ...getExtendedProfileAggregationArgs(userId),
+        where: { userId },
+        data,
+      }),
     ),
+    userId,
   );
 };
 
@@ -94,14 +128,15 @@ export const getAllFollowing = async (userId: User['id'], filters: Types.Profile
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
+        ...getProfilePaginationArgs(filters),
+        ...getExtendedProfileAggregationArgs(userId),
         where: {
           followers: { some: { follower: { userId } } },
           user: getNameFilterArgs(filters.name),
         },
-        ...Utils.profileAggregation,
-        ...getProfilePaginationArgs(filters),
       }),
     ),
+    userId,
   );
 };
 
@@ -109,13 +144,14 @@ export const getAllFollowers = async (userId: User['id'], filters: Types.Profile
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
+        ...getProfilePaginationArgs(filters),
+        ...getExtendedProfileAggregationArgs(userId),
         where: {
           following: { some: { profile: { userId } } },
           user: getNameFilterArgs(filters.name),
         },
-        ...Utils.profileAggregation,
-        ...getProfilePaginationArgs(filters),
       }),
     ),
+    userId,
   );
 };

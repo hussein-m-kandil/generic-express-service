@@ -25,7 +25,8 @@ profilesRouter.get('/followers', Validators.authValidator, async (req, res) => {
 });
 
 profilesRouter.get('/:id', Validators.authValidator, async (req, res) => {
-  res.json(await Service.getProfileById(req.params.id));
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  res.json(await Service.getProfileById(req.params.id, userId));
 });
 
 profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
