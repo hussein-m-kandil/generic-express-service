@@ -308,6 +308,8 @@ describe('Chats endpoints', async () => {
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.get(`${CHATS_URL}/members/${memberProfileId}`);
         const resBody = res.body as ChatFullData[];
+        const resChat1 = resBody.find((c) => c.id === dbChat1.id)!;
+        const resChat2 = resBody.find((c) => c.id === dbChat2.id)!;
         expect(res.statusCode).toBe(200);
         expect(res.type).toMatch(/json/);
         expect(resBody).toBeInstanceOf(Array);
@@ -318,8 +320,8 @@ describe('Chats endpoints', async () => {
           else assertChat(c, c.id);
           assertChatMembersTangibility(c);
         }
-        assertReceivedDateUpdated(resBody[0], dbChat1, userOneData.username);
-        assertReceivedDateUpdated(resBody[1], dbChat2, userOneData.username);
+        assertReceivedDateUpdated(resChat1, dbChat1, userOneData.username);
+        assertReceivedDateUpdated(resChat2, dbChat2, userOneData.username);
       });
     });
 
