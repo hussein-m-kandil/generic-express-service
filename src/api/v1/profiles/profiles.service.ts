@@ -22,24 +22,29 @@ const getProfilePaginationArgs = (filters: Types.ProfileFilters, limit = 10) => 
   };
 };
 
+const getNameFilterArgs = (nameFilter: Types.ProfileFilters['name']) => {
+  if (nameFilter) {
+    const args = { contains: nameFilter, mode: 'insensitive' as const };
+    return { OR: [{ username: args }, { fullname: args }] };
+  }
+  return {};
+};
+
 export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
-        where: {
-          NOT: { userId },
-          user: { username: { contains: filters.name ?? '', mode: 'insensitive' } },
-        },
+        where: { NOT: { userId }, user: getNameFilterArgs(filters.name) },
         ...Utils.profileAggregation,
         ...getProfilePaginationArgs(filters),
-      })
-    )
+      }),
+    ),
   );
 };
 
 export const getProfileById = async (id: Profile['id']) => {
   const profile = await Utils.handleDBKnownErrors(
-    db.profile.findUnique({ ...Utils.profileAggregation, where: { id } })
+    db.profile.findUnique({ ...Utils.profileAggregation, where: { id } }),
   );
   if (profile) return prepareProfileData(profile);
   throw new AppNotFoundError('Profile not found');
@@ -48,8 +53,8 @@ export const getProfileById = async (id: Profile['id']) => {
 export const updateProfileByUserId = async (userId: User['id'], data: Schema.ValidProfile) => {
   return prepareProfileData(
     await Utils.handleDBKnownErrors(
-      db.profile.update({ ...Utils.profileAggregation, where: { userId }, data })
-    )
+      db.profile.update({ ...Utils.profileAggregation, where: { userId }, data }),
+    ),
   );
 };
 
@@ -60,7 +65,7 @@ export const createFollowing = async (userId: User['id'], { profileId }: Schema.
         ...Utils.profileAggregation,
         where: { userId },
         data: { following: { create: { profileId } } },
-      })
+      }),
     );
   } catch (error) {
     if (error instanceof AppUniqueConstraintViolationError) return;
@@ -77,7 +82,7 @@ export const deleteFollowing = async (userId: User['id'], { profileId }: Schema.
         await prismaClient.follows.delete({
           where: { profileId_followerId: { followerId: currentProfile.id, profileId } },
         });
-      })
+      }),
     );
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2017') return;
@@ -91,12 +96,12 @@ export const getAllFollowing = async (userId: User['id'], filters: Types.Profile
       db.profile.findMany({
         where: {
           followers: { some: { follower: { userId } } },
-          user: { username: { contains: filters.name ?? '', mode: 'insensitive' } },
+          user: getNameFilterArgs(filters.name),
         },
         ...Utils.profileAggregation,
         ...getProfilePaginationArgs(filters),
-      })
-    )
+      }),
+    ),
   );
 };
 
@@ -106,11 +111,11 @@ export const getAllFollowers = async (userId: User['id'], filters: Types.Profile
       db.profile.findMany({
         where: {
           following: { some: { profile: { userId } } },
-          user: { username: { contains: filters.name ?? '', mode: 'insensitive' } },
+          user: getNameFilterArgs(filters.name),
         },
         ...Utils.profileAggregation,
         ...getProfilePaginationArgs(filters),
-      })
-    )
+      }),
+    ),
   );
 };
