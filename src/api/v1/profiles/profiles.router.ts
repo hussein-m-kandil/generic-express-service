@@ -24,9 +24,9 @@ profilesRouter.get('/followers', Validators.authValidator, async (req, res) => {
   res.json(await Service.getAllFollowers(userId, filters));
 });
 
-profilesRouter.get('/:id', Validators.authValidator, async (req, res) => {
+profilesRouter.get('/:idOrUsername', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  res.json(await Service.getProfileById(req.params.id, userId));
+  res.json(await Service.getProfileByIdOrUsername(req.params.idOrUsername, userId));
 });
 
 profilesRouter.patch('/', Validators.authValidator, async (req, res) => {

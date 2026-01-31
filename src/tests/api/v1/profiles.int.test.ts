@@ -145,21 +145,33 @@ describe('Profile', async () => {
         });
       });
 
-      describe(`${PROFILES_URL}/:id`, () => {
-        it('should respond with 401 on an unauthenticated request', async () => {
-          const res = await api.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
-          assertUnauthorizedErrorRes(res);
-        });
+      const getProfileTestData = [
+        { key: 'id', value: dbUserOne.profile!.id },
+        { key: 'username', value: dbUserOne.username },
+      ];
+      for (const { key, value } of getProfileTestData) {
+        describe(`${PROFILES_URL}/:${key}`, () => {
+          it('should respond with 401 on an unauthenticated request', async () => {
+            const res = await api.get(`${PROFILES_URL}/${value}`);
+            assertUnauthorizedErrorRes(res);
+          });
 
-        it('should respond with a profile, on an authenticated request', async () => {
-          const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-          const res = await authorizedApi.get(`${PROFILES_URL}/${dbUserOne.profile!.id}`);
-          const profile = res.body as Types.PublicProfile;
-          expect(res.statusCode).toBe(200);
-          expect(res.type).toMatch(/json/);
-          assertPublicProfile(profile);
+          it(`should respond with 400 on an invalid ${key}`, async () => {
+            const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+            const res = await authorizedApi.get(`${PROFILES_URL}/invalid`);
+            assertInvalidIdErrorRes(res);
+          });
+
+          it('should respond with a profile', async () => {
+            const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+            const res = await authorizedApi.get(`${PROFILES_URL}/${value}`);
+            const profile = res.body as Types.PublicProfile;
+            expect(res.statusCode).toBe(200);
+            expect(res.type).toMatch(/json/);
+            assertPublicProfile(profile);
+          });
         });
-      });
+      }
 
       describe(`${PROFILES_URL}/following`, () => {
         const sortedUsers = dbAllUsersSorted.filter((u) => u.id !== dbUserOne.id);

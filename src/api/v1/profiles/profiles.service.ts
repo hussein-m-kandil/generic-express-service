@@ -1,7 +1,7 @@
 import * as Types from '@/types';
 import * as Utils from '@/lib/utils';
 import * as Schema from './profile.schema';
-import { AppNotFoundError, AppUniqueConstraintViolationError } from '@/lib/app-error';
+import * as AppError from '@/lib/app-error';
 import { Prisma, Profile, User } from '@/../prisma/client';
 import db from '@/lib/db';
 
@@ -76,7 +76,29 @@ export const getProfileById = async (profileId: Profile['id'], userId: User['id'
     }),
   );
   if (profile) return prepareProfileData(profile, userId);
-  throw new AppNotFoundError('Profile not found');
+  throw new AppError.AppNotFoundError('Profile not found');
+};
+
+export const getProfileByUsername = async (username: User['username'], userId: User['id']) => {
+  const profiles = await Utils.handleDBKnownErrors(
+    db.profile.findMany({
+      ...getExtendedProfileAggregationArgs(userId),
+      where: { user: { username } },
+    }),
+  );
+  if (profiles.length === 1) return prepareProfileData(profiles[0], userId);
+  throw new AppError.AppNotFoundError('Profile not found');
+};
+
+export const getProfileByIdOrUsername = async (idOrUsername: string, userId: User['id']) => {
+  try {
+    return await getProfileByUsername(idOrUsername, userId);
+  } catch (error) {
+    if (error instanceof AppError.AppNotFoundError) {
+      return await getProfileById(idOrUsername, userId);
+    }
+    throw error;
+  }
 };
 
 export const updateProfileByUserId = async (userId: User['id'], data: Schema.ValidProfile) => {
@@ -102,7 +124,7 @@ export const createFollowing = async (userId: User['id'], { profileId }: Schema.
       }),
     );
   } catch (error) {
-    if (error instanceof AppUniqueConstraintViolationError) return;
+    if (error instanceof AppError.AppUniqueConstraintViolationError) return;
     throw error;
   }
 };
@@ -112,7 +134,7 @@ export const deleteFollowing = async (userId: User['id'], { profileId }: Schema.
     await Utils.handleDBKnownErrors(
       db.$transaction(async (prismaClient) => {
         const currentProfile = await prismaClient.profile.findUnique({ where: { userId } });
-        if (!currentProfile) throw new AppNotFoundError('Profile not found');
+        if (!currentProfile) throw new AppError.AppNotFoundError('Profile not found');
         await prismaClient.follows.delete({
           where: { profileId_followerId: { followerId: currentProfile.id, profileId } },
         });
