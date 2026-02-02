@@ -12,7 +12,6 @@ describe('Statistics endpoints', async () => {
     await setup(SIGNIN_URL);
 
   afterEach(async () => {
-    vi.useRealTimers();
     await db.creation.deleteMany({});
     await db.visitor.deleteMany({});
   });
@@ -30,7 +29,7 @@ describe('Statistics endpoints', async () => {
       const models = Object.values(Model);
       for (let i = 0; i < monthCount; i++) {
         // Set system time to the date of the previous month
-        vi.setSystemTime(new Date().setMonth(new Date().getMonth() - 1));
+        vi.setSystemTime(new Date().setMonth(new Date().getMonth() - 1, 1));
         // Register new creation entries in all models
         for (const model of models) {
           const data: Prisma.CreationCreateInput[] = [];
@@ -69,6 +68,8 @@ describe('Statistics endpoints', async () => {
           expect(entry.count).toBe(monthlyEntryCount);
         }
       }
+      vi.setSystemTime(vi.getRealSystemTime());
+      vi.useRealTimers();
     });
   });
 });

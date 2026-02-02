@@ -41,7 +41,7 @@ export const updateFinder = async (id: CharacterFinder['id'], { name }: ValidFin
 };
 
 const isCharacterFound = ({ x, y }: Point, { top, left, right, bottom }: CharacterRect) => {
-  return Boolean(x > left && y > top && x < right && y < bottom);
+  return x > left && y > top && x < right && y < bottom;
 };
 
 const evaluateSelection = (
@@ -54,7 +54,8 @@ const evaluateSelection = (
   for (const [characterName, selectedPoint] of selectionEntries) {
     const characterRect = characterRects.find((cr) => cr.name === characterName);
     const characterFound = characterRect ? isCharacterFound(selectedPoint, characterRect) : false;
-    evaluation[String(characterName)] = characterFound;
+    // eslint-disable-next-line security/detect-object-injection
+    evaluation[characterName] = characterFound;
     if (characterFound) foundCharactersNum++;
   }
   const allCharactersFound = foundCharactersNum > 0 && foundCharactersNum === characterRects.length;

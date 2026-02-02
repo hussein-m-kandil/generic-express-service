@@ -16,6 +16,7 @@ export interface UserSensitiveDataToOmit {
 
 export interface UserDataToAggregate {
   avatar: { select: { image: { omit: ImageSensitiveDataToOmit } } };
+  profile: boolean;
 }
 
 export interface UserAggregation {
@@ -27,6 +28,14 @@ export type PublicUser = Prisma.UserGetPayload<{
   include: UserAggregation['include'];
   omit: UserAggregation['omit'];
 }>;
+
+export interface ProfileAggregation {
+  include: { user: UserAggregation };
+}
+
+export type PublicProfile = Prisma.ProfileGetPayload<{
+  include: ProfileAggregation['include'];
+}> & { followedByCurrentUser: boolean };
 
 export interface ImageSensitiveDataToOmit {
   storageId: true;
@@ -112,11 +121,17 @@ export interface BaseFilters {
   authorId?: string;
 }
 
-export interface PaginationFilters extends BaseFilters {
+export interface BasePaginationFilters<CursorType = string> {
   sort?: Prisma.SortOrder;
-  cursor?: number;
+  cursor?: CursorType;
   limit?: number;
 }
+
+export interface ProfileFilters extends BasePaginationFilters {
+  name?: string;
+}
+
+export interface PaginationFilters extends BaseFilters, BasePaginationFilters<number> {}
 
 export type TagsFilter = string[];
 

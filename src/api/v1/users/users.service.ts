@@ -22,6 +22,7 @@ export const createUser = async ({
     data: {
       ...data,
       password: await hashPassword(password),
+      profile: { create: { lastSeen: new Date() } },
       ...(avatarId ? { avatar: { create: { imageId: avatarId } } } : {}),
     },
     ...Utils.userAggregation,
@@ -31,9 +32,7 @@ export const createUser = async ({
   return user;
 };
 
-export const findUserById = async (
-  id: string
-): Promise<Types.PublicUser | null> => {
+export const findUserById = async (id: string): Promise<Types.PublicUser | null> => {
   const dbQuery = db.user.findUnique({
     where: { id },
     ...Utils.userAggregation,
@@ -42,9 +41,7 @@ export const findUserById = async (
   return user;
 };
 
-export const findUserByUsername = async (
-  username: string
-): Promise<Types.PublicUser | null> => {
+export const findUserByUsername = async (username: string): Promise<Types.PublicUser | null> => {
   const dbQuery = db.user.findUnique({
     where: { username },
     ...Utils.userAggregation,
@@ -73,35 +70,44 @@ export const findUserByIdOrByUsernameOrThrow = async (idOrUsername: string) => {
   return user;
 };
 
-export const updateUser = async (
-  id: string,
-  { avatarId, password, ...data }: Types.UpdateUserOutput
-) => {
-  const dbQuery = db.user.update({
-    where: { id },
-    data: {
-      ...data,
-      ...(password && typeof password === 'string'
-        ? { password: await hashPassword(password) }
-        : {}),
-      ...(avatarId
-        ? {
-            avatar: {
-              connectOrCreate: {
-                where: { userId: id },
-                create: { imageId: avatarId },
-              },
-            },
-          }
-        : {}),
-    },
-    ...Utils.userAggregation,
-  });
-  const handlerOptions = {
-    notFoundErrMsg: 'User not found',
-    uniqueFieldName: 'username',
-  };
-  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+export const updateUser = (id: string, { avatarId, password, ...data }: Types.UpdateUserOutput) => {
+  return Utils.handleDBKnownErrors(
+    db.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data: {
+          ...data,
+          ...(password && typeof password === 'string'
+            ? { password: await hashPassword(password) }
+            : {}),
+          ...(avatarId
+            ? {
+                avatar: {
+                  connectOrCreate: {
+                    where: { userId: id },
+                    create: { imageId: avatarId },
+                  },
+                },
+              }
+            : {}),
+        },
+        ...Utils.userAggregation,
+      });
+      if (data.username) {
+        const profileNameUpdateArgs = {
+          where: { profile: { userId: id } },
+          data: { profileName: data.username },
+        };
+        await tx.profilesChats.updateMany(profileNameUpdateArgs);
+        await tx.message.updateMany(profileNameUpdateArgs);
+      }
+      return updatedUser;
+    }),
+    {
+      notFoundErrMsg: 'User not found',
+      uniqueFieldName: 'username',
+    }
+  );
 };
 
 export const deleteUser = async (id: string): Promise<void> => {

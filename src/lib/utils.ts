@@ -58,8 +58,12 @@ export const handleDBKnownErrors = async <T>(
   return post;
 };
 
+export const getCurrentUserFromReq = (req: Request) => {
+  return req.user as Types.PublicUser | undefined;
+};
+
 export const getCurrentUserIdFromReq = (req: Request) => {
-  return (req.user as Types.PublicUser | undefined)?.id;
+  return getCurrentUserFromReq(req)?.id;
 };
 
 export const getTextFilterFromReqQuery = (req: Request) => {
@@ -88,20 +92,29 @@ export const getTagsFilterFromReqQuery = (req: Request) => {
     .safeParse(req.query.tags).data;
 };
 
-export const getPaginationFiltersFromReqQuery = (
-  req: Request
-): Types.PaginationFilters => {
-  const { cursor, sort, limit } = req.query;
+export const getBasePaginationFiltersFromReqQuery = (req: Request): Types.BasePaginationFilters => {
   return {
-    sort: z.literal('asc').or(z.literal('desc')).safeParse(sort).data,
-    cursor: z.coerce.number().int().min(0).safeParse(cursor).data,
-    limit: z.coerce.number().int().min(0).safeParse(limit).data,
+    sort: z.literal('asc').or(z.literal('desc')).safeParse(req.query.sort).data,
+    limit: z.coerce.number().int().min(0).safeParse(req.query.limit).data,
+    cursor: z.string().trim().uuid().safeParse(req.query.cursor).data,
   };
 };
 
-export const getCommonFiltersFromReqQuery = (
-  req: Request
-): Types.PaginationFilters => {
+export const getPaginationFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
+  return {
+    ...getBasePaginationFiltersFromReqQuery(req),
+    cursor: z.coerce.number().int().min(0).safeParse(req.query.cursor).data,
+  };
+};
+
+export const getProfileFiltersFromReqQuery = (req: Request): Types.ProfileFilters => {
+  return {
+    ...getBasePaginationFiltersFromReqQuery(req),
+    name: z.string().trim().safeParse(req.query.name).data,
+  };
+};
+
+export const getCommonFiltersFromReqQuery = (req: Request): Types.PaginationFilters => {
   return {
     currentUserId: getCurrentUserIdFromReq(req),
     authorId: getAuthorIdFilterFromReqQuery(req),
@@ -109,9 +122,7 @@ export const getCommonFiltersFromReqQuery = (
   };
 };
 
-export const getCommentFiltersFromReqQuery = (
-  req: Request
-): Types.CommentFilters => {
+export const getCommentFiltersFromReqQuery = (req: Request): Types.CommentFilters => {
   return {
     ...getCommonFiltersFromReqQuery(req),
     text: getTextFilterFromReqQuery(req),
@@ -133,10 +144,7 @@ export const getPostFiltersFromReqQuery = (req: Request): Types.PostFilters => {
   };
 };
 
-export const getPaginationArgs = (
-  filters: Types.PaginationFilters = {},
-  take = 3
-) => {
+export const getPaginationArgs = (filters: Types.PaginationFilters = {}, take = 3) => {
   return {
     orderBy: { order: filters.sort ?? 'asc' },
     take: filters.limit ?? take,
@@ -154,8 +162,15 @@ export const userAggregation: Types.UserAggregation = {
     avatar: {
       select: { image: { omit: { storageId: true, storageFullPath: true } } },
     },
+    profile: true,
   },
   omit: { password: true },
+};
+
+export const profileAggregation: Types.ProfileAggregation = {
+  include: {
+    user: { ...userAggregation, include: { ...userAggregation.include, profile: false } },
+  },
 };
 
 export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
