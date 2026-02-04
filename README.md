@@ -14,6 +14,7 @@ I built this project to showcase what I am learning in web development, and I do
 2. [Odin Blog Author](https://github.com/hussein-m-kandil/odin-blog-author)
 3. [Odin Blog Viewer](https://github.com/hussein-m-kandil/odin-blog-viewer)
 4. [Odin Where's Waldo](https://github.com/hussein-m-kandil/odin-where-is-waldo)
+5. [Odin Messaging App](https://github.com/hussein-m-kandil/odin-messaging-app)
 
 ## Features
 
