@@ -23,7 +23,7 @@ export const createJwtForUser = (user: Types.PublicUser): string => {
 };
 
 export const catchDBKnownError = async <P>(
-  dbPromise: Promise<P>
+  dbPromise: Promise<P>,
 ): Promise<[P, null] | [null, Prisma.PrismaClientKnownRequestError]> => {
   try {
     return [await dbPromise, null];
@@ -37,7 +37,7 @@ export const catchDBKnownError = async <P>(
 
 export const handleDBKnownErrors = async <T>(
   dbQuery: Promise<T>,
-  options?: Types.DBKnownErrorsHandlerOptions
+  options?: Types.DBKnownErrorsHandlerOptions,
 ): Promise<T> => {
   const [post, error] = await catchDBKnownError(dbQuery);
   if (error) {
@@ -50,7 +50,7 @@ export const handleDBKnownErrors = async <T>(
     if (error.code === 'P2002') {
       const targets = error.meta?.target as string[] | undefined;
       throw new AppError.AppUniqueConstraintViolationError(
-        targets?.at(-1) ?? options?.uniqueFieldName ?? 'some fields'
+        targets?.at(-1) ?? options?.uniqueFieldName ?? 'some fields',
       );
     }
     throw error;
@@ -194,7 +194,7 @@ export const fieldsToIncludeWithComment = {
 
 export const fieldsToIncludeWithVote = { post: true, user: userAggregation };
 
-export const PURGE_INTERVAL_MS = 12 * 60 * 60 * 1000;
+export const PURGE_INTERVAL_MS = Config.PURGE_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
 
 export const purgeNonAdminData = async (now: number, interval: number) => {
   const createdAt = { lte: new Date(now - interval) };

@@ -9,6 +9,7 @@ export const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 
 export const SECRET = process.env.SECRET ?? 'secret';
 export const ADMIN_SECRET = process.env.ADMIN_SECRET ?? 'admin_secret';
+export const PURGE_INTERVAL_DAYS = parseFloat(process.env.PURGE_INTERVAL_DAYS ?? '3');
 export const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB) || 2;
 export const TOKEN_EXP_PERIOD = process.env.TOKEN_EXP_PERIOD ?? '3d';
 export const NODE_ENV = process.env.NODE_ENV;
