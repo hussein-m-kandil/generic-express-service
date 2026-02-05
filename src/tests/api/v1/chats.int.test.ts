@@ -322,6 +322,37 @@ describe('Chats endpoints', async () => {
         }
         assertReceivedDateUpdated(resChat1, dbChat1, userOneData.username);
         assertReceivedDateUpdated(resChat2, dbChat2, userOneData.username);
+        await db.chat.delete({ where: { id: dbChat2.id } });
+      });
+
+      it('should respond all the current user chats that include the given member`s', async () => {
+        const memberUsername = dbUserTwo.username;
+        const dbChatId1 = dbChats.find((c) =>
+          c.profiles.some((p) => p.profileName === memberUsername),
+        )!.id;
+        const dbChat1 = (await db.chat.findUnique({
+          where: { id: dbChatId1 },
+          include: { profiles: true },
+        }))!;
+        const dbChat2 = await createChat('Hello #2', [dbUserOne, dbUserTwo, dbXUser]);
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/members/${memberUsername}`);
+        const resBody = res.body as ChatFullData[];
+        const resChat1 = resBody.find((c) => c.id === dbChat1.id)!;
+        const resChat2 = resBody.find((c) => c.id === dbChat2.id)!;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resBody).toBeInstanceOf(Array);
+        expect(resBody).toHaveLength(2);
+        expect(resBody.every((c) => c.id === dbChat1.id || c.id === dbChat2.id)).toBe(true);
+        for (const c of resBody) {
+          if (c.id === dbChat2.id) assertChat(c, c.id, 1, 3);
+          else assertChat(c, c.id);
+          assertChatMembersTangibility(c);
+        }
+        assertReceivedDateUpdated(resChat1, dbChat1, userOneData.username);
+        assertReceivedDateUpdated(resChat2, dbChat2, userOneData.username);
+        await db.chat.delete({ where: { id: dbChat2.id } });
       });
     });
 

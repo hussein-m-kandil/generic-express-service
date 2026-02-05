@@ -241,15 +241,20 @@ export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) =>
   );
 };
 
-export const getUserChatsByMemberProfileId = async (
-  userId: User['id'],
-  profileId: Profile['id'],
-) => {
+export const getUserChatsByMember = async (userId: User['id'], memberIdOrUsername: string) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
+      let profileId: Profile['id'];
       try {
-        const memberProfile = await tx.profile.findUnique({ where: { id: profileId } });
+        const memberUser = await tx.user.findUnique({
+          where: { username: memberIdOrUsername },
+          include: { profile: true },
+        });
+        const memberProfile =
+          memberUser?.profile ??
+          (await tx.profile.findUnique({ where: { id: memberIdOrUsername } }));
         if (!memberProfile) throw new AppNotFoundError('Chat member profile not found');
+        profileId = memberProfile.id;
       } catch {
         throw new AppNotFoundError('Chat member profile not found');
       }
