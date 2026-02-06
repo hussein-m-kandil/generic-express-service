@@ -33,7 +33,7 @@ chatsRouter.get('/', Middlewares.authValidator, async (req, res) => {
 
 chatsRouter.get('/members/:profileId', Middlewares.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  const chats = await Service.getUserChatsByMemberProfileId(userId, req.params.profileId);
+  const chats = await Service.getUserChatsByMember(userId, req.params.profileId);
   res.json(chats);
 });
 

@@ -10,7 +10,7 @@ import db from '@/lib/db';
 
 const createPaginationArgs = (
   filters: Types.BasePaginationFilters & { orderBy: 'createdAt' | 'updatedAt' },
-  limit = 10
+  limit = 10,
 ) => {
   return {
     ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
@@ -36,7 +36,7 @@ const createChatAggregation = () => {
 
 const createCurrentProfileChatArgs = (
   currentProfile: Prisma.ProfileGetPayload<{ include: { user: true } }>,
-  now: Date
+  now: Date,
 ) => {
   return {
     profileName: currentProfile.user.username,
@@ -48,7 +48,7 @@ const createCurrentProfileChatArgs = (
 
 const prepareChat = (
   chat: Prisma.ChatGetPayload<{ include: ReturnType<typeof createChatAggregation> }>,
-  currentProfile: Profile
+  currentProfile: Profile,
 ) => {
   if (currentProfile.tangible) {
     chat.profiles = chat.profiles.map((p) => {
@@ -59,7 +59,7 @@ const prepareChat = (
     });
   } else {
     chat.profiles = chat.profiles.map((p) =>
-      p.profileId === currentProfile.id ? p : { ...p, lastSeenAt: null }
+      p.profileId === currentProfile.id ? p : { ...p, lastSeenAt: null },
     );
   }
   return chat;
@@ -69,23 +69,22 @@ export const createChat = async (
   user: Types.PublicUser,
   data: Schema.ValidChat,
   imageData?: Types.ImageFullData,
-  uploadedImage?: Storage.UploadedImageData
+  uploadedImage?: Storage.UploadedImageData,
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
-      // Get current user's profile
-      const currentProfile = await tx.profile.findUnique({
-        where: { userId: user.id },
-        include: { user: true },
-      });
-      if (!currentProfile) throw new AppNotFoundError('Profile not found');
-      const currentProfileChatArgs = createCurrentProfileChatArgs(currentProfile, new Date());
-      // Get all the other profiles
-      const otherProfiles = await tx.profile.findMany({
-        where: { id: { in: data.profiles } },
+      const allProfiles = await tx.profile.findMany({
+        where: { OR: [{ id: { in: data.profiles } }, { userId: user.id }] },
         include: { user: true },
         distinct: 'id',
       });
+      const otherProfiles: typeof allProfiles = [];
+      const currentProfile = allProfiles.reduce<(typeof allProfiles)[number] | null>(
+        (acc, curr) => (curr.user.id === user.id ? curr : (otherProfiles.push(curr), acc)),
+        null,
+      );
+      if (!currentProfile) throw new AppNotFoundError('Profile not found');
+      const currentProfileChatArgs = createCurrentProfileChatArgs(currentProfile, new Date());
       const chatAggregation = createChatAggregation();
       const messageArgs = {
         profileName: currentProfile.user.username,
@@ -101,19 +100,15 @@ export const createChat = async (
         profileId: currentProfile.id,
       };
       // Find chats with the same owner and same group of profiles (there should be at most one)
-      const existentChats = await tx.chat.findMany({
-        where: {
-          managers: { some: { profileId: currentProfile.id, role: 'OWNER' } },
-          profiles: {
-            every: {
-              profileName: {
-                in: [currentProfile.user.username, ...otherProfiles.map((p) => p.user.username)],
-              },
-            },
+      const existentChats = (
+        await tx.chat.findMany({
+          where: {
+            managers: { some: { profileId: currentProfile.id, role: 'OWNER' } },
+            profiles: { every: { profileName: { in: allProfiles.map((p) => p.user.username) } } },
           },
-        },
-        include: chatAggregation,
-      });
+          include: { ...chatAggregation, _count: { select: { profiles: true } } },
+        })
+      ).filter((c) => c._count.profiles === allProfiles.length); // Filter out the profiles with a mismatched count.
       // Upsert a chat
       let chat: Prisma.ChatGetPayload<{ include: typeof chatAggregation }>;
       if (existentChats.length > 0) {
@@ -163,7 +158,7 @@ export const createChat = async (
         });
       }
       return prepareChat(chat, currentProfile);
-    })
+    }),
   );
 };
 
@@ -187,13 +182,13 @@ export const deleteChat = async (userId: User['id'], chatId: Chat['id']) => {
           }
         }
       }
-    })
+    }),
   );
 };
 
 export const getUserChats = async (
   userId: User['id'],
-  filters: Types.BasePaginationFilters = {}
+  filters: Types.BasePaginationFilters = {},
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
@@ -214,7 +209,7 @@ export const getUserChats = async (
         include: createChatAggregation(),
       });
       return chats.map((chat) => prepareChat(chat, currentProfile));
-    })
+    }),
   );
 };
 
@@ -242,19 +237,24 @@ export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) =>
         throw new AppNotFoundError('Chat not found');
       }
       return prepareChat(chat, currentProfile);
-    })
+    }),
   );
 };
 
-export const getUserChatsByMemberProfileId = async (
-  userId: User['id'],
-  profileId: Profile['id']
-) => {
+export const getUserChatsByMember = async (userId: User['id'], memberIdOrUsername: string) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
+      let profileId: Profile['id'];
       try {
-        const memberProfile = await tx.profile.findUnique({ where: { id: profileId } });
+        const memberUser = await tx.user.findUnique({
+          where: { username: memberIdOrUsername },
+          include: { profile: true },
+        });
+        const memberProfile =
+          memberUser?.profile ??
+          (await tx.profile.findUnique({ where: { id: memberIdOrUsername } }));
         if (!memberProfile) throw new AppNotFoundError('Chat member profile not found');
+        profileId = memberProfile.id;
       } catch {
         throw new AppNotFoundError('Chat member profile not found');
       }
@@ -281,14 +281,14 @@ export const getUserChatsByMemberProfileId = async (
       });
       if (!currentProfileWithChats) throw new AppNotFoundError('Profile not found');
       return currentProfileWithChats.chats.map((c) => prepareChat(c.chat, currentProfileWithChats));
-    })
+    }),
   );
 };
 
 export const getUserChatMessages = async (
   userId: User['id'],
   chatId: Chat['id'],
-  filters: Types.BasePaginationFilters = {}
+  filters: Types.BasePaginationFilters = {},
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
@@ -315,14 +315,14 @@ export const getUserChatMessages = async (
         where: { chat: { id: chatId, profiles: { some: { profileId } } } },
         include: createMessageAggregation(),
       });
-    })
+    }),
   );
 };
 
 export const getUserChatMessageById = async (
   userId: User['id'],
   chatId: Chat['id'],
-  msgId: Message['id']
+  msgId: Message['id'],
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
@@ -343,7 +343,7 @@ export const getUserChatMessageById = async (
       });
       if (!message) throw new AppNotFoundError('Message not found');
       return message;
-    })
+    }),
   );
 };
 
@@ -352,7 +352,7 @@ export const createUserChatMessage = async (
   chatId: Chat['id'],
   { body }: Schema.ValidMessage,
   imageData?: Types.ImageFullData,
-  uploadedImage?: Storage.UploadedImageData
+  uploadedImage?: Storage.UploadedImageData,
 ) => {
   return await Utils.handleDBKnownErrors(
     db.$transaction(async (tx) => {
@@ -393,7 +393,7 @@ export const createUserChatMessage = async (
         },
         include: createMessageAggregation(),
       });
-    })
+    }),
   );
 };
 
@@ -411,7 +411,7 @@ export const updateProfileChatLastSeenDate = async (userId: User['id'], chatId: 
         where: { profileName_chatId: { profileName, chatId } },
         data: { lastSeenAt: now },
       });
-    })
+    }),
   );
   return now;
 };

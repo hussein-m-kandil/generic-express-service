@@ -322,6 +322,37 @@ describe('Chats endpoints', async () => {
         }
         assertReceivedDateUpdated(resChat1, dbChat1, userOneData.username);
         assertReceivedDateUpdated(resChat2, dbChat2, userOneData.username);
+        await db.chat.delete({ where: { id: dbChat2.id } });
+      });
+
+      it('should respond all the current user chats that include the given member`s', async () => {
+        const memberUsername = dbUserTwo.username;
+        const dbChatId1 = dbChats.find((c) =>
+          c.profiles.some((p) => p.profileName === memberUsername),
+        )!.id;
+        const dbChat1 = (await db.chat.findUnique({
+          where: { id: dbChatId1 },
+          include: { profiles: true },
+        }))!;
+        const dbChat2 = await createChat('Hello #2', [dbUserOne, dbUserTwo, dbXUser]);
+        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+        const res = await authorizedApi.get(`${CHATS_URL}/members/${memberUsername}`);
+        const resBody = res.body as ChatFullData[];
+        const resChat1 = resBody.find((c) => c.id === dbChat1.id)!;
+        const resChat2 = resBody.find((c) => c.id === dbChat2.id)!;
+        expect(res.statusCode).toBe(200);
+        expect(res.type).toMatch(/json/);
+        expect(resBody).toBeInstanceOf(Array);
+        expect(resBody).toHaveLength(2);
+        expect(resBody.every((c) => c.id === dbChat1.id || c.id === dbChat2.id)).toBe(true);
+        for (const c of resBody) {
+          if (c.id === dbChat2.id) assertChat(c, c.id, 1, 3);
+          else assertChat(c, c.id);
+          assertChatMembersTangibility(c);
+        }
+        assertReceivedDateUpdated(resChat1, dbChat1, userOneData.username);
+        assertReceivedDateUpdated(resChat2, dbChat2, userOneData.username);
+        await db.chat.delete({ where: { id: dbChat2.id } });
       });
     });
 
@@ -799,7 +830,8 @@ describe('Chats endpoints', async () => {
       const oldChat = await createChat('', chatMembers);
       await createMessage(oldChat.id, dbUserOne);
       const chatData = {
-        profiles: chatMembers.map((u) => u.profile!.id),
+        // Remove current user from profile ids
+        profiles: chatMembers.filter((cm) => cm.id !== dbUserOne.id).map((u) => u.profile!.id),
         message: { body: 'Whats up?' },
       };
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
@@ -824,7 +856,8 @@ describe('Chats endpoints', async () => {
       const oldChat = await createChat('', chatMembers);
       await createMessage(oldChat.id, dbUserOne);
       const chatData = {
-        profiles: chatMembers.map((u) => u.profile!.id),
+        // Remove current user from profile ids
+        profiles: chatMembers.filter((cm) => cm.id !== intangibleUser.id).map((u) => u.profile!.id),
         message: { body: 'Whats up?' },
       };
       const { authorizedApi } = await prepForAuthorizedTest(intangibleUserData);
@@ -864,6 +897,23 @@ describe('Chats endpoints', async () => {
       expect(dbMsgs).toHaveLength(2);
       assertChat(chat, dbChats[0].id, 2);
       expect(dbMsgs[0].chatId).toBe(dbChats[0].id);
+    });
+
+    it('should not use an already exist self-chat, and start new chat with the given member profile id', async () => {
+      const dbSelfChat = await createChat('Hello, Me!', [dbUserOne], false);
+      const chatData = { profiles: [dbUserTwo.profile!.id], message: { body: 'Hello!' } };
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.post(CHATS_URL).send(chatData);
+      const dbMsgs = await db.message.findMany({});
+      const dbChats = await db.chat.findMany({});
+      const chat = res.body as ChatFullData;
+      expect(res.statusCode).toBe(201);
+      expect(res.type).toMatch(/json/);
+      expect(dbChats).toHaveLength(2);
+      expect(dbMsgs).toHaveLength(2);
+      assertChat(chat, dbChats.find((c) => c.id !== dbSelfChat.id)!.id, 1, 2);
+      expect(dbMsgs.find((m) => m.chatId === dbChats[0].id)).toBeTruthy();
+      expect(dbMsgs.find((m) => m.chatId === dbChats[1].id)).toBeTruthy();
     });
 
     it('should create new chat with a non-image message, and ignore `imagedata` field without an image file', async () => {
