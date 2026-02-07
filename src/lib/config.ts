@@ -1,3 +1,5 @@
+import { CorsOptions } from 'cors';
+
 const ERR = 'EnvVarMissed';
 
 if (!process.env.SECRET) console.error(`${ERR}: SECRET`);
@@ -14,3 +16,9 @@ export const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB) || 2;
 export const TOKEN_EXP_PERIOD = process.env.TOKEN_EXP_PERIOD ?? '3d';
 export const NODE_ENV = process.env.NODE_ENV;
 export const CI = Boolean(process.env.CI);
+
+export const corsOptions: CorsOptions = {
+  origin: ALLOWED_ORIGINS,
+  credentials: true, // Enable cookies and credentials
+  optionsSuccessStatus: 200, // Align more than 204 with legacy browsers
+};
