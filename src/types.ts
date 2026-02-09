@@ -156,3 +156,9 @@ export interface EvaluationResult {
   evaluation: Record<string, boolean>;
   finder: CharacterFinder;
 }
+
+export interface SocketEventData {
+  event: string;
+  rooms: string[];
+  volatile?: boolean;
+}

@@ -173,9 +173,13 @@ export const deleteChat = async (userId: User['id'], chatId: Chat['id']) => {
         if (chat.profiles.length < 2) {
           await tx.chat.delete({ where: { id: chatId } });
         } else {
-          const profile = chat.profiles.find((p) => p.profile?.userId === userId);
-          if (profile) {
-            const { profileName } = profile;
+          let profileName: string | undefined;
+          const otherMembersIds: string[] = [];
+          for (const cp of chat.profiles) {
+            if (!profileName && cp.profile?.userId === userId) profileName = cp.profileName;
+            else if (cp.profileId) otherMembersIds.push(cp.profileId);
+          }
+          if (profileName) {
             await tx.profilesChats.delete({
               where: { profileName_chatId: { chatId, profileName } },
             });
@@ -239,6 +243,33 @@ export const getUserChatById = async (userId: User['id'], chatId: Chat['id']) =>
       return prepareChat(chat, currentProfile);
     }),
   );
+};
+
+export const getOtherChatMemberIds = async (userId: User['id'], chatId: Chat['id']) => {
+  const chat = await db.chat.findUnique({
+    where: { id: chatId },
+    select: { profiles: { select: { profile: true } } },
+  });
+  const otherMembersIds: string[] = [];
+  if (chat) {
+    for (const { profile } of chat.profiles) {
+      if (profile && profile.userId !== userId) otherMembersIds.push(profile.id);
+    }
+  }
+  return otherMembersIds;
+};
+
+export const getOtherChatsMemberIds = (
+  userId: User['id'],
+  chats: Awaited<ReturnType<typeof getUserChats>>,
+) => {
+  const chatsMemberIds: string[] = [];
+  for (const chat of chats) {
+    for (const { profile } of chat.profiles) {
+      if (profile && profile.userId !== userId) chatsMemberIds.push(profile.id);
+    }
+  }
+  return chatsMemberIds;
 };
 
 export const getUserChatsByMember = async (userId: User['id'], memberIdOrUsername: string) => {

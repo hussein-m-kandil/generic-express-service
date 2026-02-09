@@ -1,6 +1,6 @@
 import * as API from '@/api';
 import * as Middlewares from '@/middlewares';
-import { ALLOWED_ORIGINS } from '@/lib/config';
+import { ALLOWED_ORIGINS, corsOptions } from '@/lib/config';
 import { AppBaseError } from '@/lib/app-error';
 import cookieParser from 'cookie-parser';
 import logger from '@/lib/logger';
@@ -21,13 +21,7 @@ app.use(Middlewares.creationRegistrar);
 app.use(Middlewares.createNonAdminDataPurger());
 
 logger.info('ALLOWED_ORIGINS: ', ALLOWED_ORIGINS);
-app.use(
-  cors({
-    origin: ALLOWED_ORIGINS,
-    credentials: true, // Enable cookies and credentials
-    optionsSuccessStatus: 200, // Align more than 204 with legacy browsers
-  })
-);
+app.use(cors(corsOptions));
 
 app.use('/api/v1', API.V1.apiRouter);
 
@@ -37,5 +31,7 @@ app.use((req) => {
 });
 
 app.use(Middlewares.errorHandler);
+
+export { app };
 
 export default app;
