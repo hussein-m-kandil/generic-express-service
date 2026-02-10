@@ -3,6 +3,7 @@ import * as Schema from './profile.schema';
 import * as Service from './profiles.service';
 import * as Validators from '@/middlewares/validators';
 import { Router } from 'express';
+import io from '@/lib/io';
 
 export const profilesRouter = Router();
 
@@ -27,6 +28,12 @@ profilesRouter.get('/followers', Validators.authValidator, async (req, res) => {
 profilesRouter.get('/:idOrUsername', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   res.json(await Service.getProfileByIdOrUsername(req.params.idOrUsername, userId));
+});
+
+profilesRouter.get('/:id/online', Validators.authValidator, async (req, res) => {
+  // Every socket should be in 2 rooms: socket-id (default), and profile-id (joined on connection)
+  const online = (await io.fetchSockets()).some((socket) => socket.rooms.has(req.params.id));
+  res.json(online);
 });
 
 profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
