@@ -38,7 +38,16 @@ profilesRouter.get('/:id/online', Validators.authValidator, async (req, res) => 
 
 profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  res.json(await Service.updateProfileByUserId(userId, Schema.profileSchema.parse(req.body)));
+  const updates = Schema.profileSchema.parse(req.body);
+  const updatedProfile = await Service.updateProfileByUserId(userId, updates);
+  res.json(updatedProfile).on('finish', () => {
+    const { tangible, visible } = updates;
+    const { id: profileId } = updatedProfile;
+    if (tangible !== undefined) io.volatile.except(profileId).emit('chats:updated');
+    if (visible !== undefined) {
+      io.volatile.except(profileId).emit(`${visible ? 'online' : 'offline'}:${profileId}`);
+    }
+  });
 });
 
 profilesRouter.post('/following/:profileId', Validators.authValidator, async (req, res) => {
