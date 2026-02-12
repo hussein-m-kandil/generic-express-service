@@ -4,9 +4,7 @@ A generic Express.js back-end service designed to support multiple front-end app
 
 > Finding a hosting service with a free tier for dynamic deployment is difficult, so I combined the backend of multiple apps in this project to deploy and run it in production for free.
 
-## Disclaimer
-
-I built this project to showcase what I am learning in web development, and I do not plan to keep maintaining it; therefore, _I added a reset feature to periodically delete any non-admin data_.
+![Data model diagram](./prisma/prisma-uml_c.png)
 
 ## Apps Consumes This Service
 
@@ -18,6 +16,7 @@ I built this project to showcase what I am learning in web development, and I do
 
 ## Features
 
+- **Bidirectional Communication**: Socket.IO server is used to support sending notifications from some of the endpoints.
 - **User Management:** Full CRUD operations for users, including sign-up, sign-in, and a special guest sign-in route.
 - **Authentication & Authorization:** Secure, JWT-based authentication using Passport.js, with support for partitioned cookies. It includes role-based access control, restricting certain actions to admins or resource owners.
 - **Blog Engine:** Complete CRUD functionality for posts, comments, and votes. Posts can be classified using a flexible tagging system.
@@ -39,6 +38,7 @@ I built this project to showcase what I am learning in web development, and I do
 
 - [Node.js](https://nodejs.org/) / [Express 5](https://expressjs.com/)
 - [TypeScript](https://www.typescriptlang.org/)
+- [Socket.IO](https://socket.io/)
 - [Zod](https://zod.dev) for validation
 - [Winston](https://github.com/winstonjs/winston) for logging
 - [Multer](https://github.com/expressjs/multer) for file uploads
@@ -153,3 +153,7 @@ Every _push_ or _pull request (PR)_ on main branch, the app will be deployed to 
   ```
 
 - A validation error response body will have the form of _[ZodError.issues](https://zod.dev/?id=error-handling)._
+
+## Disclaimer
+
+I built this project to showcase what I am learning in web development, and I do not plan to keep maintaining it; therefore, _I added a reset feature to periodically delete any non-admin data_.
