@@ -8,28 +8,31 @@ const io = new Server({ cors: corsOptions, serveClient: false });
 
 io.on('connection', (socket) => {
   const { user } = socket.handshake.auth as Partial<AuthResponse>;
+  const { username, profile } = user ?? { username: 'Anonymous', profile: null };
 
-  if (user) {
-    void socket.join(user.id)?.catch();
-    if (user.profile) {
-      socket
-        .join(user.profile.id)
-        ?.catch((error: unknown) => logger.error('Failed to join a socket room', error));
-    }
+  if (profile) {
+    const { id } = profile;
+
+    socket.broadcast.emit(`online:${id}`);
+    socket.on('disconnecting', () => socket.broadcast.emit(`offline:${id}`));
+
+    socket
+      .join(id)
+      ?.catch((error: unknown) => logger.error(`Failed to join ${username} in ${id} room`, error));
+
     db.profile
-      .update({ where: { userId: user.id }, data: { lastSeen: new Date() } })
-      .then(() => logger.info(`Marked ${user.username} as seen`))
-      .catch((error: unknown) => logger.error(`Failed to mark ${user.username} as seen`, error));
+      .update({ where: { id }, data: { lastSeen: new Date() } })
+      .then(() => logger.info(`Marked ${username} as seen`))
+      .catch((error: unknown) => logger.error(`Failed to mark ${username} as seen`, error));
   }
 
-  const username = user?.username;
   const { clientsCount } = io.engine;
 
   logger.info('A socket client is connected', { username, clientsCount });
 
-  socket.on('disconnect', () =>
-    logger.info('A socket client is disconnected.', { username, clientsCount }),
-  );
+  socket.on('disconnect', () => {
+    logger.info('A socket client is disconnected.', { username, clientsCount });
+  });
 });
 
 export { io };

@@ -11,10 +11,10 @@ type ProfilePayload = Prisma.ProfileGetPayload<{
   };
 }>;
 
-export const prepareProfileData = (
+export const prepareProfiles = (
   data: ProfilePayload | ProfilePayload[],
   userId: User['id'],
-): Types.PublicProfile | Types.PublicProfile[] => {
+): Types.PublicProfile[] => {
   const arrayGiven = Array.isArray(data);
   const profiles = arrayGiven ? data : [data];
   const preparedProfiles = profiles.map(({ followers, ...profile }) => {
@@ -24,7 +24,7 @@ export const prepareProfileData = (
       followedByCurrentUser: followers.some((f) => f.follower.userId === userId),
     };
   });
-  return arrayGiven ? preparedProfiles : preparedProfiles[0];
+  return preparedProfiles;
 };
 
 const getProfilePaginationArgs = (filters: Types.ProfileFilters, limit = 10) => {
@@ -56,7 +56,7 @@ const getNameFilterArgs = (nameFilter: Types.ProfileFilters['name']) => {
 };
 
 export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
-  return prepareProfileData(
+  return prepareProfiles(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
         ...getProfilePaginationArgs(filters),
@@ -75,7 +75,7 @@ export const getProfileById = async (profileId: Profile['id'], userId: User['id'
       where: { id: profileId },
     }),
   );
-  if (profile) return prepareProfileData(profile, userId);
+  if (profile) return prepareProfiles(profile, userId)[0];
   throw new AppError.AppNotFoundError('Profile not found');
 };
 
@@ -86,7 +86,7 @@ export const getProfileByUsername = async (username: User['username'], userId: U
       where: { user: { username } },
     }),
   );
-  if (profiles.length === 1) return prepareProfileData(profiles[0], userId);
+  if (profiles.length === 1) return prepareProfiles(profiles[0], userId)[0];
   throw new AppError.AppNotFoundError('Profile not found');
 };
 
@@ -102,7 +102,7 @@ export const getProfileByIdOrUsername = async (idOrUsername: string, userId: Use
 };
 
 export const updateProfileByUserId = async (userId: User['id'], data: Schema.ValidProfile) => {
-  return prepareProfileData(
+  return prepareProfiles(
     await Utils.handleDBKnownErrors(
       db.profile.update({
         ...getExtendedProfileAggregationArgs(userId),
@@ -111,7 +111,7 @@ export const updateProfileByUserId = async (userId: User['id'], data: Schema.Val
       }),
     ),
     userId,
-  );
+  )[0];
 };
 
 export const createFollowing = async (userId: User['id'], { profileId }: Schema.ValidFollowing) => {
@@ -147,7 +147,7 @@ export const deleteFollowing = async (userId: User['id'], { profileId }: Schema.
 };
 
 export const getAllFollowing = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
-  return prepareProfileData(
+  return prepareProfiles(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
         ...getProfilePaginationArgs(filters),
@@ -163,7 +163,7 @@ export const getAllFollowing = async (userId: User['id'], filters: Types.Profile
 };
 
 export const getAllFollowers = async (userId: User['id'], filters: Types.ProfileFilters = {}) => {
-  return prepareProfileData(
+  return prepareProfiles(
     await Utils.handleDBKnownErrors(
       db.profile.findMany({
         ...getProfilePaginationArgs(filters),
