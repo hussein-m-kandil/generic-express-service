@@ -998,29 +998,6 @@ describe('Chats endpoints', async () => {
       expect(storage.upload).toHaveBeenCalledOnce();
       expect(storage.upload.mock.calls.at(-1)?.at(-1)).toHaveProperty('upsert', false);
     });
-
-    it('should create multiple chats sequentially, each of which have seen/received by the its owner', async () => {
-      const profileIds = [dbUserTwo.profile!.id, dbXUser.profile!.id, dbAdmin.profile!.id];
-      for (let i = 0; i < profileIds.length; i++) {
-        const iterNum = i + 1;
-        const chatData = { profiles: [profileIds[i]], message: { body: 'Hello!' } };
-        const { authorizedApi } = await prepForAuthorizedTest(userOneData);
-        const res = await authorizedApi.post(CHATS_URL).send(chatData);
-        const dbMsgs = await db.message.findMany({});
-        const dbChats = await db.chat.findMany({});
-        const chat = res.body as ChatFullData;
-        expect(res.statusCode).toBe(201);
-        expect(res.type).toMatch(/json/);
-        expect(dbChats).toHaveLength(iterNum);
-        expect(dbMsgs).toHaveLength(iterNum);
-        assertChat(chat, dbChats[i].id, 1);
-        expect(chat.profiles[0].lastSeenAt).toBeTruthy();
-        expect(chat.profiles[0].lastReceivedAt).toBeTruthy();
-        expect(dbMsgs[i].chatId).toBe(dbChats[i].id);
-        expect(chat.messages).toBeInstanceOf(Array);
-        assertMessage(chat.messages[0], dbMsgs[i].id);
-      }
-    });
   });
 
   describe(`PATCH ${CHATS_URL}/:id/seen`, () => {

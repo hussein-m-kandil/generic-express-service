@@ -4,7 +4,6 @@ import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
 import { Prisma } from '@/../prisma/client';
 import { Request } from 'express';
-import { io } from '@/lib/io';
 import { z } from 'zod';
 import ms from 'ms';
 import db from '@/lib/db';
@@ -12,10 +11,6 @@ import jwt from 'jsonwebtoken';
 
 export const lowerCase = <T extends string>(s: T): Lowercase<T> => {
   return s.toLowerCase() as Lowercase<T>;
-};
-
-export const emitToRoomsIfAny = ({ event, rooms, volatile }: Types.SocketEventData) => {
-  if (rooms.length) (volatile ? io.volatile : io).to(rooms).emit(event);
 };
 
 export const createJwtForUser = (user: Types.PublicUser): string => {

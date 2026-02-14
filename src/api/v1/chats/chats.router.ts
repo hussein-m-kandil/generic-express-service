@@ -7,6 +7,7 @@ import * as Service from './chats.service';
 import * as Middlewares from '@/middlewares';
 import { Request, Response, Router } from 'express';
 import logger from '@/lib/logger';
+import io from '@/lib/io';
 
 export const chatsRouter = Router();
 
@@ -31,7 +32,7 @@ chatsRouter.get('/', Middlewares.authValidator, async (req, res) => {
   const chats = await Service.getUserChats(userId, filters);
   res.json(chats).on('finish', () => {
     const rooms = Service.getOtherChatsMemberIds(userId, chats);
-    Utils.emitToRoomsIfAny({ rooms, event: 'chats:received', volatile: true });
+    if (rooms.length) io.to(rooms).emit('chats:received');
   });
 });
 
@@ -40,7 +41,7 @@ chatsRouter.get('/members/:profileId', Middlewares.authValidator, async (req, re
   const chats = await Service.getUserChatsByMember(userId, req.params.profileId);
   res.json(chats).on('finish', () => {
     const rooms = Service.getOtherChatsMemberIds(userId, chats);
-    Utils.emitToRoomsIfAny({ rooms, event: 'chats:received', volatile: true });
+    if (rooms.length) io.to(rooms).emit('chats:received');
   });
 });
 
@@ -50,7 +51,9 @@ chatsRouter.get('/:id', Middlewares.authValidator, async (req, res) => {
   const chat = await Service.getUserChatById(userId, chatId);
   res.json(chat).on('finish', () => {
     Service.getOtherChatMemberIds(userId, chatId)
-      .then((rooms) => Utils.emitToRoomsIfAny({ rooms, event: 'chats:received', volatile: true }))
+      .then((rooms) => {
+        if (rooms.length) io.to(rooms).emit('chats:received');
+      })
       .catch((error: unknown) => logger.error('Failed to broadcast "chats:received"', error));
   });
 });
@@ -62,7 +65,9 @@ chatsRouter.get('/:id/messages', Middlewares.authValidator, async (req, res) => 
   const messages = await Service.getUserChatMessages(userId, chatId, filters);
   res.json(messages).on('finish', () => {
     Service.getOtherChatMemberIds(userId, chatId)
-      .then((rooms) => Utils.emitToRoomsIfAny({ rooms, event: 'chats:received', volatile: true }))
+      .then((rooms) => {
+        if (rooms.length) io.to(rooms).emit('chats:received');
+      })
       .catch((error: unknown) => logger.error('Failed to broadcast "chats:received"', error));
   });
 });
@@ -73,7 +78,9 @@ chatsRouter.get('/:id/messages/:msgId', Middlewares.authValidator, async (req, r
   const msg = await Service.getUserChatMessageById(userId, chatId, req.params.msgId);
   res.json(msg).on('finish', () => {
     Service.getOtherChatMemberIds(userId, chatId)
-      .then((rooms) => Utils.emitToRoomsIfAny({ rooms, event: 'chats:received', volatile: true }))
+      .then((rooms) => {
+        if (rooms.length) io.to(rooms).emit('chats:received');
+      })
       .catch((error: unknown) => logger.error('Failed to broadcast "chats:received"', error));
   });
 });
@@ -94,9 +101,12 @@ chatsRouter.post(
       .json(createdChat)
       .on('finish', () => {
         Service.getOtherChatMemberIds(user.id, createdChat.id)
-          .then((rooms) =>
-            Utils.emitToRoomsIfAny({ rooms, event: 'chats:updated', volatile: true }),
-          )
+          .then((rooms) => {
+            if (rooms.length) {
+              io.to(rooms).emit('chats:updated');
+              io.to(rooms).emit('chat:created', createdChat.id);
+            }
+          })
           .catch((error: unknown) => logger.error('Failed to broadcast "chats:updated"', error));
       });
   },
@@ -107,7 +117,13 @@ chatsRouter.patch('/:id/seen', Middlewares.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   res.json(await Service.updateProfileChatLastSeenDate(userId, chatId)).on('finish', () => {
     Service.getOtherChatMemberIds(userId, chatId)
-      .then((rooms) => Utils.emitToRoomsIfAny({ rooms, event: 'chats:updated', volatile: true }))
+      .then((rooms) => {
+        if (rooms.length) {
+          io.to(rooms).emit('chat:updated', chatId);
+          io.to(rooms).emit(`chat:updated:${chatId}`);
+          io.to(rooms).emit('chats:updated');
+        }
+      })
       .catch((error: unknown) => logger.error('Failed to broadcast "chats:updated"', error));
   });
 });
@@ -130,9 +146,13 @@ chatsRouter.post(
       .json(createdMessage)
       .on('finish', () => {
         Service.getOtherChatMemberIds(user.id, chatId)
-          .then((rooms) =>
-            Utils.emitToRoomsIfAny({ rooms, event: 'chats:updated', volatile: true }),
-          )
+          .then((rooms) => {
+            if (rooms.length) {
+              io.to(rooms).emit('chat:updated', chatId);
+              io.to(rooms).emit(`chat:updated:${chatId}`);
+              io.to(rooms).emit('chats:updated');
+            }
+          })
           .catch((error: unknown) => logger.error('Failed to broadcast "chats:updated"', error));
       });
   },
@@ -147,7 +167,13 @@ chatsRouter.delete('/:id', Middlewares.authValidator, async (req, res) => {
     .send()
     .on('finish', () => {
       Service.getOtherChatMemberIds(userId, chatId)
-        .then((rooms) => Utils.emitToRoomsIfAny({ rooms, event: 'chats:updated', volatile: true }))
+        .then((rooms) => {
+          if (rooms.length) {
+            io.to(rooms).emit('chat:deleted', chatId);
+            io.to(rooms).emit(`chat:deleted:${chatId}`);
+            io.to(rooms).emit('chats:updated');
+          }
+        })
         .catch((error: unknown) => logger.error('Failed to broadcast "chats:updated"', error));
     });
 });
