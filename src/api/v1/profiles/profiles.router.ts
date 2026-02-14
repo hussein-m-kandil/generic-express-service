@@ -43,9 +43,14 @@ profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
   res.json(updatedProfile).on('finish', () => {
     const { tangible, visible } = updates;
     const { id: profileId } = updatedProfile;
-    if (tangible !== undefined) io.volatile.except(profileId).emit('chats:updated');
+    io.except(profileId).emit('profiles:updated');
+    io.except(profileId).emit(`profile:updated:${profileId}`);
+    io.except(profileId).emit('profile:updated', profileId);
     if (visible !== undefined) {
-      io.volatile.except(profileId).emit(`${visible ? 'online' : 'offline'}:${profileId}`);
+      io.except(profileId).emit(`${visible ? 'online' : 'offline'}:${profileId}`);
+    }
+    if (tangible !== undefined) {
+      io.except(profileId).emit('chats:updated');
     }
   });
 });
