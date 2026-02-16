@@ -3,14 +3,12 @@ import * as Utils from '@/lib/utils';
 import * as Image from '@/lib/image';
 import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
-import { Prisma } from '@/../prisma/client';
+import { Prisma, User } from '@/../prisma/client';
 import db from '@/lib/db';
 import logger from '@/lib/logger';
 
 export const getPrivatePostProtectionArgs = (authorId?: string) => {
-  return authorId
-    ? { OR: [{ published: true }, { authorId }] }
-    : { published: true };
+  return authorId ? { OR: [{ published: true }, { authorId }] } : { published: true };
 };
 
 export const getAggregatePrivatePostProtectionArgs = (authorId?: string) => {
@@ -33,10 +31,7 @@ export const getTags = async (tags?: Types.TagsFilter) => {
   });
 };
 
-export const getPostUpdateData = (
-  data: Types.NewPostParsedData,
-  imageId?: string
-) => {
+export const getPostUpdateData = (data: Types.NewPostParsedData, imageId?: string) => {
   return {
     imageId,
     title: data.title,
@@ -53,7 +48,7 @@ export const getPostUpdateData = (
 export const getPostCreateData = (
   data: Types.NewPostParsedData,
   authorId: string,
-  imageId?: string
+  imageId?: string,
 ) => {
   return { ...getPostUpdateData(data, imageId), authorId };
 };
@@ -65,13 +60,13 @@ const wrapPostCreate = async <T>(dbQuery: Promise<T>): Promise<T> => {
 
 export const createPost = (
   postData: Types.NewPostParsedDataWithoutImage,
-  user: Types.PublicUser
+  user: Types.PublicUser,
 ) => {
   return wrapPostCreate(
     db.post.create({
       data: getPostCreateData(postData, user.id),
       include: Utils.fieldsToIncludeWithPost,
-    })
+    }),
   );
 };
 
@@ -79,7 +74,7 @@ export const createPostWithImage = (
   postData: Types.NewPostParsedDataWithoutImage,
   user: Types.PublicUser,
   imageData: Types.ImageFullData,
-  uploadedImage: Storage.UploadedImageData
+  uploadedImage: Storage.UploadedImageData,
 ) => {
   return wrapPostCreate(
     db.$transaction(async (prismaClient) => {
@@ -90,7 +85,7 @@ export const createPostWithImage = (
         data: getPostCreateData(postData, user.id, image.id),
         include: Utils.fieldsToIncludeWithPost,
       });
-    })
+    }),
   );
 };
 
@@ -104,10 +99,7 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
   return post;
 };
 
-export const _findPostWithAggregationOrThrow = async (
-  id: string,
-  authorId?: string
-) => {
+export const _findPostWithAggregationOrThrow = async (id: string, authorId?: string) => {
   const dbQuery = db.post.findUnique({
     where: { id, ...getPrivatePostProtectionArgs(authorId) },
     include: {
@@ -123,17 +115,15 @@ export const _findPostWithAggregationOrThrow = async (
   return post;
 };
 
-export type _PostFullData = Awaited<
-  ReturnType<typeof _findPostWithAggregationOrThrow>
->;
+export type _PostFullData = Awaited<ReturnType<typeof _findPostWithAggregationOrThrow>>;
 
 export const findFilteredPosts = async (
-  filters: Types.PostFilters = {},
-  operation: 'count' | 'findMany' = 'findMany'
+  filters: Types.PostFilters = { following: false },
+  operation: 'count' | 'findMany' = 'findMany',
 ) => {
-  const { currentUserId, authorId, tags, text } = filters;
+  const { currentUserId: userId, following, authorId, tags, text } = filters;
   const where: Prisma.PostWhereInput = {
-    ...getPrivatePostProtectionArgs(currentUserId),
+    ...getPrivatePostProtectionArgs(userId),
     AND: {
       ...(authorId ? { authorId } : {}),
       ...{
@@ -149,6 +139,9 @@ export const findFilteredPosts = async (
             tags: { some: { name: { in: tags, mode: 'insensitive' } } },
           }
         : {}),
+      ...(userId && following
+        ? { author: { profile: { followers: { some: { follower: { userId } } } } } }
+        : {}),
     },
   };
   filters.sort = filters.sort ?? 'desc';
@@ -159,13 +152,13 @@ export const findFilteredPosts = async (
           include: Utils.fieldsToIncludeWithPost,
           ...Utils.getPaginationArgs(filters),
           where,
-        })
+        }),
       );
 };
 
 export const findFilteredComments = async (
   filters: Types.CommentFilters = {},
-  operation: 'findMany' | 'count' = 'findMany'
+  operation: 'findMany' | 'count' = 'findMany',
 ) => {
   const { currentUserId, authorId, postId, text } = filters;
   const where: Prisma.CommentWhereInput = {
@@ -181,13 +174,13 @@ export const findFilteredComments = async (
           include: Utils.fieldsToIncludeWithComment,
           ...Utils.getPaginationArgs(filters),
           where,
-        })
+        }),
       );
 };
 
 export const findFilteredVotes = async (
   filters: Types.VoteFilters = {},
-  operation: 'findMany' | 'count' = 'findMany'
+  operation: 'findMany' | 'count' = 'findMany',
 ) => {
   const { currentUserId, authorId, isUpvote, postId } = filters;
   const where: Prisma.VotesOnPostsWhereInput = {
@@ -203,7 +196,7 @@ export const findFilteredVotes = async (
           include: Utils.fieldsToIncludeWithVote,
           ...Utils.getPaginationArgs(filters),
           where,
-        })
+        }),
       );
 };
 
@@ -218,7 +211,7 @@ const wrapPostUpdate = async <T>(dbQuery: Promise<T>): Promise<T> => {
 export const updatePost = (
   post: _PostFullData,
   postData: Types.NewPostParsedData,
-  imageData?: Types.ImageDataInput
+  imageData?: Types.ImageDataInput,
 ) => {
   return wrapPostUpdate(
     db.$transaction(async (prismaClient) => {
@@ -234,7 +227,7 @@ export const updatePost = (
         data: getPostUpdateData(postData),
         include: Utils.fieldsToIncludeWithPost,
       });
-    })
+    }),
   );
 };
 
@@ -243,15 +236,11 @@ export const updatePostWithImage = (
   user: Types.PublicUser,
   postData: Types.NewPostParsedData,
   imageData: Types.ImageFullData,
-  uploadedImage: Storage.UploadedImageData
+  uploadedImage: Storage.UploadedImageData,
 ) => {
   return wrapPostUpdate(
     db.$transaction(async (prismaClient) => {
-      const imgUpData = Image.getImageUpsertData(
-        uploadedImage,
-        imageData,
-        user
-      );
+      const imgUpData = Image.getImageUpsertData(uploadedImage, imageData, user);
       const { id: imageId } = await db.image.upsert({
         where: { src: imgUpData.src },
         create: imgUpData,
@@ -263,14 +252,14 @@ export const updatePostWithImage = (
         include: Utils.fieldsToIncludeWithPost,
         data: getPostUpdateData(postData, imageId),
       });
-    })
+    }),
   );
 };
 
 const upvoteOrDownvotePost = async (
   action: 'upvote' | 'downvote',
   postId: string,
-  userId: string
+  userId: string,
 ) => {
   const isUpvote = action === 'upvote';
   const dbQuery = db.post.update({
@@ -315,17 +304,13 @@ export const unvotePost = async (postId: string, userId: string) => {
     return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
   } catch (error) {
     const connectionDoesNotExist =
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2017';
+      error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2017';
     if (connectionDoesNotExist) return findPostByIdOrThrow(postId);
     throw error;
   }
 };
 
-export const deletePost = async (
-  post: Types.PostFullData,
-  authorId?: string
-) => {
+export const deletePost = async (post: Types.PostFullData, authorId?: string) => {
   const delPostQ = db.post.delete({
     where: { id: post.id, ...getPrivatePostProtectionArgs(authorId) },
   });
@@ -346,10 +331,7 @@ export const deletePost = async (
       try {
         await Storage.removeImage(postImage);
         return await Utils.handleDBKnownErrors(
-          db.$transaction([
-            delPostQ,
-            db.image.delete({ where: { id: postImage.id } }),
-          ])
+          db.$transaction([delPostQ, db.image.delete({ where: { id: postImage.id } })]),
         );
       } catch (error) {
         logger.error('Failed to remove an image form the storage -', error);
@@ -363,7 +345,7 @@ export const deletePost = async (
 export const findPostCommentByCompoundIdOrThrow = async (
   postId: string,
   commentId: string,
-  authorId?: string
+  authorId?: string,
 ) => {
   const id = commentId;
   const dbQuery = db.comment.findUnique({
@@ -382,21 +364,21 @@ export const findPostCommentByCompoundIdOrThrow = async (
 export const findPostByIdAndCreateComment = async (
   postId: string,
   commentAuthorId: string,
-  data: Types.NewCommentParsedData
+  data: Types.NewCommentParsedData,
 ) => {
   await findPostByIdOrThrow(postId, commentAuthorId);
   return await Utils.handleDBKnownErrors(
     db.comment.create({
       data: { ...data, postId, authorId: commentAuthorId },
       include: Utils.fieldsToIncludeWithComment,
-    })
+    }),
   );
 };
 
 export const findCommentAndUpdate = async (
   commentId: string,
   commentAuthorId: string,
-  data: Types.NewCommentParsedData
+  data: Types.NewCommentParsedData,
 ) => {
   const dbQuery = db.comment.update({
     where: {
@@ -410,10 +392,7 @@ export const findCommentAndUpdate = async (
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const findCommentAndDelete = async (
-  commentId: string,
-  postAuthorId?: string
-) => {
+export const findCommentAndDelete = async (commentId: string, postAuthorId?: string) => {
   const dbQuery = db.comment.delete({
     where: {
       id: commentId,
@@ -427,7 +406,7 @@ export const findPostTags = async (postId: string, authorId?: string) => {
   return Utils.handleDBKnownErrors(
     db.tagsOnPosts.findMany({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };
 
@@ -436,8 +415,8 @@ export const countTagsOnPosts = async (postAuthorId?: string) => {
     db.tag.count(
       postAuthorId
         ? { where: { posts: { some: { post: { authorId: postAuthorId } } } } }
-        : undefined
-    )
+        : undefined,
+    ),
   );
 };
 
@@ -445,7 +424,7 @@ export const countPostTags = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
     db.tagsOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };
 
@@ -453,7 +432,7 @@ export const countPostComments = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
     db.comment.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };
 
@@ -461,6 +440,6 @@ export const countPostVotes = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
     db.votesOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };

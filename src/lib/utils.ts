@@ -137,10 +137,12 @@ export const getVoteFiltersFromReqQuery = (req: Request) => {
 };
 
 export const getPostFiltersFromReqQuery = (req: Request): Types.PostFilters => {
+  const following = typeof req.query.following !== 'undefined';
   // Same as the comments filtration + tags filter
   return {
     ...getCommentFiltersFromReqQuery(req),
     tags: getTagsFilterFromReqQuery(req),
+    following,
   };
 };
 

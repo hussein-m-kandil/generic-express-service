@@ -136,6 +136,7 @@ export interface PaginationFilters extends BaseFilters, BasePaginationFilters<nu
 export type TagsFilter = string[];
 
 export interface PostFilters extends PaginationFilters {
+  following: boolean;
   tags?: TagsFilter;
   text?: string;
 }
