@@ -99,9 +99,18 @@ export interface AppErrorResponse {
   };
 }
 
-export type PostFullData = Prisma.PostGetPayload<{
+export interface BasePostCounts {
+  comments: number;
+  votes: number;
+}
+
+export interface PostCounts extends BasePostCounts {
+  downvotes: number;
+  upvotes: number;
+}
+
+export type BasePostFullData = Prisma.PostGetPayload<{
   include: {
-    _count: { select: { comments: true; votes: true } };
     image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
     comments: { include: { author: UserAggregation } };
     votes: { include: { user: UserAggregation } };
@@ -109,6 +118,12 @@ export type PostFullData = Prisma.PostGetPayload<{
     tags: true;
   };
 }>;
+
+export interface PostFullData extends BasePostFullData {
+  downvotedByCurrentUser: boolean;
+  upvotedByCurrentUser: boolean;
+  _count: PostCounts;
+}
 
 export type NewPostParsedData = z.output<typeof postSchema>;
 

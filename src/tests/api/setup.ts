@@ -134,7 +134,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
   };
 
   const createImage = async (
-    imageData: Prisma.ImageCreateManyInput & Prisma.ImageUncheckedCreateInput
+    imageData: Prisma.ImageCreateManyInput & Prisma.ImageUncheckedCreateInput,
   ) => {
     return await db.image.upsert({
       include: Image.FIELDS_TO_INCLUDE,
@@ -212,8 +212,15 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
 
   const assertPostData = (
     actualPost: Types.PostFullData,
-    expectedPost: typeof postFullData & { imageId?: string }
+    expectedPost: typeof postFullData & { imageId?: string },
   ) => {
+    expect(actualPost._count).toBeTypeOf('object');
+    expect(actualPost._count.votes).toBeTypeOf('number');
+    expect(actualPost._count.upvotes).toBeTypeOf('number');
+    expect(actualPost._count.comments).toBeTypeOf('number');
+    expect(actualPost._count.downvotes).toBeTypeOf('number');
+    expect(actualPost.upvotedByCurrentUser).toBeTypeOf('boolean');
+    expect(actualPost.downvotedByCurrentUser).toBeTypeOf('boolean');
     expect(actualPost.title).toBe(expectedPost.title);
     expect(actualPost.content).toBe(expectedPost.content);
     expect(actualPost.authorId).toBe(expectedPost.authorId);
@@ -222,13 +229,13 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     expect(actualPost.comments.length).toBe(expectedPost.comments.length);
     expect(actualPost.tags.length).toBe(expectedPost.tags.length);
     expect(actualPost.tags.map(({ name }) => name.toLowerCase())).toStrictEqual(
-      expectedPost.tags.map((c) => c.toLowerCase())
+      expectedPost.tags.map((c) => c.toLowerCase()),
     );
     expect(
       actualPost.comments.map(({ authorId, content }) => ({
         authorId,
         content,
-      }))
+      })),
     ).toStrictEqual(expectedPost.comments);
     expect(actualPost._count.comments).toBe(expectedPost.comments.length);
     expect(actualPost._count.votes).toBe(expectedPost.votes.length);

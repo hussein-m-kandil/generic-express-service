@@ -205,7 +205,7 @@ postsRouter.put(
         uploadedImage,
       );
     } else {
-      updatedPost = await Service.updatePost(post, postData, imagedata);
+      updatedPost = await Service.updatePost(post, user, postData, imagedata);
     }
     res.json(updatedPost);
   },
