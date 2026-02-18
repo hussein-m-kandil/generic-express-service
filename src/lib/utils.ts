@@ -180,8 +180,8 @@ export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
 
 export const fieldsToIncludeWithPost = {
   _count: { select: { comments: true, votes: true } },
-  votes: { include: { user: true }, ...getPaginationArgs() },
-  comments: { include: { author: true }, ...getPaginationArgs() },
+  votes: { include: { user: userAggregation }, ...getPaginationArgs() },
+  comments: { include: { author: userAggregation }, ...getPaginationArgs() },
   image: { include: fieldsToIncludeWithImage },
   author: userAggregation,
   tags: true,
