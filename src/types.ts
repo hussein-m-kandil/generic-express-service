@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/consistent-type-definitions */
 import { PrismaClient, Prisma, Model, CharacterFinder } from '@/../prisma/client';
 import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
 import { postSchema, commentSchema } from '@/api/v1/posts';
@@ -16,22 +17,26 @@ export interface UserSensitiveDataToOmit {
 
 export interface UserDataToAggregate {
   avatar: { select: { image: { omit: ImageSensitiveDataToOmit } } };
-  profile: boolean;
+  profile: true;
 }
 
-export interface UserAggregation {
+export type UserAggregation = {
   omit: UserSensitiveDataToOmit;
   include: UserDataToAggregate;
-}
+};
 
 export type PublicUser = Prisma.UserGetPayload<{
   include: UserAggregation['include'];
   omit: UserAggregation['omit'];
 }>;
 
-export interface ProfileAggregation {
-  include: { user: UserAggregation };
-}
+export type ProfileAggregation = {
+  include: {
+    user: Omit<UserAggregation, 'include'> & {
+      include: Omit<UserAggregation['include'], 'profile'> & { profile: false };
+    };
+  };
+};
 
 export type PublicProfile = Prisma.ProfileGetPayload<{
   include: ProfileAggregation['include'];

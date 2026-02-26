@@ -38,7 +38,19 @@ export const preparePosts = async <
       ]),
     );
     const _count = { ...post._count, upvotes, downvotes };
-    preparedPosts.push({ ...post, _count, upvotedByCurrentUser, downvotedByCurrentUser });
+    const followedByCurrentUser = !!(
+      currentUserId &&
+      (await db.follows.findFirst({
+        where: { follower: { userId: currentUserId }, profile: { userId: post.authorId } },
+      }))
+    );
+    preparedPosts.push({
+      ...post,
+      _count,
+      upvotedByCurrentUser,
+      downvotedByCurrentUser,
+      author: { ...post.author, profile: { ...post.author.profile, followedByCurrentUser } },
+    });
   }
   return preparedPosts;
 };
@@ -185,16 +197,15 @@ export const findFilteredPosts = async (
   filters.sort = filters.sort ?? 'desc';
   if (operation === 'count') {
     return await Utils.handleDBKnownErrors(db.post.count({ where }));
-  } else {
-    const posts = await Utils.handleDBKnownErrors(
-      db.post.findMany({
-        include: Utils.fieldsToIncludeWithPost,
-        ...Utils.getPaginationArgs(filters),
-        where,
-      }),
-    );
-    return await preparePosts(posts, userId);
   }
+  const posts = await Utils.handleDBKnownErrors(
+    db.post.findMany({
+      include: Utils.fieldsToIncludeWithPost,
+      ...Utils.getPaginationArgs(filters),
+      where,
+    }),
+  );
+  return await preparePosts(posts, userId);
 };
 
 export const findFilteredComments = async (
@@ -208,15 +219,28 @@ export const findFilteredComments = async (
     ...(authorId ? { authorId } : {}),
     ...(postId ? { postId } : {}),
   };
-  return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.comment.count({ where }))
-    : await Utils.handleDBKnownErrors(
-        db.comment.findMany({
-          include: Utils.fieldsToIncludeWithComment,
-          ...Utils.getPaginationArgs(filters),
-          where,
-        }),
-      );
+  if (operation === 'count') {
+    return await Utils.handleDBKnownErrors(db.comment.count({ where }));
+  }
+  const comments = await Utils.handleDBKnownErrors(
+    db.comment.findMany({
+      include: Utils.fieldsToIncludeWithComment,
+      ...Utils.getPaginationArgs(filters),
+      where,
+    }),
+  );
+  if (!currentUserId) return comments;
+  const extendedComments: typeof comments = [];
+  for (const comment of comments) {
+    const followedByCurrentUser = !!(await db.follows.findFirst({
+      where: { follower: { userId: currentUserId }, profile: { userId: comment.authorId } },
+    }));
+    extendedComments.push({
+      ...comment,
+      author: { ...comment.author, profile: { ...comment.author.profile, followedByCurrentUser } },
+    } as (typeof comments)[number]);
+  }
+  return extendedComments;
 };
 
 export const findFilteredVotes = async (
@@ -230,15 +254,28 @@ export const findFilteredVotes = async (
     ...(authorId ? { userId: authorId } : {}),
     ...(postId ? { postId } : {}),
   };
-  return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.votesOnPosts.count({ where }))
-    : await Utils.handleDBKnownErrors(
-        db.votesOnPosts.findMany({
-          include: Utils.fieldsToIncludeWithVote,
-          ...Utils.getPaginationArgs(filters),
-          where,
-        }),
-      );
+  if (operation === 'count') {
+    return await Utils.handleDBKnownErrors(db.votesOnPosts.count({ where }));
+  }
+  const votes = await Utils.handleDBKnownErrors(
+    db.votesOnPosts.findMany({
+      include: Utils.fieldsToIncludeWithVote,
+      ...Utils.getPaginationArgs(filters),
+      where,
+    }),
+  );
+  if (!currentUserId) return votes;
+  const extendedVotes: typeof votes = [];
+  for (const vote of votes) {
+    const followedByCurrentUser = !!(await db.follows.findFirst({
+      where: { follower: { userId: currentUserId }, profile: { userId: vote.userId } },
+    }));
+    extendedVotes.push({
+      ...vote,
+      user: { ...vote.user, profile: { ...vote.user.profile, followedByCurrentUser } },
+    } as (typeof votes)[number]);
+  }
+  return extendedVotes;
 };
 
 const wrapPostUpdate = async <T>(dbQuery: Promise<T>): Promise<T> => {
@@ -391,20 +428,29 @@ export const deletePost = async (post: Types.PostFullData, authorId?: string) =>
 export const findPostCommentByCompoundIdOrThrow = async (
   postId: string,
   commentId: string,
-  authorId?: string,
+  currentUserId?: string,
 ) => {
   const id = commentId;
   const dbQuery = db.comment.findUnique({
     where: {
       id,
       postId,
-      ...getAggregatePrivatePostProtectionArgs(authorId),
+      ...getAggregatePrivatePostProtectionArgs(currentUserId),
     },
     include: Utils.fieldsToIncludeWithComment,
   });
   const comment = await Utils.handleDBKnownErrors(dbQuery);
   if (!comment) throw new AppError.AppNotFoundError('Post/Comment Not Found');
-  return comment;
+  if (!currentUserId) {
+    return comment;
+  }
+  const followedByCurrentUser = !!(await db.follows.findFirst({
+    where: { follower: { userId: currentUserId }, profile: { userId: comment.authorId } },
+  }));
+  return {
+    ...comment,
+    author: { ...comment.author, profile: { ...comment.author.profile, followedByCurrentUser } },
+  };
 };
 
 export const findPostByIdAndCreateComment = async (
