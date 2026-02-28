@@ -69,14 +69,18 @@ export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileF
 };
 
 export const getProfileById = async (profileId: Profile['id'], userId: User['id']) => {
-  const profile = await Utils.handleDBKnownErrors(
-    db.profile.findUnique({
-      ...getExtendedProfileAggregationArgs(userId),
-      where: { id: profileId },
-    }),
-  );
-  if (profile) return prepareProfiles(profile, userId)[0];
-  throw new AppError.AppNotFoundError('Profile not found');
+  const dbQuery = db.profile.findUnique({
+    ...getExtendedProfileAggregationArgs(userId),
+    where: { id: profileId },
+  });
+  let profile: Awaited<typeof dbQuery> = null;
+  try {
+    profile = await Utils.handleDBKnownErrors(dbQuery);
+  } catch (error) {
+    if (!(error instanceof AppError.AppInvalidIdError)) throw error;
+  }
+  if (!profile) throw new AppError.AppNotFoundError('Profile not found');
+  return prepareProfiles(profile, userId)[0];
 };
 
 export const getProfileByUsername = async (username: User['username'], userId: User['id']) => {
