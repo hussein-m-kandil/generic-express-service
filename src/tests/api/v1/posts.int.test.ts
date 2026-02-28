@@ -244,9 +244,9 @@ describe('Post endpoints', async () => {
   });
 
   describe(`GET ${POSTS_URL}/:id`, () => {
-    it('should respond with a 400', async () => {
+    it('should respond with a 404', async () => {
       const res = await api.get(`${POSTS_URL}/123`);
-      assertInvalidIdErrorRes(res);
+      assertNotFoundErrorRes(res);
     });
 
     it('should respond with a 404', async () => {
@@ -1083,10 +1083,10 @@ describe('Post endpoints', async () => {
       expect(res.body).toStrictEqual({});
     });
 
-    it('should respond with 400 on invalid post id', async () => {
+    it('should respond with 404 on invalid post id', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.post(`${POSTS_URL}/321/comments`).send(commentData);
-      assertInvalidIdErrorRes(res);
+      assertNotFoundErrorRes(res);
     });
 
     it(`should respond with 404 on id of non-existent post`, async () => {

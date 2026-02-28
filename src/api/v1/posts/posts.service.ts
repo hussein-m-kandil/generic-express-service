@@ -144,7 +144,12 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
     where: { id, ...getPrivatePostProtectionArgs(authorId) },
     include: Utils.fieldsToIncludeWithPost,
   });
-  const post = await Utils.handleDBKnownErrors(dbQuery);
+  let post: Awaited<typeof dbQuery> = null;
+  try {
+    post = await Utils.handleDBKnownErrors(dbQuery);
+  } catch (error) {
+    if (!(error instanceof AppError.AppInvalidIdError)) throw error;
+  }
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
   return (await preparePosts([post]))[0];
 };
