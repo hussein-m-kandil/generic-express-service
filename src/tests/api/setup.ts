@@ -283,6 +283,7 @@ export const setup = async (signinUrl: string, expApp: App = app) => {
     assertErrorRes: TestUtils.assertErrorRes,
     assertNotFoundErrorRes: TestUtils.assertNotFoundErrorRes,
     assertInvalidIdErrorRes: TestUtils.assertInvalidIdErrorRes,
+    assertForbiddenErrorRes: TestUtils.assertForbiddenErrorRes,
     assertUnauthorizedErrorRes: TestUtils.assertUnauthorizedErrorRes,
     assertResponseWithValidationError: TestUtils.assertResponseWithValidationError,
   };

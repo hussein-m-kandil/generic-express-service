@@ -44,10 +44,15 @@ export const assertUnauthorizedErrorRes = (res: supertest.Response) => {
   expect(res.body).toStrictEqual({});
 };
 
+export const assertForbiddenErrorRes = (res: supertest.Response) => {
+  expect(res.statusCode).toBe(403);
+  expect(res.body).toStrictEqual({});
+};
+
 export const assertResponseWithValidationError = (
   res: supertest.Response,
   issueField?: string,
-  issuesCount = 1
+  issuesCount = 1,
 ) => {
   const issues = res.body as z.ZodIssue[];
   expect(res.type).toMatch(/json/);

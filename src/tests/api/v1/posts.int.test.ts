@@ -37,6 +37,7 @@ describe('Post endpoints', async () => {
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
+    assertForbiddenErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
 
@@ -352,14 +353,13 @@ describe('Post endpoints', async () => {
           assertInvalidIdErrorRes(res);
         });
 
-        it('should respond with 401 with non-owner credentials', async () => {
+        it('should respond with 403 with non-owner credentials', async () => {
           const dbPost = await createPost({
             ...postDataToUpdate,
             authorId: dbUserTwo.id,
           });
           const res = await authorizedApi.put(`${POSTS_URL}/${dbPost.id}`).send(postDataInput);
-          expect(res.statusCode).toBe(401);
-          expect(res.body).toStrictEqual({});
+          assertForbiddenErrorRes(res);
         });
 
         it('should update the tags', async () => {
@@ -588,7 +588,7 @@ describe('Post endpoints', async () => {
         expect(res.body).toStrictEqual({});
       });
 
-      it(`should respond with 401 on request with non-post${
+      it(`should respond with 403 on request with non-post${
         forComment ? '/comment' : ''
       }-owner JWT`, async () => {
         const xUserSigninData = await signin(xUserData.username, xUserData.password);
@@ -600,8 +600,7 @@ describe('Post endpoints', async () => {
               : `${POSTS_URL}/${dbPost.id}`,
           )
           .set('Authorization', xUserSigninData.token);
-        expect(res.statusCode).toBe(401);
-        expect(res.body).toStrictEqual({});
+        assertForbiddenErrorRes(res);
       });
 
       it(`should admin be able delete a normal user ${
@@ -1227,7 +1226,7 @@ describe('Post endpoints', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with 401 on a non-comment-owner JWT', async () => {
+    it('should respond with 403 on a non-comment-owner JWT', async () => {
       const { signedInUserData, authorizedApi } = await prepForAuthorizedTest(xUserData);
       const dbPost = await createPost(postDataToComment);
       const res = await authorizedApi
@@ -1238,8 +1237,7 @@ describe('Post endpoints', async () => {
         )
         .set('authorization', signedInUserData.token)
         .send(commentData);
-      expect(res.statusCode).toBe(401);
-      expect(res.body).toStrictEqual({});
+      assertForbiddenErrorRes(res);
     });
 
     it('should respond with 400 on a comment without content field', async () => {
