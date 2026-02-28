@@ -1,12 +1,4 @@
-import {
-  vi,
-  it,
-  expect,
-  describe,
-  afterAll,
-  afterEach,
-  beforeEach,
-} from 'vitest';
+import { vi, it, expect, describe, afterAll, afterEach, beforeEach } from 'vitest';
 import { AppErrorResponse } from '@/types';
 import { IMAGES_URL, SIGNIN_URL } from './utils';
 import { Image } from 'prisma/client';
@@ -34,6 +26,7 @@ describe('Image endpoints', async () => {
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
     assertInvalidIdErrorRes,
+    assertForbiddenErrorRes,
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
@@ -42,9 +35,7 @@ describe('Image endpoints', async () => {
     storage: { upload, remove },
   } = storageData;
 
-  const { authorizedApi, signedInUserData } = await prepForAuthorizedTest(
-    userOneData
-  );
+  const { authorizedApi, signedInUserData } = await prepForAuthorizedTest(userOneData);
 
   let url: string;
   const prepImageUrl = async () => {
@@ -68,10 +59,10 @@ describe('Image endpoints', async () => {
       assertUnauthorizedErrorRes(res);
     });
 
-    it('should respond with 401 on a request with user token', async () => {
+    it('should respond with 403 on a request with user token', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.get(IMAGES_URL);
-      assertUnauthorizedErrorRes(res);
+      assertForbiddenErrorRes(res);
     });
 
     it('should respond with an empty array on a request with admin token', async () => {
@@ -160,10 +151,7 @@ describe('Image endpoints', async () => {
 
     it('should upload the image with data', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .post(IMAGES_URL)
-        .field(imagedata)
-        .attach('image', stream);
+      const res = await authorizedApi.post(IMAGES_URL).field(imagedata).attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, imgData);
       expect(upload).toHaveBeenCalledOnce();
@@ -186,10 +174,7 @@ describe('Image endpoints', async () => {
     it('should upload the image with extra info', async () => {
       const info = 'Extra info...';
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .post(IMAGES_URL)
-        .field('info', info)
-        .attach('image', stream);
+      const res = await authorizedApi.post(IMAGES_URL).field('info', info).attach('image', stream);
       expect(res.statusCode).toBe(201);
       assertImageData(res, { ...imgOne, info });
       expect(upload).toHaveBeenCalledOnce();
@@ -280,16 +265,14 @@ describe('Image endpoints', async () => {
       assertUnauthorizedErrorRes(res);
     });
 
-    it('should respond with 401 if the current user is not the image owner', async () => {
+    it('should respond with 403 if the current user is not the image owner', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userTwoData);
       const res = await authorizedApi.put(url).send();
-      assertUnauthorizedErrorRes(res);
+      assertForbiddenErrorRes(res);
     });
 
     it('should respond with 404', async () => {
-      const res = await authorizedApi
-        .put(`${IMAGES_URL}/${crypto.randomUUID()}`)
-        .send();
+      const res = await authorizedApi.put(`${IMAGES_URL}/${crypto.randomUUID()}`).send();
       assertNotFoundErrorRes(res);
     });
 
@@ -316,10 +299,7 @@ describe('Image endpoints', async () => {
 
     it('should update the image with data', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .put(url)
-        .field(imagedata)
-        .attach('image', stream);
+      const res = await authorizedApi.put(url).field(imagedata).attach('image', stream);
       expect(res.statusCode).toBe(200);
       assertImageData(res, imgData);
       expect(upload).toHaveBeenCalledOnce();
@@ -365,30 +345,21 @@ describe('Image endpoints', async () => {
 
     it('should not update the image with invalid `xPos` type', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .put(url)
-        .field('xPos', '25px')
-        .attach('image', stream);
+      const res = await authorizedApi.put(url).field('xPos', '25px').attach('image', stream);
       assertResponseWithValidationError(res, 'xPos');
       expect(upload).not.toHaveBeenCalledOnce();
     });
 
     it('should not update the image with invalid `yPos` type', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .put(url)
-        .field('yPos', '25px')
-        .attach('image', stream);
+      const res = await authorizedApi.put(url).field('yPos', '25px').attach('image', stream);
       assertResponseWithValidationError(res, 'yPos');
       expect(upload).not.toHaveBeenCalledOnce();
     });
 
     it('should not update the image with invalid `scale` type', async () => {
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .put(url)
-        .field('scale', '125%')
-        .attach('image', stream);
+      const res = await authorizedApi.put(url).field('scale', '125%').attach('image', stream);
       assertResponseWithValidationError(res, 'scale');
       expect(upload).not.toHaveBeenCalledOnce();
     });
@@ -396,10 +367,7 @@ describe('Image endpoints', async () => {
     it('should update the avatar image and connect it to the current user', async () => {
       const userId = signedInUserData.user.id;
       stream = fs.createReadStream('src/tests/files/good.jpg');
-      const res = await authorizedApi
-        .put(url)
-        .field('isAvatar', true)
-        .attach('image', stream);
+      const res = await authorizedApi.put(url).field('isAvatar', true).attach('image', stream);
       const dbAvatar = (await db.avatar.findMany({})).at(-1)!;
       expect((res.body as Image).id).toBe(dbAvatar.imageId);
       expect(res.statusCode).toBe(200);
@@ -418,16 +386,14 @@ describe('Image endpoints', async () => {
       assertUnauthorizedErrorRes(res);
     });
 
-    it('should respond with 401 if the current user is not the image owner', async () => {
+    it('should respond with 403 if the current user is not the image owner', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(userTwoData);
       const res = await authorizedApi.delete(url).send();
-      assertUnauthorizedErrorRes(res);
+      assertForbiddenErrorRes(res);
     });
 
     it('should respond with 404', async () => {
-      const res = await authorizedApi
-        .delete(`${IMAGES_URL}/${crypto.randomUUID()}`)
-        .send();
+      const res = await authorizedApi.delete(`${IMAGES_URL}/${crypto.randomUUID()}`).send();
       assertNotFoundErrorRes(res);
     });
 

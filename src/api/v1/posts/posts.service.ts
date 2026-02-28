@@ -3,14 +3,60 @@ import * as Utils from '@/lib/utils';
 import * as Image from '@/lib/image';
 import * as Storage from '@/lib/storage';
 import * as AppError from '@/lib/app-error';
-import { Prisma } from '@/../prisma/client';
-import db from '@/lib/db';
+import { Prisma, User } from '@/../prisma/client';
 import logger from '@/lib/logger';
+import db from '@/lib/db';
+
+export const preparePosts = async <
+  T extends Types.BasePostFullData & { _count: Types.BasePostCounts },
+>(
+  posts: T[],
+  currentUserId?: User['id'],
+): Promise<(T & Types.PostFullData)[]> => {
+  const preparedPosts: (T & Types.PostFullData)[] = [];
+  for (const post of posts) {
+    const postId = post.id;
+    const userId = currentUserId;
+    const [upvotedByCurrentUser, downvotedByCurrentUser] = userId
+      ? (
+          await Utils.handleDBKnownErrors(
+            db.$transaction([
+              db.votesOnPosts.findUnique({
+                where: { userId_postId: { userId, postId }, isUpvote: true },
+              }),
+              db.votesOnPosts.findUnique({
+                where: { userId_postId: { userId, postId }, isUpvote: false },
+              }),
+            ]),
+          )
+        ).map((foundVote) => !!foundVote)
+      : [false, false];
+    const [upvotes, downvotes] = await Utils.handleDBKnownErrors(
+      db.$transaction([
+        db.votesOnPosts.count({ where: { postId, isUpvote: true } }),
+        db.votesOnPosts.count({ where: { postId, isUpvote: false } }),
+      ]),
+    );
+    const _count = { ...post._count, upvotes, downvotes };
+    const followedByCurrentUser = !!(
+      currentUserId &&
+      (await db.follows.findFirst({
+        where: { follower: { userId: currentUserId }, profile: { userId: post.authorId } },
+      }))
+    );
+    preparedPosts.push({
+      ...post,
+      _count,
+      upvotedByCurrentUser,
+      downvotedByCurrentUser,
+      author: { ...post.author, profile: { ...post.author.profile, followedByCurrentUser } },
+    });
+  }
+  return preparedPosts;
+};
 
 export const getPrivatePostProtectionArgs = (authorId?: string) => {
-  return authorId
-    ? { OR: [{ published: true }, { authorId }] }
-    : { published: true };
+  return authorId ? { OR: [{ published: true }, { authorId }] } : { published: true };
 };
 
 export const getAggregatePrivatePostProtectionArgs = (authorId?: string) => {
@@ -33,10 +79,7 @@ export const getTags = async (tags?: Types.TagsFilter) => {
   });
 };
 
-export const getPostUpdateData = (
-  data: Types.NewPostParsedData,
-  imageId?: string
-) => {
+export const getPostUpdateData = (data: Types.NewPostParsedData, imageId?: string) => {
   return {
     imageId,
     title: data.title,
@@ -53,7 +96,7 @@ export const getPostUpdateData = (
 export const getPostCreateData = (
   data: Types.NewPostParsedData,
   authorId: string,
-  imageId?: string
+  imageId?: string,
 ) => {
   return { ...getPostUpdateData(data, imageId), authorId };
 };
@@ -63,25 +106,26 @@ const wrapPostCreate = async <T>(dbQuery: Promise<T>): Promise<T> => {
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const createPost = (
+export const createPost = async (
   postData: Types.NewPostParsedDataWithoutImage,
-  user: Types.PublicUser
+  user: Types.PublicUser,
 ) => {
-  return wrapPostCreate(
+  const createdPost = await wrapPostCreate(
     db.post.create({
       data: getPostCreateData(postData, user.id),
       include: Utils.fieldsToIncludeWithPost,
-    })
+    }),
   );
+  return (await preparePosts([createdPost], user.id))[0];
 };
 
-export const createPostWithImage = (
+export const createPostWithImage = async (
   postData: Types.NewPostParsedDataWithoutImage,
   user: Types.PublicUser,
   imageData: Types.ImageFullData,
-  uploadedImage: Storage.UploadedImageData
+  uploadedImage: Storage.UploadedImageData,
 ) => {
-  return wrapPostCreate(
+  const createdPost = await wrapPostCreate(
     db.$transaction(async (prismaClient) => {
       const image = await prismaClient.image.create({
         data: Image.getImageUpsertData(uploadedImage, imageData, user),
@@ -90,8 +134,9 @@ export const createPostWithImage = (
         data: getPostCreateData(postData, user.id, image.id),
         include: Utils.fieldsToIncludeWithPost,
       });
-    })
+    }),
   );
+  return (await preparePosts([createdPost], user.id))[0];
 };
 
 export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
@@ -99,15 +144,17 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
     where: { id, ...getPrivatePostProtectionArgs(authorId) },
     include: Utils.fieldsToIncludeWithPost,
   });
-  const post = await Utils.handleDBKnownErrors(dbQuery);
+  let post: Awaited<typeof dbQuery> = null;
+  try {
+    post = await Utils.handleDBKnownErrors(dbQuery);
+  } catch (error) {
+    if (!(error instanceof AppError.AppInvalidIdError)) throw error;
+  }
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
-  return post;
+  return (await preparePosts([post]))[0];
 };
 
-export const _findPostWithAggregationOrThrow = async (
-  id: string,
-  authorId?: string
-) => {
+export const _findPostWithAggregationOrThrow = async (id: string, authorId?: string) => {
   const dbQuery = db.post.findUnique({
     where: { id, ...getPrivatePostProtectionArgs(authorId) },
     include: {
@@ -120,20 +167,18 @@ export const _findPostWithAggregationOrThrow = async (
   });
   const post = await Utils.handleDBKnownErrors(dbQuery);
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
-  return post;
+  return (await preparePosts([post]))[0];
 };
 
-export type _PostFullData = Awaited<
-  ReturnType<typeof _findPostWithAggregationOrThrow>
->;
+export type _PostFullData = Awaited<ReturnType<typeof _findPostWithAggregationOrThrow>>;
 
 export const findFilteredPosts = async (
-  filters: Types.PostFilters = {},
-  operation: 'count' | 'findMany' = 'findMany'
+  filters: Types.PostFilters = { following: false },
+  operation: 'count' | 'findMany' = 'findMany',
 ) => {
-  const { currentUserId, authorId, tags, text } = filters;
+  const { currentUserId: userId, following, authorId, tags, text } = filters;
   const where: Prisma.PostWhereInput = {
-    ...getPrivatePostProtectionArgs(currentUserId),
+    ...getPrivatePostProtectionArgs(userId),
     AND: {
       ...(authorId ? { authorId } : {}),
       ...{
@@ -149,23 +194,28 @@ export const findFilteredPosts = async (
             tags: { some: { name: { in: tags, mode: 'insensitive' } } },
           }
         : {}),
+      ...(userId && following
+        ? { author: { profile: { followers: { some: { follower: { userId } } } } } }
+        : {}),
     },
   };
   filters.sort = filters.sort ?? 'desc';
-  return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.post.count({ where }))
-    : await Utils.handleDBKnownErrors(
-        db.post.findMany({
-          include: Utils.fieldsToIncludeWithPost,
-          ...Utils.getPaginationArgs(filters),
-          where,
-        })
-      );
+  if (operation === 'count') {
+    return await Utils.handleDBKnownErrors(db.post.count({ where }));
+  }
+  const posts = await Utils.handleDBKnownErrors(
+    db.post.findMany({
+      include: Utils.fieldsToIncludeWithPost,
+      ...Utils.getPaginationArgs(filters),
+      where,
+    }),
+  );
+  return await preparePosts(posts, userId);
 };
 
 export const findFilteredComments = async (
   filters: Types.CommentFilters = {},
-  operation: 'findMany' | 'count' = 'findMany'
+  operation: 'findMany' | 'count' = 'findMany',
 ) => {
   const { currentUserId, authorId, postId, text } = filters;
   const where: Prisma.CommentWhereInput = {
@@ -174,20 +224,33 @@ export const findFilteredComments = async (
     ...(authorId ? { authorId } : {}),
     ...(postId ? { postId } : {}),
   };
-  return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.comment.count({ where }))
-    : await Utils.handleDBKnownErrors(
-        db.comment.findMany({
-          include: Utils.fieldsToIncludeWithComment,
-          ...Utils.getPaginationArgs(filters),
-          where,
-        })
-      );
+  if (operation === 'count') {
+    return await Utils.handleDBKnownErrors(db.comment.count({ where }));
+  }
+  const comments = await Utils.handleDBKnownErrors(
+    db.comment.findMany({
+      include: Utils.fieldsToIncludeWithComment,
+      ...Utils.getPaginationArgs(filters),
+      where,
+    }),
+  );
+  if (!currentUserId) return comments;
+  const extendedComments: typeof comments = [];
+  for (const comment of comments) {
+    const followedByCurrentUser = !!(await db.follows.findFirst({
+      where: { follower: { userId: currentUserId }, profile: { userId: comment.authorId } },
+    }));
+    extendedComments.push({
+      ...comment,
+      author: { ...comment.author, profile: { ...comment.author.profile, followedByCurrentUser } },
+    } as (typeof comments)[number]);
+  }
+  return extendedComments;
 };
 
 export const findFilteredVotes = async (
   filters: Types.VoteFilters = {},
-  operation: 'findMany' | 'count' = 'findMany'
+  operation: 'findMany' | 'count' = 'findMany',
 ) => {
   const { currentUserId, authorId, isUpvote, postId } = filters;
   const where: Prisma.VotesOnPostsWhereInput = {
@@ -196,15 +259,28 @@ export const findFilteredVotes = async (
     ...(authorId ? { userId: authorId } : {}),
     ...(postId ? { postId } : {}),
   };
-  return operation === 'count'
-    ? await Utils.handleDBKnownErrors(db.votesOnPosts.count({ where }))
-    : await Utils.handleDBKnownErrors(
-        db.votesOnPosts.findMany({
-          include: Utils.fieldsToIncludeWithVote,
-          ...Utils.getPaginationArgs(filters),
-          where,
-        })
-      );
+  if (operation === 'count') {
+    return await Utils.handleDBKnownErrors(db.votesOnPosts.count({ where }));
+  }
+  const votes = await Utils.handleDBKnownErrors(
+    db.votesOnPosts.findMany({
+      include: Utils.fieldsToIncludeWithVote,
+      ...Utils.getPaginationArgs(filters),
+      where,
+    }),
+  );
+  if (!currentUserId) return votes;
+  const extendedVotes: typeof votes = [];
+  for (const vote of votes) {
+    const followedByCurrentUser = !!(await db.follows.findFirst({
+      where: { follower: { userId: currentUserId }, profile: { userId: vote.userId } },
+    }));
+    extendedVotes.push({
+      ...vote,
+      user: { ...vote.user, profile: { ...vote.user.profile, followedByCurrentUser } },
+    } as (typeof votes)[number]);
+  }
+  return extendedVotes;
 };
 
 const wrapPostUpdate = async <T>(dbQuery: Promise<T>): Promise<T> => {
@@ -215,12 +291,13 @@ const wrapPostUpdate = async <T>(dbQuery: Promise<T>): Promise<T> => {
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const updatePost = (
+export const updatePost = async (
   post: _PostFullData,
+  user: Types.PublicUser,
   postData: Types.NewPostParsedData,
-  imageData?: Types.ImageDataInput
+  imageData?: Types.ImageDataInput,
 ) => {
-  return wrapPostUpdate(
+  const updatedPost = await wrapPostUpdate(
     db.$transaction(async (prismaClient) => {
       if (imageData && post.image) {
         await prismaClient.image.update({
@@ -234,24 +311,21 @@ export const updatePost = (
         data: getPostUpdateData(postData),
         include: Utils.fieldsToIncludeWithPost,
       });
-    })
+    }),
   );
+  return (await preparePosts([updatedPost], user.id))[0];
 };
 
-export const updatePostWithImage = (
+export const updatePostWithImage = async (
   post: _PostFullData,
   user: Types.PublicUser,
   postData: Types.NewPostParsedData,
   imageData: Types.ImageFullData,
-  uploadedImage: Storage.UploadedImageData
+  uploadedImage: Storage.UploadedImageData,
 ) => {
-  return wrapPostUpdate(
+  const updatedPost = await wrapPostUpdate(
     db.$transaction(async (prismaClient) => {
-      const imgUpData = Image.getImageUpsertData(
-        uploadedImage,
-        imageData,
-        user
-      );
+      const imgUpData = Image.getImageUpsertData(uploadedImage, imageData, user);
       const { id: imageId } = await db.image.upsert({
         where: { src: imgUpData.src },
         create: imgUpData,
@@ -263,14 +337,15 @@ export const updatePostWithImage = (
         include: Utils.fieldsToIncludeWithPost,
         data: getPostUpdateData(postData, imageId),
       });
-    })
+    }),
   );
+  return (await preparePosts([updatedPost], user.id))[0];
 };
 
 const upvoteOrDownvotePost = async (
   action: 'upvote' | 'downvote',
   postId: string,
-  userId: string
+  userId: string,
 ) => {
   const isUpvote = action === 'upvote';
   const dbQuery = db.post.update({
@@ -290,7 +365,8 @@ const upvoteOrDownvotePost = async (
     notFoundErrMsg: 'Post not found',
     uniqueFieldName: 'user_post_vote',
   };
-  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+  const votedPost = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+  return (await preparePosts([votedPost], userId))[0];
 };
 
 export const upvotePost = (postId: string, userId: string) => {
@@ -312,20 +388,17 @@ export const unvotePost = async (postId: string, userId: string) => {
     uniqueFieldName: 'user_post_vote',
   };
   try {
-    return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+    const unvotedPost = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+    return (await preparePosts([unvotedPost], userId))[0];
   } catch (error) {
     const connectionDoesNotExist =
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2017';
+      error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2017';
     if (connectionDoesNotExist) return findPostByIdOrThrow(postId);
     throw error;
   }
 };
 
-export const deletePost = async (
-  post: Types.PostFullData,
-  authorId?: string
-) => {
+export const deletePost = async (post: Types.PostFullData, authorId?: string) => {
   const delPostQ = db.post.delete({
     where: { id: post.id, ...getPrivatePostProtectionArgs(authorId) },
   });
@@ -346,10 +419,7 @@ export const deletePost = async (
       try {
         await Storage.removeImage(postImage);
         return await Utils.handleDBKnownErrors(
-          db.$transaction([
-            delPostQ,
-            db.image.delete({ where: { id: postImage.id } }),
-          ])
+          db.$transaction([delPostQ, db.image.delete({ where: { id: postImage.id } })]),
         );
       } catch (error) {
         logger.error('Failed to remove an image form the storage -', error);
@@ -363,40 +433,49 @@ export const deletePost = async (
 export const findPostCommentByCompoundIdOrThrow = async (
   postId: string,
   commentId: string,
-  authorId?: string
+  currentUserId?: string,
 ) => {
   const id = commentId;
   const dbQuery = db.comment.findUnique({
     where: {
       id,
       postId,
-      ...getAggregatePrivatePostProtectionArgs(authorId),
+      ...getAggregatePrivatePostProtectionArgs(currentUserId),
     },
     include: Utils.fieldsToIncludeWithComment,
   });
   const comment = await Utils.handleDBKnownErrors(dbQuery);
   if (!comment) throw new AppError.AppNotFoundError('Post/Comment Not Found');
-  return comment;
+  if (!currentUserId) {
+    return comment;
+  }
+  const followedByCurrentUser = !!(await db.follows.findFirst({
+    where: { follower: { userId: currentUserId }, profile: { userId: comment.authorId } },
+  }));
+  return {
+    ...comment,
+    author: { ...comment.author, profile: { ...comment.author.profile, followedByCurrentUser } },
+  };
 };
 
 export const findPostByIdAndCreateComment = async (
   postId: string,
   commentAuthorId: string,
-  data: Types.NewCommentParsedData
+  data: Types.NewCommentParsedData,
 ) => {
   await findPostByIdOrThrow(postId, commentAuthorId);
   return await Utils.handleDBKnownErrors(
     db.comment.create({
       data: { ...data, postId, authorId: commentAuthorId },
       include: Utils.fieldsToIncludeWithComment,
-    })
+    }),
   );
 };
 
 export const findCommentAndUpdate = async (
   commentId: string,
   commentAuthorId: string,
-  data: Types.NewCommentParsedData
+  data: Types.NewCommentParsedData,
 ) => {
   const dbQuery = db.comment.update({
     where: {
@@ -410,10 +489,7 @@ export const findCommentAndUpdate = async (
   return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
 };
 
-export const findCommentAndDelete = async (
-  commentId: string,
-  postAuthorId?: string
-) => {
+export const findCommentAndDelete = async (commentId: string, postAuthorId?: string) => {
   const dbQuery = db.comment.delete({
     where: {
       id: commentId,
@@ -427,7 +503,7 @@ export const findPostTags = async (postId: string, authorId?: string) => {
   return Utils.handleDBKnownErrors(
     db.tagsOnPosts.findMany({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };
 
@@ -436,8 +512,8 @@ export const countTagsOnPosts = async (postAuthorId?: string) => {
     db.tag.count(
       postAuthorId
         ? { where: { posts: { some: { post: { authorId: postAuthorId } } } } }
-        : undefined
-    )
+        : undefined,
+    ),
   );
 };
 
@@ -445,7 +521,7 @@ export const countPostTags = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
     db.tagsOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };
 
@@ -453,7 +529,7 @@ export const countPostComments = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
     db.comment.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };
 
@@ -461,6 +537,6 @@ export const countPostVotes = async (postId: string, authorId?: string) => {
   return await Utils.handleDBKnownErrors(
     db.votesOnPosts.count({
       where: { postId, ...getAggregatePrivatePostProtectionArgs(authorId) },
-    })
+    }),
   );
 };

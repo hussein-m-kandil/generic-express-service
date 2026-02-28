@@ -22,6 +22,7 @@ describe('User endpoints', async () => {
     deleteAllPosts,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
+    assertForbiddenErrorRes,
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
@@ -148,11 +149,11 @@ describe('User endpoints', async () => {
       assertUnauthorizedErrorRes(res);
     });
 
-    it('should respond with 401 on request with non-admin JWT', async () => {
+    it('should respond with 403 on request with non-admin JWT', async () => {
       await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       const res = await authorizedApi.get(USERS_URL);
-      assertUnauthorizedErrorRes(res);
+      assertForbiddenErrorRes(res);
     });
 
     it('should respond with users list, on request with admin JWT', async () => {
@@ -258,7 +259,7 @@ describe('User endpoints', async () => {
         secret?: string;
         avatarId?: string;
       },
-      credentials: { username: string; password: string }
+      credentials: { username: string; password: string },
     ) => {
       return async () => {
         const profileId = dbUser.profile!.id;
@@ -290,7 +291,7 @@ describe('User endpoints', async () => {
           JSON.stringify({
             ...updatedDBUser,
             password: undefined,
-          })
+          }),
         );
         expect((res.body as AuthResponse).token).toBe(token);
         expect((res.body as AuthResponse).user.avatar?.image.id).toBe(dbXImg.id);
@@ -326,7 +327,7 @@ describe('User endpoints', async () => {
     const createTestForNotUpdateInvalidField = (
       data: Prisma.UserUpdateInput & { confirm?: string; secret?: string },
       expectedErrMsgRegex: RegExp,
-      credentials: { username: string; password: string }
+      credentials: { username: string; password: string },
     ) => {
       return async () => {
         const { authorizedApi } = await prepForAuthorizedTest(credentials);
@@ -345,11 +346,11 @@ describe('User endpoints', async () => {
       }
     });
 
-    it('should respond with 401, on a request with non-owner/admin JWT', async () => {
+    it('should respond with 403, on a request with non-owner/admin JWT', async () => {
       const { authorizedApi } = await prepForAuthorizedTest(xUserData);
       for (const field of getAllFields()) {
         const res = await authorizedApi.patch(`${USERS_URL}/${dbUser.id}`).send(field);
-        assertUnauthorizedErrorRes(res);
+        assertForbiddenErrorRes(res);
       }
     });
 
@@ -367,37 +368,37 @@ describe('User endpoints', async () => {
 
     it(
       'should change username, on request with owner/admin JWT',
-      createTestForUpdateField({ username: 'new_username' }, userData)
+      createTestForUpdateField({ username: 'new_username' }, userData),
     );
 
     it(
       'should not change username if the given is too short, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField({ username: 'x' }, /username/i, userData)
+      createTestForNotUpdateInvalidField({ username: 'x' }, /username/i, userData),
     );
 
     it(
       'should not change username if the given is too long, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField({ username: longString }, /username/i, adminData)
+      createTestForNotUpdateInvalidField({ username: longString }, /username/i, adminData),
     );
 
     it(
       'should change fullname, on request with owner/admin JWT',
-      createTestForUpdateField({ fullname: 'new_fullname' }, adminData)
+      createTestForUpdateField({ fullname: 'new_fullname' }, adminData),
     );
 
     it(
       'should not change fullname if the given is too short, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField({ fullname: 'x' }, /fullname/i, userData)
+      createTestForNotUpdateInvalidField({ fullname: 'x' }, /fullname/i, userData),
     );
 
     it(
       'should not change fullname if the given is too long, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField({ fullname: longString }, /fullname/i, adminData)
+      createTestForNotUpdateInvalidField({ fullname: longString }, /fullname/i, adminData),
     );
 
     it(
       'should change password, on request with owner/admin JWT',
-      createTestForUpdateField({ password: 'aB@32121', confirm: 'aB@32121' }, userData)
+      createTestForUpdateField({ password: 'aB@32121', confirm: 'aB@32121' }, userData),
     );
 
     it(
@@ -405,8 +406,8 @@ describe('User endpoints', async () => {
       createTestForNotUpdateInvalidField(
         { password: '12345678', confirm: '12345678' },
         /password/i,
-        userData
-      )
+        userData,
+      ),
     );
 
     it(
@@ -414,8 +415,8 @@ describe('User endpoints', async () => {
       createTestForNotUpdateInvalidField(
         { password: 'aB@32121' },
         /password confirmation/i,
-        adminData
-      )
+        adminData,
+      ),
     );
 
     it(
@@ -423,23 +424,23 @@ describe('User endpoints', async () => {
       createTestForNotUpdateInvalidField(
         { password: 'aB@32121', confirm: '12345678' },
         /passwords does not match/i,
-        userData
-      )
+        userData,
+      ),
     );
 
     it(
       'should change admin state, on request with owner/admin JWT',
-      createTestForUpdateField({ secret: ADMIN_SECRET }, adminData)
+      createTestForUpdateField({ secret: ADMIN_SECRET }, adminData),
     );
 
     it(
       'should not change admin state if given a wrong secret, on request with owner/admin JWT',
-      createTestForNotUpdateInvalidField({ secret: 'not_admin' }, /secret/i, adminData)
+      createTestForNotUpdateInvalidField({ secret: 'not_admin' }, /secret/i, adminData),
     );
 
     it(
       'should change bio, on request with owner JWT',
-      createTestForUpdateField({ bio: 'Test bio' }, userData)
+      createTestForUpdateField({ bio: 'Test bio' }, userData),
     );
   });
 
@@ -450,12 +451,12 @@ describe('User endpoints', async () => {
       assertUnauthorizedErrorRes(res);
     });
 
-    it('should respond with 401 on request with non-owner/admin JWT', async () => {
+    it('should respond with 403 on request with non-owner/admin JWT', async () => {
       await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       const dbUser = await createUser(xUserData);
       const res = await authorizedApi.delete(`${USERS_URL}/${dbUser.id}`);
-      assertUnauthorizedErrorRes(res);
+      assertForbiddenErrorRes(res);
     });
 
     it('should respond with 204 if found a user and deleted it, on request with owner JWT', async () => {
@@ -494,11 +495,11 @@ describe('User endpoints', async () => {
       assertNotFoundErrorRes(res);
     });
 
-    it('should respond with 401 if the id is invalid', async () => {
+    it('should respond with 403 if the id is invalid', async () => {
       await createUser(userData);
       const { authorizedApi } = await prepForAuthorizedTest(userData);
       const res = await authorizedApi.delete(`${USERS_URL}/foo`);
-      assertUnauthorizedErrorRes(res);
+      assertForbiddenErrorRes(res);
     });
   });
 });

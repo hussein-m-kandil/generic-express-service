@@ -156,10 +156,10 @@ describe('Profile', async () => {
             assertUnauthorizedErrorRes(res);
           });
 
-          it(`should respond with 400 on an invalid ${key}`, async () => {
+          it(`should respond with 404 on an invalid ${key}`, async () => {
             const { authorizedApi } = await prepForAuthorizedTest(userOneData);
             const res = await authorizedApi.get(`${PROFILES_URL}/invalid`);
-            assertInvalidIdErrorRes(res);
+            assertNotFoundErrorRes(res);
           });
 
           it('should respond with a profile', async () => {

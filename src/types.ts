@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/consistent-type-definitions */
 import { PrismaClient, Prisma, Model, CharacterFinder } from '@/../prisma/client';
 import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
 import { postSchema, commentSchema } from '@/api/v1/posts';
@@ -16,22 +17,26 @@ export interface UserSensitiveDataToOmit {
 
 export interface UserDataToAggregate {
   avatar: { select: { image: { omit: ImageSensitiveDataToOmit } } };
-  profile: boolean;
+  profile: true;
 }
 
-export interface UserAggregation {
+export type UserAggregation = {
   omit: UserSensitiveDataToOmit;
   include: UserDataToAggregate;
-}
+};
 
 export type PublicUser = Prisma.UserGetPayload<{
   include: UserAggregation['include'];
   omit: UserAggregation['omit'];
 }>;
 
-export interface ProfileAggregation {
-  include: { user: UserAggregation };
-}
+export type ProfileAggregation = {
+  include: {
+    user: Omit<UserAggregation, 'include'> & {
+      include: Omit<UserAggregation['include'], 'profile'> & { profile: false };
+    };
+  };
+};
 
 export type PublicProfile = Prisma.ProfileGetPayload<{
   include: ProfileAggregation['include'];
@@ -99,9 +104,18 @@ export interface AppErrorResponse {
   };
 }
 
-export type PostFullData = Prisma.PostGetPayload<{
+export interface BasePostCounts {
+  comments: number;
+  votes: number;
+}
+
+export interface PostCounts extends BasePostCounts {
+  downvotes: number;
+  upvotes: number;
+}
+
+export type BasePostFullData = Prisma.PostGetPayload<{
   include: {
-    _count: { select: { comments: true; votes: true } };
     image: { omit: ImageSensitiveDataToOmit; include: ImageDataToAggregate };
     comments: { include: { author: UserAggregation } };
     votes: { include: { user: UserAggregation } };
@@ -109,6 +123,12 @@ export type PostFullData = Prisma.PostGetPayload<{
     tags: true;
   };
 }>;
+
+export interface PostFullData extends BasePostFullData {
+  downvotedByCurrentUser: boolean;
+  upvotedByCurrentUser: boolean;
+  _count: PostCounts;
+}
 
 export type NewPostParsedData = z.output<typeof postSchema>;
 
@@ -136,6 +156,7 @@ export interface PaginationFilters extends BaseFilters, BasePaginationFilters<nu
 export type TagsFilter = string[];
 
 export interface PostFilters extends PaginationFilters {
+  following: boolean;
   tags?: TagsFilter;
   text?: string;
 }

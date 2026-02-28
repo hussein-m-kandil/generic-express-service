@@ -137,10 +137,12 @@ export const getVoteFiltersFromReqQuery = (req: Request) => {
 };
 
 export const getPostFiltersFromReqQuery = (req: Request): Types.PostFilters => {
+  const following = typeof req.query.following !== 'undefined';
   // Same as the comments filtration + tags filter
   return {
     ...getCommentFiltersFromReqQuery(req),
     tags: getTagsFilterFromReqQuery(req),
+    following,
   };
 };
 
@@ -180,8 +182,8 @@ export const fieldsToIncludeWithImage: Types.ImageDataToAggregate = {
 
 export const fieldsToIncludeWithPost = {
   _count: { select: { comments: true, votes: true } },
-  votes: { include: { user: true }, ...getPaginationArgs() },
-  comments: { include: { author: true }, ...getPaginationArgs() },
+  votes: { include: { user: userAggregation }, ...getPaginationArgs() },
+  comments: { include: { author: userAggregation }, ...getPaginationArgs() },
   image: { include: fieldsToIncludeWithImage },
   author: userAggregation,
   tags: true,
