@@ -142,6 +142,81 @@ describe('Notification endpoints', async () => {
     });
   });
 
+  describe(`PATCH ${NOTIFICATIONS_URL}/seen`, () => {
+    it('should respond with 401 on an unauthenticated request', async () => {
+      const res = await api.get(`${NOTIFICATIONS_URL}/seen`);
+      assertUnauthorizedErrorRes(res);
+    });
+
+    it('should respond with 204 and do nothing if the current user do not have any notifications', async () => {
+      const dbNotifications = await db.notification.createManyAndReturn({
+        data: [
+          {
+            header: `${dbUserOne.username} liked your post`,
+            profileId: dbUserOne.profile!.id,
+            profileName: dbUserOne.username,
+            url: '/n1',
+          },
+        ],
+      });
+
+      await db.notificationsReceivers.createMany({
+        data: [{ notificationId: dbNotifications[0].id, profileId: dbUserTwo.profile!.id }],
+      });
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(`${NOTIFICATIONS_URL}/seen`);
+      const dbNotificationsReceivers = await db.notificationsReceivers.findMany({});
+      expect(res.type).toBe('');
+      expect(res.statusCode).toBe(204);
+      expect(res.body).toStrictEqual({});
+      expect(dbNotificationsReceivers).toHaveLength(1);
+      expect(dbNotificationsReceivers[0].seenAt).toBeNull();
+    });
+
+    it('should respond with 204 and mark current user notifications as seen', async () => {
+      const userOneProfileId = dbUserOne.profile!.id;
+      await createNotifications();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(`${NOTIFICATIONS_URL}/seen`);
+      const dbNotifications = await db.notification.findMany({ include: { receivers: true } });
+      expect(res.type).toBe('');
+      expect(res.statusCode).toBe(204);
+      expect(res.body).toStrictEqual({});
+      for (const { profileId, receivers } of dbNotifications) {
+        if (profileId === userOneProfileId) {
+          expect(receivers.every((r) => !r.seenAt)).toBe(true);
+        } else {
+          expect(receivers.find((r) => r.profileId === userOneProfileId)!.seenAt).toBeTruthy();
+        }
+      }
+    });
+
+    it('should respond with 204 and mark current user notifications as seen, only if it is not seen yet', async () => {
+      const fixedSeenDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const userOneProfileId = dbUserOne.profile!.id;
+      await createNotifications();
+      await db.notificationsReceivers.updateMany({
+        where: { profileId: userOneProfileId },
+        data: { seenAt: fixedSeenDate },
+      });
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.patch(`${NOTIFICATIONS_URL}/seen`);
+      const dbNotificationsAfter = await db.notification.findMany({ include: { receivers: true } });
+      expect(res.type).toBe('');
+      expect(res.statusCode).toBe(204);
+      expect(res.body).toStrictEqual({});
+      for (const { profileId, receivers } of dbNotificationsAfter) {
+        if (profileId === userOneProfileId) {
+          expect(receivers.every((r) => !r.seenAt)).toBe(true);
+        } else {
+          expect(receivers.find((r) => r.profileId === userOneProfileId)!.seenAt).toStrictEqual(
+            fixedSeenDate,
+          );
+        }
+      }
+    });
+  });
+
   describe(`DELETE ${NOTIFICATIONS_URL}/:id`, () => {
     it('should respond with 401 on an unauthenticated request', async () => {
       const dbNotifications = await createNotifications();

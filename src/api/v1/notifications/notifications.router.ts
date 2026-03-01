@@ -15,6 +15,12 @@ notificationsRouter.get('/:id', Validators.authValidator, async (req, res) => {
   res.json(await Service.getUserNotificationById(req.params.id, userId));
 });
 
+notificationsRouter.patch('/seen', Validators.authValidator, async (req, res) => {
+  const userId = Utils.getCurrentUserIdFromReq(req)!;
+  await Service.markUserNotificationsAsSeen(userId);
+  res.status(204).end();
+});
+
 notificationsRouter.delete('/:id', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
   await Service.deleteUserNotificationById(req.params.id, userId);
