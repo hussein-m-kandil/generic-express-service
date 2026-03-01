@@ -4,6 +4,7 @@ import * as Schema from './profile.schema';
 import * as AppError from '@/lib/app-error';
 import { Prisma, Profile, User } from '@/../prisma/client';
 import db from '@/lib/db';
+import logger from '@/lib/logger';
 
 type ProfilePayload = Prisma.ProfileGetPayload<{
   include: typeof Utils.profileAggregation.include & {
@@ -121,10 +122,37 @@ export const updateProfileByUserId = async (userId: User['id'], data: Schema.Val
 export const createFollowing = async (userId: User['id'], { profileId }: Schema.ValidFollowing) => {
   try {
     await Utils.handleDBKnownErrors(
-      db.profile.update({
-        ...Utils.profileAggregation,
-        where: { userId },
-        data: { following: { create: { profileId } } },
+      db.$transaction(async (tx) => {
+        const profile = await tx.profile.findUnique({
+          where: { id: profileId },
+          include: { user: true },
+        });
+        const currentUser = await tx.user.findUnique({
+          where: { id: userId },
+          include: { profile: true },
+        });
+        if (!profile || !currentUser || !currentUser.profile) {
+          throw new AppError.AppNotFoundError('Profile not found');
+        }
+        const follow = await tx.follows.create({
+          data: { profileId: profile.id, followerId: currentUser.profile.id },
+        });
+        try {
+          const followerName = currentUser.username;
+          const followerProfileId = currentUser.profile.id;
+          await tx.notification.create({
+            data: {
+              profileName: followerName,
+              profileId: followerProfileId,
+              createdAt: follow.followedAt,
+              url: `/profiles/${followerName}`,
+              header: `${followerName} has followed you`,
+              receivers: { create: { profileId: profile.id } },
+            },
+          });
+        } catch (error) {
+          logger.error('Notification Error', error);
+        }
       }),
     );
   } catch (error) {
@@ -136,12 +164,35 @@ export const createFollowing = async (userId: User['id'], { profileId }: Schema.
 export const deleteFollowing = async (userId: User['id'], { profileId }: Schema.ValidFollowing) => {
   try {
     await Utils.handleDBKnownErrors(
-      db.$transaction(async (prismaClient) => {
-        const currentProfile = await prismaClient.profile.findUnique({ where: { userId } });
-        if (!currentProfile) throw new AppError.AppNotFoundError('Profile not found');
-        await prismaClient.follows.delete({
-          where: { profileId_followerId: { followerId: currentProfile.id, profileId } },
+      db.$transaction(async (tx) => {
+        const follower = await tx.profile.findUnique({
+          where: { userId },
+          include: { user: true },
         });
+        if (!follower) throw new AppError.AppNotFoundError('Profile not found');
+        await tx.follows.delete({
+          where: { profileId_followerId: { followerId: follower.id, profileId } },
+        });
+        try {
+          const profile = await tx.profile.findUnique({
+            where: { id: profileId },
+            include: { user: true },
+          });
+          if (profile) {
+            const followerName = follower.user.username;
+            await tx.notification.create({
+              data: {
+                profileName: followerName,
+                profileId: follower.id,
+                url: `/profiles/${followerName}`,
+                header: `${followerName} has unfollowed you`,
+                receivers: { create: { profileId: profile.id } },
+              },
+            });
+          }
+        } catch (error) {
+          logger.error('Notification Error', error);
+        }
       }),
     );
   } catch (error) {
