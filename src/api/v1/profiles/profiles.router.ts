@@ -57,12 +57,24 @@ profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
 
 profilesRouter.post('/following/:profileId', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.createFollowing(userId, Schema.followingSchema.parse(req.params));
-  res.status(201).json();
+  const followingData = Schema.followingSchema.parse(req.params);
+  await Service.createFollowing(userId, followingData);
+  res
+    .status(201)
+    .json()
+    .on('finish', () => {
+      io.to(followingData.profileId).emit('notifications:updated');
+    });
 });
 
 profilesRouter.delete('/following/:profileId', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.deleteFollowing(userId, Schema.followingSchema.parse(req.params));
-  res.status(204).send();
+  const followingData = Schema.followingSchema.parse(req.params);
+  await Service.deleteFollowing(userId, followingData);
+  res
+    .status(204)
+    .send()
+    .on('finish', () => {
+      io.to(followingData.profileId).emit('notifications:updated');
+    });
 });

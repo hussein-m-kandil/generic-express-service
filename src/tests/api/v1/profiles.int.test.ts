@@ -40,7 +40,6 @@ describe('Profile', async () => {
     deleteAllUsers,
     prepForAuthorizedTest,
     assertNotFoundErrorRes,
-    assertInvalidIdErrorRes,
     assertUnauthorizedErrorRes,
     assertResponseWithValidationError,
   } = await setup(SIGNIN_URL);
@@ -364,11 +363,11 @@ describe('Profile', async () => {
         assertResponseWithValidationError(res, 'profileId');
       });
 
-      it('should respond with 400 on an authenticated request, for non-existent profile id', async () => {
+      it('should respond with 404 on an authenticated request, for non-existent profile id', async () => {
         const profileId = crypto.randomUUID();
         const { authorizedApi } = await prepForAuthorizedTest(userOneData);
         const res = await authorizedApi.post(`${PROFILES_URL}/following/${profileId}`);
-        assertInvalidIdErrorRes(res);
+        assertNotFoundErrorRes(res);
       });
 
       it('should respond with 201 and empty body, and create new follow', async () => {
