@@ -47,6 +47,15 @@ export const getUserNotificationById = async (id: Notification['id'], userId: Us
   return await prepareNotification(notification, userId);
 };
 
+export const markUserNotificationsAsSeen = async (userId: User['id']) => {
+  await Utils.handleDBKnownErrors(
+    db.notificationsReceivers.updateMany({
+      where: { profile: { userId }, seenAt: null },
+      data: { seenAt: new Date() },
+    }),
+  );
+};
+
 export const deleteUserNotificationById = async (id: Notification['id'], userId: User['id']) => {
   try {
     await Utils.handleDBKnownErrors(
