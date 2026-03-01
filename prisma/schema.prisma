@@ -29,17 +29,19 @@ model User {
 }
 
 model Profile {
-  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String                 @unique @map("user_id") @db.Uuid
-  lastSeen     DateTime               @updatedAt @map("last_seen")
-  visible      Boolean                @default(true)
-  tangible     Boolean                @default(true)
-  chats        ProfilesChats[]
-  managedChats ProfilesManagedChats[]
-  sentMessages Message[]
-  followers    Follows[]              @relation("profile")
-  following    Follows[]              @relation("follower")
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user                   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                 String                   @unique @map("user_id") @db.Uuid
+  lastSeen               DateTime                 @updatedAt @map("last_seen")
+  visible                Boolean                  @default(true)
+  tangible               Boolean                  @default(true)
+  chats                  ProfilesChats[]
+  managedChats           ProfilesManagedChats[]
+  notifications          NotificationsReceivers[]
+  triggeredNotifications Notification[]
+  sentMessages           Message[]
+  followers              Follows[]                @relation("profile")
+  following              Follows[]                @relation("follower")
 
   @@map("profiles")
 }
@@ -53,6 +55,31 @@ model Follows {
 
   @@id([profileId, followerId])
   @@map("follows")
+}
+
+model NotificationsReceivers {
+  profile        Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId      String       @map("profile_id") @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notificationId String       @map("notification_id") @db.Uuid
+  seenAt         DateTime?    @map("seen_at")
+
+  @@unique([profileId, notificationId])
+  @@map("notifications_receivers")
+}
+
+model Notification {
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile     Profile?                 @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  profileId   String?                  @map("profile_id") @db.Uuid
+  profileName String                   @map("profile_name")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  receivers   NotificationsReceivers[]
+  description String?
+  header      String
+  url         String
+
+  @@map("notifications")
 }
 
 enum ManagerRole {

@@ -42,6 +42,10 @@ export type PublicProfile = Prisma.ProfileGetPayload<{
   include: ProfileAggregation['include'];
 }> & { followedByCurrentUser: boolean };
 
+export type NotificationPayload = Prisma.NotificationGetPayload<{
+  include: { profile: ProfileAggregation };
+}>;
+
 export interface ImageSensitiveDataToOmit {
   storageId: true;
   storageFullPath: true;
