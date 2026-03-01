@@ -1,4 +1,5 @@
 import { profilesRouter, lastSeenUpdater } from './profiles';
+import { notificationsRouter } from './notifications';
 import { charactersRouter } from './characters';
 import { imagesRouter } from './images';
 import { statsRouter } from './stats';
@@ -20,3 +21,4 @@ apiRouter.use('/stats', statsRouter);
 apiRouter.use('/images', imagesRouter);
 apiRouter.use('/profiles', profilesRouter);
 apiRouter.use('/characters', charactersRouter);
+apiRouter.use('/notifications', notificationsRouter);
