@@ -1,5 +1,12 @@
 /* eslint-disable @typescript-eslint/consistent-type-definitions */
-import { PrismaClient, Prisma, Model, CharacterFinder } from '@/../prisma/client';
+import {
+  User,
+  Model,
+  Prisma,
+  PrismaClient,
+  Notification,
+  CharacterFinder,
+} from '@/../prisma/client';
 import { createUpdateUserSchema, userSchema } from '@/api/v1/users';
 import { postSchema, commentSchema } from '@/api/v1/posts';
 import { imageSchema } from '@/lib/image/schema';
@@ -38,13 +45,26 @@ export type ProfileAggregation = {
   };
 };
 
-export type PublicProfile = Prisma.ProfileGetPayload<{
-  include: ProfileAggregation['include'];
-}> & { followedByCurrentUser: boolean };
+export type ProfilePayload = Prisma.ProfileGetPayload<ProfileAggregation>;
+
+export interface PublicProfile extends ProfilePayload {
+  followedByCurrentUser: boolean;
+}
 
 export type NotificationPayload = Prisma.NotificationGetPayload<{
-  include: { profile: ProfileAggregation };
+  include: {
+    profile: ProfileAggregation;
+    receivers: {
+      where: { profile: { userId: User['id'] } };
+      include: { profile: ProfileAggregation };
+    };
+  };
 }>;
+
+export interface PublicNotification extends Notification {
+  profile: PublicProfile | null;
+  seenAt: Date | null;
+}
 
 export interface ImageSensitiveDataToOmit {
   storageId: true;

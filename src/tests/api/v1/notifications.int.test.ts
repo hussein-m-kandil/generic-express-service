@@ -1,8 +1,25 @@
 import * as Types from '@/types';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { SIGNIN_URL, NOTIFICATIONS_URL } from './utils';
+import { Notification } from '@/../prisma/client';
 import setup from '../setup';
 import db from '@/lib/db';
+
+const assertNotification = (
+  notification: Types.PublicNotification,
+  dbNotification: Notification,
+) => {
+  expect(notification.description).toBe(dbNotification.description);
+  expect(notification.header).toBe(dbNotification.header);
+  expect(notification.url).toBe(dbNotification.url);
+  expect(notification.id).toBe(dbNotification.id);
+  expect(notification.profile).toBeTruthy();
+  expect(notification.profile!.id).toBeTruthy();
+  expect(notification.profile!.user).toBeTruthy();
+  expect(notification.profile).toHaveProperty('followedByCurrentUser');
+  expect(notification).not.toHaveProperty('receivers');
+  expect(notification.seenAt).toBeDefined();
+};
 
 describe('Notification endpoints', async () => {
   const {
@@ -79,19 +96,14 @@ describe('Notification endpoints', async () => {
       const dbNotifications = await createNotifications();
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.get(NOTIFICATIONS_URL);
-      const resBody = res.body as Types.NotificationPayload[];
+      const resBody = res.body as Types.PublicNotification[];
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
       expect(resBody).toHaveLength(2);
-      for (const { id, header, description, url, profile } of resBody) {
-        expect(dbNotifications.map(({ id }) => id)).contain(id);
-        expect(dbNotifications.map(({ url }) => url)).contain(url);
-        expect(dbNotifications.map(({ header }) => header)).contain(header);
-        expect(dbNotifications.map(({ description }) => description)).contain(description);
-        expect(profile).toBeTruthy();
-        expect(profile!.id).toBeTruthy();
-        expect(profile!.user).toBeTruthy();
-        expect(profile).toHaveProperty('followedByCurrentUser');
+      for (const notification of resBody) {
+        const dbNotification = dbNotifications.find((n) => n.id === notification.id)!;
+        expect(dbNotification).toBeTruthy();
+        assertNotification(notification, dbNotification);
       }
     });
   });
@@ -128,17 +140,9 @@ describe('Notification endpoints', async () => {
       const dbNotification = dbNotifications[1];
       const { authorizedApi } = await prepForAuthorizedTest(userOneData);
       const res = await authorizedApi.get(`${NOTIFICATIONS_URL}/${dbNotification.id}`);
-      const resBody = res.body as Types.NotificationPayload;
       expect(res.statusCode).toBe(200);
       expect(res.type).toMatch(/json/);
-      expect(resBody.description).toBe(dbNotification.description);
-      expect(resBody.header).toBe(dbNotification.header);
-      expect(resBody.url).toBe(dbNotification.url);
-      expect(resBody.id).toBe(dbNotification.id);
-      expect(resBody.profile).toBeTruthy();
-      expect(resBody.profile!.id).toBeTruthy();
-      expect(resBody.profile!.user).toBeTruthy();
-      expect(resBody.profile).toHaveProperty('followedByCurrentUser');
+      assertNotification(res.body as Types.PublicNotification, dbNotification);
     });
   });
 
