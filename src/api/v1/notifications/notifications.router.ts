@@ -7,7 +7,8 @@ export const notificationsRouter = Router();
 
 notificationsRouter.get('/', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  res.json(await Service.getUserNotifications(userId));
+  const filters = Utils.getBasePaginationFiltersFromReqQuery(req);
+  res.json(await Service.getUserNotifications(userId, filters));
 });
 
 notificationsRouter.get('/:id', Validators.authValidator, async (req, res) => {

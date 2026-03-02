@@ -19,7 +19,10 @@ export const prepareNotification = async (
   return { ...notification, seenAt, profileId, profile };
 };
 
-export const getUserNotifications = async (userId: User['id']) => {
+export const getUserNotifications = async (
+  userId: User['id'],
+  filters: Types.BasePaginationFilters,
+) => {
   const notifications = await Utils.handleDBKnownErrors(
     db.notification.findMany({
       where: { receivers: { some: { profile: { userId } } } },
@@ -30,6 +33,9 @@ export const getUserNotifications = async (userId: User['id']) => {
           include: { profile: Utils.profileAggregation },
         },
       },
+      ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: filters.sort ?? 'desc' },
+      take: filters.limit ?? 10,
     }),
   );
   const preparedNotifications: Awaited<ReturnType<typeof prepareNotification>>[] = [];

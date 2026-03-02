@@ -43,29 +43,36 @@ describe('Notification endpoints', async () => {
   });
 
   const createNotifications = async () => {
-    const dbNotifications = await db.notification.createManyAndReturn({
-      data: [
-        {
-          header: `${dbUserOne.username} liked your post`,
-          profileId: dbUserOne.profile!.id,
-          profileName: dbUserOne.username,
-          url: '/n1',
-        },
-        {
-          header: `${dbUserTwo.username} liked your post`,
-          profileId: dbUserTwo.profile!.id,
-          profileName: dbUserTwo.username,
-          url: '/n2',
-        },
-        {
-          header: `${dbXUser.username} added a new comment`,
-          profileId: dbXUser.profile!.id,
-          profileName: dbXUser.username,
-          description: 'Good job!',
-          url: '/n3',
-        },
-      ],
-    });
+    const dbNotifications: Notification[] = [];
+
+    const notificationsData = [
+      {
+        createdAt: new Date(Date.now() - 3 * 24 * 60 ** 2 * 1000),
+        header: `${dbUserOne.username} liked your post`,
+        profileId: dbUserOne.profile!.id,
+        profileName: dbUserOne.username,
+        url: '/n1',
+      },
+      {
+        createdAt: new Date(Date.now() - 2 * 24 * 60 ** 2 * 1000),
+        header: `${dbUserTwo.username} liked your post`,
+        profileId: dbUserTwo.profile!.id,
+        profileName: dbUserTwo.username,
+        url: '/n2',
+      },
+      {
+        createdAt: new Date(Date.now() - 1 * 24 * 60 ** 2 * 1000),
+        header: `${dbXUser.username} added a new comment`,
+        profileId: dbXUser.profile!.id,
+        profileName: dbXUser.username,
+        description: 'Good job!',
+        url: '/n3',
+      },
+    ];
+
+    for (const data of notificationsData) {
+      dbNotifications.push(await db.notification.create({ data }));
+    }
 
     await db.notificationsReceivers.createMany({
       data: [
@@ -75,6 +82,7 @@ describe('Notification endpoints', async () => {
         { notificationId: dbNotifications[2].id, profileId: dbUserTwo.profile!.id },
       ],
     });
+
     return dbNotifications;
   };
 
@@ -105,6 +113,41 @@ describe('Notification endpoints', async () => {
         expect(dbNotification).toBeTruthy();
         assertNotification(notification, dbNotification);
       }
+    });
+
+    it('should respond array of current user notifications in descending order', async () => {
+      const dbNotifications = await createNotifications();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(NOTIFICATIONS_URL);
+      const resBody = res.body as Types.PublicNotification[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody).toHaveLength(2);
+      assertNotification(resBody[0], dbNotifications[2]);
+      assertNotification(resBody[1], dbNotifications[1]);
+    });
+
+    it('should respond array of the last notification only', async () => {
+      const dbNotifications = await createNotifications();
+      const cursor = dbNotifications[1].id;
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(`${NOTIFICATIONS_URL}?sort=asc&cursor=${cursor}`);
+      const resBody = res.body as Types.PublicNotification[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody).toHaveLength(1);
+      assertNotification(resBody[0], dbNotifications[2]);
+    });
+
+    it('should respond array of the first current user notification only', async () => {
+      const dbNotifications = await createNotifications();
+      const { authorizedApi } = await prepForAuthorizedTest(userOneData);
+      const res = await authorizedApi.get(`${NOTIFICATIONS_URL}?sort=asc&limit=1`);
+      const resBody = res.body as Types.PublicNotification[];
+      expect(res.statusCode).toBe(200);
+      expect(res.type).toMatch(/json/);
+      expect(resBody).toHaveLength(1);
+      assertNotification(resBody[0], dbNotifications[1]);
     });
   });
 
