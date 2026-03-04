@@ -11,14 +11,14 @@ io.on('connection', (socket) => {
   const { username, profile } = user ?? { username: 'Anonymous', profile: null };
 
   if (profile) {
-    const { id } = profile;
-
-    socket.broadcast.emit(`online:${id}`);
-    socket.on('disconnecting', () => socket.broadcast.emit(`offline:${id}`));
+    const { id, visible } = profile;
 
     socket
       .join(id)
       ?.catch((error: unknown) => logger.error(`Failed to join ${username} in ${id} room`, error));
+
+    if (visible) socket.broadcast.emit(`online:${id}`);
+    socket.on('disconnecting', () => socket.broadcast.emit(`offline:${id}`));
 
     db.profile
       .update({ where: { id }, data: { lastSeen: new Date() } })

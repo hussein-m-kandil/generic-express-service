@@ -69,6 +69,21 @@ export const getAllProfiles = async (userId: User['id'], filters: Types.ProfileF
   );
 };
 
+export const getProfileByUserId = async (userId: User['id'], currentUserId: User['id']) => {
+  const dbQuery = db.profile.findUnique({
+    ...getExtendedProfileAggregationArgs(currentUserId),
+    where: { userId },
+  });
+  let profile: Awaited<typeof dbQuery> = null;
+  try {
+    profile = await Utils.handleDBKnownErrors(dbQuery);
+  } catch (error) {
+    if (!(error instanceof AppError.AppInvalidIdError)) throw error;
+  }
+  if (!profile) throw new AppError.AppNotFoundError('Profile not found');
+  return prepareProfiles(profile, currentUserId)[0];
+};
+
 export const getProfileById = async (profileId: Profile['id'], userId: User['id']) => {
   const dbQuery = db.profile.findUnique({
     ...getExtendedProfileAggregationArgs(userId),
