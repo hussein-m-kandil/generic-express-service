@@ -139,9 +139,9 @@ export const createPostWithImage = async (
   return (await preparePosts([createdPost], user.id))[0];
 };
 
-export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
+export const findPostByIdOrThrow = async (id: string, userId?: string) => {
   const dbQuery = db.post.findUnique({
-    where: { id, ...getPrivatePostProtectionArgs(authorId) },
+    where: { id, ...getPrivatePostProtectionArgs(userId) },
     include: Utils.fieldsToIncludeWithPost,
   });
   let post: Awaited<typeof dbQuery> = null;
@@ -151,12 +151,12 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
     if (!(error instanceof AppError.AppInvalidIdError)) throw error;
   }
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
-  return (await preparePosts([post]))[0];
+  return (await preparePosts([post], userId))[0];
 };
 
-export const _findPostWithAggregationOrThrow = async (id: string, authorId?: string) => {
+export const _findPostWithAggregationOrThrow = async (id: string, userId?: string) => {
   const dbQuery = db.post.findUnique({
-    where: { id, ...getPrivatePostProtectionArgs(authorId) },
+    where: { id, ...getPrivatePostProtectionArgs(userId) },
     include: {
       ...Utils.fieldsToIncludeWithPost,
       image: {
@@ -167,7 +167,7 @@ export const _findPostWithAggregationOrThrow = async (id: string, authorId?: str
   });
   const post = await Utils.handleDBKnownErrors(dbQuery);
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
-  return (await preparePosts([post]))[0];
+  return (await preparePosts([post], userId))[0];
 };
 
 export type _PostFullData = Awaited<ReturnType<typeof _findPostWithAggregationOrThrow>>;
