@@ -4,6 +4,7 @@ import * as Service from './profiles.service';
 import * as Validators from '@/middlewares/validators';
 import { Router } from 'express';
 import io from '@/lib/io';
+import logger from '@/lib/logger';
 
 export const profilesRouter = Router();
 
@@ -31,9 +32,17 @@ profilesRouter.get('/:idOrUsername', Validators.authValidator, async (req, res) 
 });
 
 profilesRouter.get('/:id/online', Validators.authValidator, async (req, res) => {
+  let allowed = false;
+  try {
+    const currentUserId = Utils.getCurrentUserIdFromReq(req)!;
+    const currentProfile = await Service.getProfileByUserId(currentUserId, currentUserId);
+    const profile = await Service.getProfileById(req.params.id, currentUserId);
+    allowed = currentProfile.visible && profile.visible;
+  } catch (error) {
+    logger.error(error);
+  }
   // Every socket should be in 2 rooms: socket-id (default), and profile-id (joined on connection)
-  const online = (await io.fetchSockets()).some((socket) => socket.rooms.has(req.params.id));
-  res.json(online);
+  res.json(allowed && (await io.fetchSockets()).some((socket) => socket.rooms.has(req.params.id)));
 });
 
 profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
@@ -57,12 +66,24 @@ profilesRouter.patch('/', Validators.authValidator, async (req, res) => {
 
 profilesRouter.post('/following/:profileId', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.createFollowing(userId, Schema.followingSchema.parse(req.params));
-  res.status(201).json();
+  const followingData = Schema.followingSchema.parse(req.params);
+  await Service.createFollowing(userId, followingData);
+  res
+    .status(201)
+    .json()
+    .on('finish', () => {
+      io.to(followingData.profileId).emit('notifications:updated');
+    });
 });
 
 profilesRouter.delete('/following/:profileId', Validators.authValidator, async (req, res) => {
   const userId = Utils.getCurrentUserIdFromReq(req)!;
-  await Service.deleteFollowing(userId, Schema.followingSchema.parse(req.params));
-  res.status(204).send();
+  const followingData = Schema.followingSchema.parse(req.params);
+  await Service.deleteFollowing(userId, followingData);
+  res
+    .status(204)
+    .send()
+    .on('finish', () => {
+      io.to(followingData.profileId).emit('notifications:updated');
+    });
 });

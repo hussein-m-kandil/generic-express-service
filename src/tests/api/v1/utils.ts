@@ -16,6 +16,7 @@ export const SIGNIN_URL = `${BASE_URL}/auth/signin`;
 export const VERIFY_URL = `${BASE_URL}/auth/verify`;
 export const CHARACTERS_URL = `${BASE_URL}/characters`;
 export const SIGNED_IN_USER_URL = `${BASE_URL}/auth/me`;
+export const NOTIFICATIONS_URL = `${BASE_URL}/notifications`;
 
 export const assertErrorRes = (res: supertest.Response, expected: RegExp | string) => {
   const resBody = res.body as Types.AppErrorResponse;

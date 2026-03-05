@@ -6,6 +6,7 @@ import * as Storage from '@/lib/storage';
 import * as Service from './posts.service';
 import * as Middlewares from '@/middlewares';
 import { Router, Request, Response } from 'express';
+import io from '@/lib/io';
 
 export const postsRouter = Router();
 
@@ -143,26 +144,43 @@ postsRouter.post(
     } else {
       createdPost = await Service.createPost(postData, user);
     }
-    res.status(201).json(createdPost);
+    res
+      .status(201)
+      .json(createdPost)
+      .on('finish', () => {
+        io.except(createdPost.author.profile?.id ?? []).emit('post:created', createdPost.id);
+      });
   },
 );
 
 postsRouter.post('/:id/upvote', Middlewares.authValidator, async (req, res) => {
   const user = req.user as Types.PublicUser;
   const upvotedPost = await Service.upvotePost(req.params.id, user.id);
-  res.json(upvotedPost);
+  res.json(upvotedPost).on('finish', () => {
+    io.except(user.profile?.id ?? []).emit('post:upvoted', upvotedPost.id);
+    if (upvotedPost.author.profile) {
+      io.to(upvotedPost.author.profile.id).emit('notifications:updated');
+    }
+  });
 });
 
 postsRouter.post('/:id/downvote', Middlewares.authValidator, async (req, res) => {
   const user = req.user as Types.PublicUser;
   const downvotedPost = await Service.downvotePost(req.params.id, user.id);
-  res.json(downvotedPost);
+  res.json(downvotedPost).on('finish', () => {
+    io.except(user.profile?.id ?? []).emit('post:downvoted', downvotedPost.id);
+    if (downvotedPost.author.profile) {
+      io.to(downvotedPost.author.profile.id).emit('notifications:updated');
+    }
+  });
 });
 
 postsRouter.post('/:id/unvote', Middlewares.authValidator, async (req, res) => {
   const user = req.user as Types.PublicUser;
   const unvotedPost = await Service.unvotePost(req.params.id, user.id);
-  res.json(unvotedPost);
+  res.json(unvotedPost).on('finish', () => {
+    io.except(user.profile?.id ?? []).emit('post:unvoted', unvotedPost.id);
+  });
 });
 
 postsRouter.post(
@@ -171,12 +189,22 @@ postsRouter.post(
   async (req: Request<{ id: string }, unknown, { content: string }>, res) => {
     const user = req.user as Types.PublicUser;
     const commentData = Schema.commentSchema.parse(req.body);
-    const newComment = await Service.findPostByIdAndCreateComment(
+    const { createdComment, post } = await Service.findPostByIdAndCreateComment(
       req.params.id,
       user.id,
       commentData,
     );
-    res.status(200).json(newComment);
+    res
+      .status(200)
+      .json(createdComment)
+      .on('finish', () => {
+        if (post.author.profile) {
+          io.to(post.author.profile.id).emit('notifications:updated');
+        }
+        const { postId } = createdComment;
+        const commentProfileId = createdComment.author.profile?.id;
+        io.except(commentProfileId ?? []).emit('post:comment:created', postId, createdComment.id);
+      });
   },
 );
 
@@ -207,7 +235,9 @@ postsRouter.put(
     } else {
       updatedPost = await Service.updatePost(post, user, postData, imagedata);
     }
-    res.json(updatedPost);
+    res.json(updatedPost).on('finish', () => {
+      io.except(updatedPost.author.profile?.id ?? []).emit('post:updated', updatedPost.id);
+    });
   },
 );
 
@@ -218,8 +248,20 @@ postsRouter.put(
   async (req, res) => {
     const user = req.user as Types.PublicUser;
     const commentData = Schema.commentSchema.parse(req.body);
-    const updatedComment = await Service.findCommentAndUpdate(req.params.cId, user.id, commentData);
-    res.json(updatedComment);
+    const { updatedComment, post } = await Service.findCommentAndUpdate(
+      req.params.pId,
+      req.params.cId,
+      user.id,
+      commentData,
+    );
+    res.json(updatedComment).on('finish', () => {
+      if (post.author.profile) {
+        io.to(post.author.profile.id).emit('notifications:updated');
+      }
+      const { postId } = updatedComment;
+      const commentProfileId = updatedComment.author.profile?.id;
+      io.except(commentProfileId ?? []).emit('post:comment:updated', postId, updatedComment.id);
+    });
   },
 );
 
@@ -230,9 +272,15 @@ postsRouter.delete(
     async (req, res) => await getPostAuthorIdAndInjectPostInResLocals(req, res),
   ),
   async (req, res: Response<unknown, { post: Service._PostFullData }>) => {
+    const deletedPost = res.locals.post;
     const userId = Utils.getCurrentUserIdFromReq(req);
-    await Service.deletePost(res.locals.post, userId);
-    res.status(204).end();
+    await Service.deletePost(deletedPost, userId);
+    res
+      .status(204)
+      .end()
+      .on('finish', () => {
+        io.except(deletedPost.author.profile?.id ?? []).emit('post:deleted', deletedPost.id);
+      });
   },
 );
 
@@ -246,8 +294,15 @@ postsRouter.delete(
     return postAuthorId === userId ? postAuthorId : await getCommentAuthorId(req);
   }),
   async (req, res) => {
-    const userId = Utils.getCurrentUserIdFromReq(req);
-    await Service.findCommentAndDelete(req.params.cId, userId);
-    res.status(204).end();
+    const user = req.user as Types.PublicUser;
+    await Service.findCommentAndDelete(req.params.cId, user.id);
+    res
+      .status(204)
+      .end()
+      .on('finish', () => {
+        const postId = req.params.pId;
+        const commentId = req.params.cId;
+        io.except(user.profile?.id ?? []).emit('post:comment:deleted', postId, commentId);
+      });
   },
 );

@@ -139,9 +139,9 @@ export const createPostWithImage = async (
   return (await preparePosts([createdPost], user.id))[0];
 };
 
-export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
+export const findPostByIdOrThrow = async (id: string, userId?: string) => {
   const dbQuery = db.post.findUnique({
-    where: { id, ...getPrivatePostProtectionArgs(authorId) },
+    where: { id, ...getPrivatePostProtectionArgs(userId) },
     include: Utils.fieldsToIncludeWithPost,
   });
   let post: Awaited<typeof dbQuery> = null;
@@ -151,12 +151,12 @@ export const findPostByIdOrThrow = async (id: string, authorId?: string) => {
     if (!(error instanceof AppError.AppInvalidIdError)) throw error;
   }
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
-  return (await preparePosts([post]))[0];
+  return (await preparePosts([post], userId))[0];
 };
 
-export const _findPostWithAggregationOrThrow = async (id: string, authorId?: string) => {
+export const _findPostWithAggregationOrThrow = async (id: string, userId?: string) => {
   const dbQuery = db.post.findUnique({
-    where: { id, ...getPrivatePostProtectionArgs(authorId) },
+    where: { id, ...getPrivatePostProtectionArgs(userId) },
     include: {
       ...Utils.fieldsToIncludeWithPost,
       image: {
@@ -167,7 +167,7 @@ export const _findPostWithAggregationOrThrow = async (id: string, authorId?: str
   });
   const post = await Utils.handleDBKnownErrors(dbQuery);
   if (!post) throw new AppError.AppNotFoundError('Post Not Found');
-  return (await preparePosts([post]))[0];
+  return (await preparePosts([post], userId))[0];
 };
 
 export type _PostFullData = Awaited<ReturnType<typeof _findPostWithAggregationOrThrow>>;
@@ -366,7 +366,27 @@ const upvoteOrDownvotePost = async (
     uniqueFieldName: 'user_post_vote',
   };
   const votedPost = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
-  return (await preparePosts([votedPost], userId))[0];
+  const preparedPost = (await preparePosts([votedPost], userId))[0];
+  try {
+    if (votedPost.author.profile) {
+      const user = await db.user.findUnique({ where: { id: userId }, include: { profile: true } });
+      if (user && user.profile) {
+        await db.notification.create({
+          data: {
+            profileId: user.profile.id,
+            profileName: user.username,
+            receivers: { create: { profileId: votedPost.author.profile.id } },
+            header: `${user.username} ${action}d your post`,
+            description: votedPost.content,
+            url: `/posts/${votedPost.id}`,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    logger.error('Notification Error', error);
+  }
+  return preparedPost;
 };
 
 export const upvotePost = (postId: string, userId: string) => {
@@ -463,20 +483,46 @@ export const findPostByIdAndCreateComment = async (
   commentAuthorId: string,
   data: Types.NewCommentParsedData,
 ) => {
-  await findPostByIdOrThrow(postId, commentAuthorId);
-  return await Utils.handleDBKnownErrors(
+  const post = await findPostByIdOrThrow(postId, commentAuthorId);
+  const createdComment = await Utils.handleDBKnownErrors(
     db.comment.create({
       data: { ...data, postId, authorId: commentAuthorId },
       include: Utils.fieldsToIncludeWithComment,
     }),
   );
+  try {
+    if (post.author.profile) {
+      const user = await db.user.findUnique({
+        where: { id: commentAuthorId },
+        include: { profile: true },
+      });
+      if (user && user.profile) {
+        await db.notification.create({
+          data: {
+            profileName: user.username,
+            profileId: user.profile.id,
+            receivers: { create: { profileId: post.author.profile.id } },
+            header: `${user.username} commented on your post`,
+            createdAt: createdComment.createdAt,
+            description: createdComment.content,
+            url: `/posts/${post.id}`,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    logger.error('Notification Error', error);
+  }
+  return { createdComment, post };
 };
 
 export const findCommentAndUpdate = async (
+  postId: string,
   commentId: string,
   commentAuthorId: string,
   data: Types.NewCommentParsedData,
 ) => {
+  const post = await findPostByIdOrThrow(postId, commentAuthorId);
   const dbQuery = db.comment.update({
     where: {
       id: commentId,
@@ -486,7 +532,31 @@ export const findCommentAndUpdate = async (
     data,
   });
   const handlerOptions = { notFoundErrMsg: 'Post/Comment Not Found' };
-  return await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+  const updatedComment = await Utils.handleDBKnownErrors(dbQuery, handlerOptions);
+  try {
+    if (post.author.profile) {
+      const user = await db.user.findUnique({
+        where: { id: commentAuthorId },
+        include: { profile: true },
+      });
+      if (user && user.profile) {
+        await db.notification.create({
+          data: {
+            profileName: user.username,
+            profileId: user.profile.id,
+            receivers: { create: { profileId: post.author.profile.id } },
+            header: `${user.username} updated his comment on your post`,
+            createdAt: updatedComment.updatedAt,
+            description: updatedComment.content,
+            url: `/posts/${post.id}`,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    logger.error('Notification Error', error);
+  }
+  return { updatedComment, post };
 };
 
 export const findCommentAndDelete = async (commentId: string, postAuthorId?: string) => {
