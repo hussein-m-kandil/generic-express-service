@@ -4,6 +4,8 @@ A generic Express.js back-end service designed to support multiple front-end app
 
 > Finding a hosting service with a free tier for dynamic deployment is difficult, so I combined the backend of multiple apps in this project to deploy and run it in production for free.
 
+## Data Model
+
 ![Data model diagram](./prisma/prisma-uml_c.png)
 
 ## Apps Consumes This Service
@@ -13,6 +15,7 @@ A generic Express.js back-end service designed to support multiple front-end app
 3. [Odin Blog Viewer](https://github.com/hussein-m-kandil/odin-blog-viewer)
 4. [Odin Where's Waldo](https://github.com/hussein-m-kandil/odin-where-is-waldo)
 5. [Odin Messaging App](https://github.com/hussein-m-kandil/odin-messaging-app)
+6. [Odin-Book](https://github.com/hussein-m-kandil/odin-book)
 
 ## Features
 
